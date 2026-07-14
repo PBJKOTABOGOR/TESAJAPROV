@@ -10178,3 +10178,197 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
   if(type==='ND_PIMPINAN'){title='Nota Dinas Permohonan Pembayaran kepada Ketua Harian';body=`<h1 class="doc-title">NOTA DINAS PERMOHONAN PEMBAYARAN</h1><table class="meta"><tr><td>Kepada Yth</td><td>:</td><td>Ketua Harian PB Porprov</td></tr><tr><td>Dari</td><td>:</td><td>${esc(p.pimpinan_jabatan||p.jabatan_tujuan||'Ketua/Sekretaris Umum')}</td></tr><tr><td>Nomor</td><td>:</td><td>${esc(p.nomor_nd_pimpinan||'-')}</td></tr><tr><td>Tanggal</td><td>:</td><td>${esc(formatDate(p.tanggal_nd_pimpinan)||'-')}</td></tr><tr><td>Sifat</td><td>:</td><td>${esc(p.sifat||'Penting')}</td></tr><tr><td>Lampiran</td><td>:</td><td>${lampCount+1} Lembar (Kwitansi & Berkas Pendukung)</td></tr><tr><td>Perihal</td><td>:</td><td>Permohonan Pembayaran / Pencairan Dana Kegiatan ${esc(p.nama_kegiatan||'-')}</td></tr></table><div class="body"><p>Dengan hormat,</p><p>Sehubungan dengan pelaksanaan program kerja ${esc(p.pimpinan_jabatan||p.jabatan_tujuan||'Ketua/Sekretaris Umum')} pada Bidang/Bagian ${esc(bidangNameText)} PB Kota Bogor Porprov Jawa Barat XV Tahun 2026, khususnya terkait dengan kegiatan ${esc(p.nama_kegiatan||'-')} yang telah/akan dilaksanakan pada:</p><table class="meta"><tr><td>Hari / Tanggal</td><td>:</td><td>${esc(p.hari_tanggal_kegiatan||'-')}</td></tr><tr><td>Tempat</td><td>:</td><td>${esc(p.tempat_kegiatan||'-')}</td></tr></table><p>Maka bersama ini kami ajukan permohonan pembayaran/pencairan dana sebesar <b>${rupiah(amount)}</b> (${esc(terbilang)}) untuk keperluan pos anggaran tersebut.</p><p>Sebagai bahan pertimbangan, bersama Nota Dinas ini kami lampirkan dokumen pendukung yang terdiri dari:</p><ol><li>Nota Dinas Permohonan Pembayaran Kepada Ketua atau Sekretaris Umum</li><li>Dokumen pendukung pelaksanaan kegiatan (bagi yang sifatnya reimbursement)</li><li>Surat Pernyataan Tanggungjawab Mutlak</li><li>Daftar Rekening Penerima</li><li>Kwitansi (bagi yang sifatnya reimbursement)</li><li>Lembar Verifikasi Permohonan Pembayaran yang telah disetujui</li></ol><p>Demikian permohonan ini kami sampaikan. Atas perhatian, arahan, dan persetujuan Bapak kami ucapkan terima kasih.</p></div><div class="sign-right">PB PORPROV JAWA BARAT XV TAHUN 2026<br>${paymentSignatureV138(p.pimpinan_penyetuju,p.pimpinan_jabatan,true)}</div>`;}
   if(type==='SP2'){title='Surat Perintah Pemindahbukuan';const rows=[...rekening].slice(0,5);while(rows.length<5)rows.push({});const total=rekening.reduce((n,x)=>n+toNumber(x.jumlah),0)||amount;body=`<div class="sp2-head"><h3>PANITIA BESAR PEKAN OLAHRAGA PROVINSI JAWA BARAT XV TAHUN 2026</h3><h2>SURAT PERINTAH PEMINDAHBUKUAN</h2><i>Nomor: ${esc(p.nomor_sp2||'-')}</i></div><table class="meta" style="margin-top:25px"><tr><td><b>Kepada Yth</b></td><td>:</td><td>Bendahara Umum PB Porprov</td><td style="width:150px"><b>Tanggal Perintah</b></td><td>:</td><td>${esc(formatDate(p.tanggal_perintah)||'-')}</td></tr><tr><td></td><td></td><td>Di Tempat</td><td><b>Sifat</b></td><td>:</td><td>${esc(p.sifat||'Penting')}</td></tr></table><p>Berdasarkan Nota Dinas Permohonan Pembayaran kepada Ketua Harian nomor ${esc(p.nomor_nd_pimpinan||'-')} tanggal ${esc(formatDate(p.tanggal_nd_pimpinan)||'-')}, dengan ini diperintahkan untuk melakukan pemindahbukuan dari:</p><table class="meta"><tr><td>Nama Rekening</td><td>:</td><td>${esc(p.nama_rekening_sumber||'-')}</td></tr><tr><td>No Rekening</td><td>:</td><td>${esc(p.nomor_rekening_sumber||'-')}</td></tr></table><p>dengan rincian sebagai berikut:</p><table class="sp2-table"><thead><tr><th>No.</th><th>Uraian / Peruntukan Dana</th><th>Nama Rekening Tujuan</th><th>Nomor Rekening Tujuan</th><th>Jumlah (Rp)</th></tr></thead><tbody>${rows.map((x,i)=>`<tr><td class="center">${i+1}</td><td>${esc(x.uraian||'')}</td><td>${esc((x.nama_rekening||'')+(x.nama_bank?' — '+x.nama_bank:''))}</td><td>${esc(x.nomor_rekening||'')}</td><td>${x.jumlah?rupiah(x.jumlah):''}</td></tr>`).join('')}<tr class="sp2-total"><td colspan="4" style="text-align:right">TOTAL JUMLAH PEMINDAHBUKUAN</td><td>${rupiah(total)}</td></tr></tbody></table><p><i>Terbilang: ${esc(numberWordsV138(total))}</i></p><div class="sign-two"><div>Pihak Yang Memerintahkan,<br>${paymentSignatureV138(p.ketua_harian_nama,'Ketua Harian PB Porprov',true)}</div><div>Pihak Yang Menerima Perintah,<br>${paymentSignatureV138(p.bendahara_nama||'[NAMA LENGKAP]','Bendahara Umum PB Porprov',!!p.bendahara_nama)}</div></div>`;}
   const w=window.open('about:blank','_blank');if(!w)return alert('Popup diblokir browser. Izinkan popup untuk mencetak surat.');w.document.open();w.document.write(paymentPrintShellV138(title,body));w.document.close();}
+
+/* =========================================================
+   SIMPROV v139 - Penyempurnaan Pengajuan Pembayaran
+   - Default langsung Buat Pengajuan untuk Bidang/Admin
+   - Validasi pagu rincian dan rekening
+   - Kegiatan yang sudah pernah diajukan tidak ditampilkan lagi
+   - Upload progress 0-100% dan hasil langsung tampil
+   - TTE Bidang + cetak surat berkop SIMPROV
+   - Perbaikan cetak Surat Saya yang menampilkan tag HTML mentah
+   ========================================================= */
+(function(){
+  const PAYMENT_PATCH_VERSION_V139='139.0.0';
+  let paymentUploadBusyV139=false;
+  let paymentUploadPulseV139=null;
+  let paymentPrintContextV139=null;
+
+  function isPaymentCreatorV139(){const r=actualRoleV133();return r==='BIDANG'||r==='ADMIN';}
+  function paymentCurrentActivityV139(){
+    const id=document.getElementById('payActivityV138')?.value||paymentPrefillActivityV138||paymentByIdV138(paymentEditIdV138)?.id_kegiatan||'';
+    return (paymentWorkspaceV138.kegiatan||[]).find(k=>String(k.id_kegiatan)===String(id));
+  }
+  function paymentBudgetV139(){return toNumber(paymentCurrentActivityV139()?.jumlah||0);}
+  function paymentUsedActivityIdsV139(currentPayment){
+    const currentId=String(currentPayment?.id_pengajuan||'');
+    return new Set((paymentWorkspaceV138.pengajuan||[]).filter(p=>String(p.id_pengajuan)!==currentId).map(p=>String(p.id_kegiatan||'')).filter(Boolean));
+  }
+  function paymentAvailableActivitiesV139(currentPayment){
+    const used=paymentUsedActivityIdsV139(currentPayment);
+    return (paymentWorkspaceV138.kegiatan||[]).filter(k=>!used.has(String(k.id_kegiatan))||String(k.id_kegiatan)===String(currentPayment?.id_kegiatan||''));
+  }
+  function paymentAccountTotalV139(){
+    return [...document.querySelectorAll('.payment-account-row-v138')].reduce((n,r)=>n+toNumber(r.querySelector('.pay-acc-amount')?.value),0);
+  }
+  function paymentRincianTotalV139(){
+    return [...document.querySelectorAll('.payment-rincian-row-v138')].reduce((n,r)=>n+toNumber(r.querySelector('.pay-rincian-jumlah')?.value),0);
+  }
+  function paymentSetBudgetMessageV139(){
+    const budget=paymentBudgetV139(),rincian=paymentRincianTotalV139(),rekening=paymentAccountTotalV139();
+    const amount=document.getElementById('payAmountV138'),words=document.getElementById('payTerbilangV138'),acc=document.getElementById('payAccountTotalV139');
+    if(amount)amount.value=Number(rincian).toLocaleString('id-ID');
+    if(words)words.textContent=numberWordsV138(rincian);
+    if(acc)acc.textContent=`Total rekening: ${rupiah(rekening)} dari jumlah pengajuan ${rupiah(rincian)}`;
+    const rinWarn=document.getElementById('payBudgetWarningV139'),accWarn=document.getElementById('payAccountWarningV139');
+    if(rinWarn){
+      if(budget>0&&rincian>budget){rinWarn.textContent=`Jumlah rincian melebihi pagu kegiatan sebesar ${rupiah(rincian-budget)}.`;rinWarn.className='payment-budget-warning-v139 danger';}
+      else{rinWarn.textContent=budget?`Sisa pagu kegiatan setelah pengajuan: ${rupiah(Math.max(0,budget-rincian))}.`:'Pilih kegiatan untuk melihat batas pagu.';rinWarn.className='payment-budget-warning-v139';}
+    }
+    if(accWarn){
+      if(budget>0&&rekening>budget){accWarn.textContent=`Total rekening melebihi pagu kegiatan sebesar ${rupiah(rekening-budget)}.`;accWarn.className='payment-budget-warning-v139 danger';}
+      else if(rekening>rincian&&rincian>0){accWarn.textContent=`Total rekening melebihi jumlah pengajuan sebesar ${rupiah(rekening-rincian)}.`;accWarn.className='payment-budget-warning-v139 danger';}
+      else if(rekening&&rekening!==rincian){accWarn.textContent=`Total rekening harus sama dengan jumlah pengajuan saat akan diajukan. Selisih ${rupiah(Math.abs(rincian-rekening))}.`;accWarn.className='payment-budget-warning-v139 warn';}
+      else{accWarn.textContent=rekening?'Total rekening sudah sesuai dengan jumlah pengajuan.':'Isi minimal satu rekening penerima sebelum TTE dan pengajuan verifikasi.';accWarn.className='payment-budget-warning-v139';}
+    }
+    const saveBtn=document.getElementById('paySaveButtonV139');
+    if(saveBtn){const invalid=!paymentCurrentActivityV139()||(budget>0&&rincian>budget)||(budget>0&&rekening>budget)||(rekening>rincian&&rincian>0);saveBtn.disabled=invalid;}
+  }
+  window.syncPaymentTotalV138=paymentSetBudgetMessageV139;
+  window.syncPaymentAccountTotalV139=paymentSetBudgetMessageV139;
+
+  paymentRincianRowsHtmlV138=function(rows){
+    rows=rows?.length?rows:[{uraian:'',jumlah:0}];
+    return rows.map(x=>`<div class="payment-row-v138 payment-rincian-row-v138"><input class="pay-rincian-uraian" value="${esc(x.uraian||'')}" placeholder="Contoh: Konsumsi rapat koordinasi"><input class="pay-rincian-jumlah" inputmode="numeric" value="${toNumber(x.jumlah)?Number(toNumber(x.jumlah)).toLocaleString('id-ID'):''}" oninput="onRupiahInputV96(this);syncPaymentTotalV138()" placeholder="Jumlah (Rp)"><button type="button" class="btn-danger" onclick="this.parentElement.remove();syncPaymentTotalV138()">Hapus</button></div>`).join('');
+  };
+  paymentAccountRowsHtmlV138=function(rows){
+    rows=rows?.length?rows:[{uraian:'',nama_rekening:'',nama_bank:'',nomor_rekening:'',jumlah:0}];
+    return rows.map(x=>`<div class="payment-account-row-v138"><input class="pay-acc-uraian" value="${esc(x.uraian||'')}" placeholder="Uraian/peruntukan"><input class="pay-acc-name" value="${esc(x.nama_rekening||'')}" placeholder="Nama rekening tujuan"><input class="pay-acc-bank" value="${esc(x.nama_bank||'')}" placeholder="Nama bank"><input class="pay-acc-number" value="${esc(x.nomor_rekening||'')}" placeholder="Nomor rekening"><input class="pay-acc-amount" inputmode="numeric" value="${toNumber(x.jumlah)?Number(toNumber(x.jumlah)).toLocaleString('id-ID'):''}" oninput="onRupiahInputV96(this);syncPaymentAccountTotalV139()" placeholder="Jumlah (Rp)"><button type="button" class="btn-danger" onclick="this.parentElement.remove();syncPaymentAccountTotalV139()">Hapus</button></div>`).join('');
+  };
+
+  function paymentNoActivityInfoV139(){
+    return `<div class="payment-empty-activity-v139"><b>Belum ada kegiatan yang dapat dipilih.</b><span>Kegiatan yang sudah pernah dibuatkan pengajuan pembayaran tidak ditampilkan kembali. Pastikan kegiatan lain sudah disetujui dan dokumen proses PBJ telah valid.</span></div>`;
+  }
+
+  paymentFormV138=function(){
+    const p=paymentByIdV138(paymentEditIdV138),allActivities=paymentWorkspaceV138.kegiatan||[],activities=paymentAvailableActivitiesV139(p),selected=p?.id_kegiatan||paymentPrefillActivityV138||'',act=allActivities.find(x=>String(x.id_kegiatan)===String(selected)),rincian=parseJsonV138(p?.rincian_json),rekening=parseJsonV138(p?.rekening_json),today=new Date().toISOString().slice(0,10),amount=toNumber(p?.jumlah_pengajuan||0),budget=toNumber(act?.jumlah||0);
+    const opts=activities.map(k=>`<option value="${esc(k.id_kegiatan)}" ${String(k.id_kegiatan)===String(selected)?'selected':''} ${!k.payment_ready&&!p?'disabled':''}>${esc(k.nama_kegiatan)} — ${rupiah(k.jumlah)}${k.payment_ready?'':' (belum siap)'}</option>`).join('');
+    const noActivity=!activities.length&&!p;
+    return `<section class="panel premium-panel payment-form-v138"><div class="panel-title-row"><div><h3>${p?'Edit Pengajuan Pembayaran':'Buat Pengajuan Pembayaran'}</h3><p class="panel-sub">Surat dan lembar verifikasi dibuat otomatis mengikuti template yang diberikan.</p></div>${p?'<button class="btn-soft" onclick="closePaymentFormV138()">Kembali ke Daftar</button>':''}</div>${noActivity?paymentNoActivityInfoV139():''}<div class="form-grid"><div class="field span-2"><label>Kegiatan *</label><select id="payActivityV138" ${p?'disabled':''} onchange="paymentPrefillActivityV138=this.value;renderPaymentWorkspaceV138()"><option value="">Pilih kegiatan</option>${opts}</select>${act?`<div class="payment-budget-card-v139"><span>Pagu kegiatan</span><b>${rupiah(budget)}</b><small>${act.payment_ready?'Siap dibuatkan pengajuan pembayaran':esc(act.payment_reason||'Belum siap')}</small></div>`:''}${act&&!act.payment_ready?`<small class="error">${esc(act.payment_reason)}</small>`:''}</div><div class="field"><label>Nomor Nota Dinas Bidang *</label><input id="payNdNoV138" value="${esc(p?.nomor_nd_bidang||'')}" placeholder=".../ND-.../PB-PORPROV/.../2026"></div><div class="field"><label>Tanggal Nota Dinas *</label><input id="payNdDateV138" type="date" value="${esc(paymentDateInputV138(p?.tanggal_nd_bidang)||today)}"></div><div class="field"><label>Sifat</label><select id="paySifatV138"><option ${String(p?.sifat||'PENTING').toUpperCase()==='PENTING'?'selected':''}>PENTING</option><option ${String(p?.sifat).toUpperCase()==='SEGERA'?'selected':''}>SEGERA</option></select></div><div class="field"><label>Nomor SPTJM *</label><input id="paySptjmNoV138" value="${esc(p?.nomor_sptjm||'')}" placeholder="Nomor SPTJM"></div><div class="field"><label>Hari/Tanggal Kegiatan *</label><input id="payEventDateV138" value="${esc(p?.hari_tanggal_kegiatan||'')}" placeholder="Contoh: Senin, 14 Juli 2026"></div><div class="field"><label>Tempat Kegiatan *</label><input id="payPlaceV138" value="${esc(p?.tempat_kegiatan||'')}" placeholder="Lokasi kegiatan"></div><div class="field"><label>Nama Penandatangan Bidang *</label><input id="paySignerNameV138" value="${esc(p?.nama_pengaju||currentUser?.nama||'')}" placeholder="Nama lengkap"></div><div class="field"><label>Jabatan Penandatangan *</label><input id="paySignerRoleV138" value="${esc(p?.jabatan_pengaju||'Kepala Bidang/Bagian')}" placeholder="Kepala Bidang/Bagian"></div><div class="field span-2"><label><input id="payReimburseV138" type="checkbox" ${String(p?.reimbursement)==='1'?'checked':''}> Pembayaran bersifat reimbursement (Kuitansi/Tanda Terima menjadi wajib)</label></div></div><div class="payment-section-v138"><div class="panel-title-row"><div><h4>Rincian Penggunaan Anggaran</h4><p class="panel-sub">Masukkan seluruh rincian belanja yang diajukan. Jumlah rincian dihitung otomatis dan tidak boleh melebihi pagu kegiatan ${budget?rupiah(budget):''}.</p></div><button class="btn-soft" type="button" onclick="document.getElementById('payRincianRowsV138').insertAdjacentHTML('beforeend',paymentRincianRowsHtmlV138([{uraian:'',jumlah:0}]));syncPaymentTotalV138()">Tambah Rincian</button></div><div id="payRincianRowsV138">${paymentRincianRowsHtmlV138(rincian)}</div><div class="payment-total-v138"><span>Jumlah Pengajuan</span><input id="payAmountV138" value="${amount?Number(amount).toLocaleString('id-ID'):''}" readonly><small id="payTerbilangV138">${esc(p?.terbilang||numberWordsV138(amount))}</small></div><div id="payBudgetWarningV139" class="payment-budget-warning-v139"></div></div><div class="payment-section-v138"><div class="panel-title-row"><div><h4>Rekening Tujuan untuk Surat Perintah Pemindahbukuan</h4><p class="panel-sub">Masukkan rekening setiap penerima. Total seluruh rekening harus sama dengan jumlah pengajuan dan tidak boleh melebihi pagu kegiatan.</p></div><button class="btn-soft" type="button" onclick="document.getElementById('payAccountRowsV138').insertAdjacentHTML('beforeend',paymentAccountRowsHtmlV138([{uraian:'',nama_rekening:'',nama_bank:'',nomor_rekening:'',jumlah:0}]));syncPaymentAccountTotalV139()">Tambah Rekening</button></div><div id="payAccountRowsV138">${paymentAccountRowsHtmlV138(rekening)}</div><div id="payAccountTotalV139" class="payment-account-total-v139">Total rekening: ${rupiah(paymentTotalRincianV138(rekening))}</div><div id="payAccountWarningV139" class="payment-budget-warning-v139"></div></div><div class="action-group"><button id="paySaveButtonV139" class="btn-green" onclick="savePaymentDraftV138()" ${noActivity?'disabled':''}>${p?'Simpan Perubahan':'Simpan & Buat'}</button>${p?`<button class="btn-danger" onclick="deletePaymentV138('${esc(p.id_pengajuan)}')">Hapus Pengajuan</button>`:''}</div></section>${p?`<section class="panel premium-panel"><div class="panel-title-row"><div><h3>Dokumen Pendukung</h3><p class="panel-sub">Maksimal 2 MB per file. Dokumen yang berhasil diunggah langsung tampil pada kolom Dokumen Asli.</p></div><button id="payUploadButtonV139" class="btn-green" onclick="uploadPaymentDocsV138('${esc(p.id_pengajuan)}')">Upload Dokumen Terpilih</button></div><div class="table-wrap"><table><thead><tr><th>Jenis Dokumen</th><th>Dokumen Asli</th><th>Pilih File</th></tr></thead><tbody>${paymentUploadRowsV138(p)}</tbody></table></div><div class="payment-generated-box-v138"><h4>Dokumen yang Dibuat Sistem</h4>${paymentGeneratedButtonsV138(p)}</div><div class="action-group"><button class="btn-green payment-tte-submit-v139" onclick="submitPaymentV138('${esc(p.id_pengajuan)}')">TTE &amp; Ajukan Verifikasi</button></div></section>`:''}`;
+  };
+
+  function paymentValidationV139(data){
+    const act=(paymentWorkspaceV138.kegiatan||[]).find(k=>String(k.id_kegiatan)===String(data.id_kegiatan)),budget=toNumber(act?.jumlah||0),rincianTotal=paymentTotalRincianV138(data.rincian),rekeningTotal=paymentTotalRincianV138(data.rekening);
+    if(!data.id_kegiatan)return 'Pilih kegiatan terlebih dahulu.';
+    if(!data.rincian.length)return 'Isi minimal satu rincian penggunaan anggaran.';
+    if(budget>0&&rincianTotal>budget)return `Jumlah pengajuan ${rupiah(rincianTotal)} melebihi pagu kegiatan ${rupiah(budget)}.`;
+    if(budget>0&&rekeningTotal>budget)return `Total rekening tujuan ${rupiah(rekeningTotal)} melebihi pagu kegiatan ${rupiah(budget)}.`;
+    if(rekeningTotal>rincianTotal)return `Total rekening tujuan ${rupiah(rekeningTotal)} tidak boleh melebihi jumlah pengajuan ${rupiah(rincianTotal)}.`;
+    if(data.rekening.length&&!data.rekening.every(x=>x.uraian&&x.nama_rekening&&x.nama_bank&&x.nomor_rekening&&x.jumlah>0))return 'Lengkapi seluruh data rekening tujuan atau hapus baris yang belum digunakan.';
+    return '';
+  }
+
+  async function savePaymentCoreV139({silent=false}={}){
+    const data=collectPaymentFormV138(),err=paymentValidationV139(data);if(err){if(!silent)alert(err);throw new Error(err);}
+    if(!silent){const ok=await confirmActionV133({title:paymentEditIdV138?'Simpan Perubahan Pengajuan':'Simpan & Buat Pengajuan',message:paymentEditIdV138?'Perubahan data pengajuan akan disimpan.':'Data Nota Dinas, SPTJM, rincian anggaran, dan rekening tujuan akan dibuat sebagai pengajuan yang masih dapat dilengkapi sebelum TTE.',confirmText:paymentEditIdV138?'Ya, Simpan Perubahan':'Ya, Simpan & Buat'});if(!ok)return null;showLoading(paymentEditIdV138?'Menyimpan perubahan...':'Membuat pengajuan pembayaran...');}
+    try{
+      const r=await apiPost({action:'savePaymentDraftV138',user:currentUser,data});if(!r.success)throw new Error(r.message||'Gagal menyimpan pengajuan');
+      paymentEditIdV138=r.id_pengajuan;paymentPrefillActivityV138=data.id_kegiatan;
+      if(r.pengajuan){const other=(paymentWorkspaceV138.pengajuan||[]).filter(x=>String(x.id_pengajuan)!==String(r.id_pengajuan));paymentWorkspaceV138.pengajuan=[...other,r.pengajuan];}
+      paymentTabV138='FORM';renderPaymentWorkspaceV138();
+      if(!silent)alert(r.message||'Pengajuan berhasil dibuat. Silakan unggah dokumen pendukung.');
+      return r.id_pengajuan;
+    }catch(e){if(!silent)alert(e.message||String(e));throw e;}finally{if(!silent)hideLoading();}
+  }
+  savePaymentDraftV138=async function(){try{await savePaymentCoreV139({silent:false});}catch(e){}};
+
+  function paymentEnsureProgressV139(){
+    const overlay=document.getElementById('loadingOverlay'),card=overlay?.querySelector('.loader-card');if(!overlay||!card)return null;
+    let wrap=document.getElementById('loadingProgressWrap');if(!wrap){wrap=document.createElement('div');wrap.id='loadingProgressWrap';wrap.className='loading-progress-wrap';wrap.innerHTML='<div class="loading-progress-head"><span id="loadingProgressDetail">Menyiapkan proses...</span><b id="loadingProgressPercent">0%</b></div><div class="loading-progress-track"><i id="loadingProgressBar" style="width:0%"></i></div>';card.appendChild(wrap);}wrap.classList.remove('hidden');return wrap;
+  }
+  function paymentSetProgressV139(percent,detail){
+    paymentEnsureProgressV139();const p=Math.max(0,Math.min(100,Math.round(percent||0))),bar=document.getElementById('loadingProgressBar'),pct=document.getElementById('loadingProgressPercent'),det=document.getElementById('loadingProgressDetail');if(bar)bar.style.width=p+'%';if(pct)pct.textContent=p+'%';if(det)det.textContent=detail||'';
+  }
+  function paymentStartPulseV139(){let p=36;clearInterval(paymentUploadPulseV139);paymentUploadPulseV139=setInterval(()=>{p=Math.min(91,p+(p<65?2:1));paymentSetProgressV139(p,'Mengirim dan menyimpan dokumen ke Google Drive...');},420);}
+  function paymentStopPulseV139(){if(paymentUploadPulseV139){clearInterval(paymentUploadPulseV139);paymentUploadPulseV139=null;}}
+
+  uploadPaymentDocsV138=async function(id){
+    if(paymentUploadBusyV139)return alert('Upload masih berjalan. Tunggu sampai proses selesai.');
+    const inputs=[...document.querySelectorAll('.payment-file-v138')].filter(x=>x.files?.length);if(!inputs.length)return alert('Pilih minimal satu file.');
+    const totalBytes=inputs.reduce((n,x)=>n+(x.files?.[0]?.size||0),0);if(totalBytes>12*1024*1024)return alert('Total ukuran dokumen maksimal 12 MB dalam satu proses.');
+    paymentUploadBusyV139=true;const btn=document.getElementById('payUploadButtonV139');if(btn)btn.disabled=true;
+    showLoading('Upload dokumen pendukung...');document.getElementById('loadingOverlay')?.classList.add('upload-mode-v135');paymentSetProgressV139(0,`Menyiapkan 0/${inputs.length} dokumen`);
+    try{
+      const docs=[];for(let i=0;i<inputs.length;i++){const inp=inputs[i],file=inp.files[0];if(file.size>MAX_UPLOAD_BYTES_V133)throw new Error(`${file.name} melebihi 2 MB`);const base64=await fileToBase64(file);docs.push({jenis_dokumen:inp.dataset.jenis,file_name:file.name,mime_type:file.type,file_base64:base64});paymentSetProgressV139(Math.round(((i+1)/inputs.length)*30),`Membaca ${i+1}/${inputs.length}: ${file.name}`);}
+      paymentSetProgressV139(35,`Mengunggah 0/${docs.length} dokumen`);paymentStartPulseV139();
+      const r=await apiPost({action:'uploadPaymentDocsBatchV138',user:currentUser,id_pengajuan:id,dokumen:docs});paymentStopPulseV139();if(!r.success)throw new Error(r.message||'Gagal upload');
+      if(Array.isArray(r.dokumen)){const other=(paymentWorkspaceV138.dokumen||[]).filter(d=>String(d.id_pengajuan)!==String(id));paymentWorkspaceV138.dokumen=[...other,...r.dokumen];}
+      paymentSetProgressV139(100,`${docs.length}/${docs.length} dokumen berhasil diunggah`);paymentTabV138='FORM';paymentEditIdV138=id;renderPaymentWorkspaceV138();await new Promise(res=>setTimeout(res,350));hideLoading();alert(r.message||`${docs.length} dokumen berhasil diunggah`);
+    }catch(e){paymentStopPulseV139();hideLoading();alert(e.message||String(e));}
+    finally{paymentUploadBusyV139=false;if(btn)btn.disabled=false;document.getElementById('loadingOverlay')?.classList.remove('upload-mode-v135');}
+  };
+
+  submitPaymentV138=async function(id){
+    try{id=await savePaymentCoreV139({silent:true})||id;}catch(e){return alert(e.message||String(e));}
+    const p=paymentByIdV138(id),missing=paymentRequiredDocsV138(p).filter(j=>!paymentDocV138(p,j));if(missing.length)return alert('Dokumen wajib belum lengkap:\n- '+missing.join('\n- '));
+    const data=collectPaymentFormV138(),rekeningTotal=paymentTotalRincianV138(data.rekening);if(!data.rekening.length)return alert('Isi minimal satu rekening penerima.');if(Math.abs(rekeningTotal-data.jumlah_pengajuan)>0.5)return alert(`Total rekening tujuan harus sama dengan jumlah pengajuan. Selisih ${rupiah(Math.abs(rekeningTotal-data.jumlah_pengajuan))}.`);
+    const ok=await confirmActionV133({title:'TTE & Ajukan Verifikasi',message:'Nota Dinas Bidang dan SPTJM akan ditandatangani secara elektronik atas nama penandatangan bidang, kemudian seluruh pengajuan dikirim kepada Verifikator Keuangan. Pastikan data dan dokumen sudah benar.',confirmText:'Ya, TTE & Ajukan'});if(!ok)return;
+    showLoading('Menandatangani dan mengajukan verifikasi...');try{const r=await apiPost({action:'submitPaymentV138',user:currentUser,id_pengajuan:id});if(!r.success)throw new Error(r.message||'Gagal mengajukan');await loadPaymentWorkspaceV138(true);paymentTabV138='DAFTAR';renderPaymentWorkspaceV138();alert(r.message||'Pengajuan berhasil ditandatangani dan dikirim ke Verifikator Keuangan.');}catch(e){alert(e.message||String(e));}finally{hideLoading();}
+  };
+
+  paymentActionButtonsV138=function(p){
+    const role=actualRoleV133(),s=String(p.status_pengajuan||'').toUpperCase(),out=[];
+    if((role==='BIDANG'||role==='ADMIN')&&['DRAFT','PERBAIKAN BIDANG'].includes(s)){out.push(`<button onclick="openPaymentFormV138('${esc(p.id_pengajuan)}')">Edit & Lengkapi</button>`,`<button class="btn-green" onclick="openPaymentFormV138('${esc(p.id_pengajuan)}')">TTE & Ajukan Verifikasi</button>`,`<button class="btn-danger" onclick="deletePaymentV138('${esc(p.id_pengajuan)}')">Hapus Pengajuan</button>`);}
+    if((role==='VERIFIKATOR_KEUANGAN'||role==='ADMIN')&&s==='MENUNGGU VERIFIKASI KEUANGAN')out.push(`<button class="btn-danger" onclick="verifyPaymentV138('${esc(p.id_pengajuan)}','KEMBALIKAN')">Kembalikan</button>`,`<button class="btn-green" onclick="verifyPaymentV138('${esc(p.id_pengajuan)}','VALID')">Berkas Lengkap & Sah</button>`);
+    if((role==='PIMPINAN'||role==='ADMIN')&&s==='MENUNGGU PERSETUJUAN PIMPINAN')out.push(`<button class="btn-danger" onclick="approvePaymentModalV138('${esc(p.id_pengajuan)}','KEMBALIKAN')">Kembalikan</button>`,`<button class="btn-green" onclick="approvePaymentModalV138('${esc(p.id_pengajuan)}','SETUJUI')">Setujui & Buat Nota Dinas</button>`);
+    if((role==='PIMPINAN'||role==='ADMIN')&&s==='MENUNGGU PERINTAH KETUA HARIAN')out.push(`<button class="btn-green" onclick="issueSP2ModalV138('${esc(p.id_pengajuan)}')">Terbitkan Surat Perintah Pemindahbukuan</button>`);
+    if((role==='BENDAHARA'||role==='ADMIN')&&s==='MENUNGGU PEMBAYARAN BENDAHARA')out.push(`<button class="btn-green" onclick="completePaymentModalV138('${esc(p.id_pengajuan)}')">Catat Pembayaran</button>`);
+    return `<div class="action-group payment-actions-v138">${out.join('')}</div>`;
+  };
+
+  window.openPaymentWorkspaceV139=function(tab){
+    suratTabV133='PEMBAYARAN';paymentEditIdV138='';paymentPrefillActivityV138='';paymentTabV138=tab||(isPaymentCreatorV139()?'FORM':'DAFTAR');renderSuratV133();if(!paymentWorkspaceV138.loaded)loadPaymentWorkspaceV138(false);
+  };
+  const renderSuratBeforeV139=renderSuratV133;
+  renderSuratV133=function(){
+    if(suratTabV133==='PEMBAYARAN'){renderPaymentWorkspaceV138();if(!paymentWorkspaceV138.loaded)loadPaymentWorkspaceV138(false);return;}
+    renderSuratBeforeV139();const btn=document.querySelector('.payment-tab-btn-v138');if(btn){btn.setAttribute('onclick',"openPaymentWorkspaceV139()");btn.textContent='Pengajuan Pembayaran';}
+  };
+
+  renderPaymentWorkspaceV138=function(){
+    const area=document.getElementById('contentArea');if(!area)return;if(!paymentWorkspaceV138.loaded){area.innerHTML='<section class="panel premium-panel"><h3>Pengajuan Pembayaran</h3><div class="skeleton-v133"></div><div class="skeleton-v133 short"></div></section>';if(!paymentWorkspaceV138.loading)loadPaymentWorkspaceV138(false);return;}
+    const canCreate=isPaymentCreatorV139();if(paymentTabV138==='FORM'&&!canCreate)paymentTabV138='DAFTAR';
+    area.innerHTML=`<div class="payment-page-v138"><section class="panel premium-panel payment-head-v138"><div class="panel-title-row"><div><h3>Pengajuan Pembayaran</h3><p class="panel-sub">Nota Dinas, SPTJM, Lembar Verifikasi, Nota Dinas kepada Ketua Harian, dan Surat Perintah Pemindahbukuan dibuat langsung di SIMPROV.</p></div></div><div class="surat-tabs-v133 payment-tabs-v139"><button onclick="suratTabV133='BUAT';renderSuratV133()">Nota Dinas Umum</button><button onclick="suratTabV133='MASUK';renderSuratV133()">Surat Masuk</button><button class="${paymentTabV138==='DAFTAR'?'active':''}" onclick="setPaymentTabV138('DAFTAR')">Pengajuan Pembayaran</button>${canCreate?`<button class="${paymentTabV138==='FORM'?'active':''}" onclick="openPaymentFormV138()">Buat Pengajuan</button>`:''}</div></section><section class="payment-sop-note-v138"><b>Pedoman SOP:</b> Bidang membuat Nota Dinas dan SPTJM → Verifikator Keuangan membuat Lembar Verifikasi → Ketua/Sekretaris Umum menyetujui dan membuat Nota Dinas kepada Ketua Harian → Ketua Harian menerbitkan SP2 → Bendahara membayar.</section>${paymentTabV138==='FORM'?paymentFormV138():paymentListV138()}<div id="paymentActionModalHostV138"></div></div>`;setTimeout(paymentSetBudgetMessageV139,0);
+  };
+
+  function simprovLogoUrlV139(){try{return new URL('logo-siporbo.png',window.location.href).href;}catch(e){return 'logo-siporbo.png';}}
+  function simprovPrintHeaderV139(){return `<header class="simprov-print-head-v139"><img src="${esc(simprovLogoUrlV139())}" alt="Logo SIMPROV"><div><b>SIMPROV</b><span>Sistem Informasi Monitoring Persiapan PORPROV Kota Bogor</span><small>Dokumen resmi dibuat dan tercatat melalui SIMPROV</small></div></header>`;}
+
+  paymentPrintShellV138=function(title,body){return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:14mm 18mm 17mm}*{box-sizing:border-box}body{font-family:'Times New Roman',serif;color:#000;font-size:11pt;line-height:1.35;margin:0}.toolbar{position:sticky;top:0;z-index:9;background:#edf7ff;padding:10px;text-align:right}.toolbar button{padding:8px 13px;margin-left:6px;border:1px solid #9bbad0;border-radius:7px;background:white;font-weight:bold}.doc{max-width:180mm;margin:auto}.simprov-print-head-v139{display:flex;align-items:center;gap:13px;border-bottom:3px solid #174a79;padding:0 0 9px;margin-bottom:18px;color:#123e67}.simprov-print-head-v139 img{width:45px;height:45px;object-fit:contain}.simprov-print-head-v139 div{display:flex;flex-direction:column}.simprov-print-head-v139 b{font-family:Arial,sans-serif;font-size:18pt;line-height:1}.simprov-print-head-v139 span{font-family:Arial,sans-serif;font-size:9.5pt;font-weight:bold;margin-top:3px}.simprov-print-head-v139 small{font-family:Arial,sans-serif;font-size:7.5pt;margin-top:2px}.doc-title{text-align:center;text-decoration:underline;font-size:13pt;font-weight:bold;margin:0 0 20px}.kop{display:none}.meta{width:100%;border-collapse:collapse;margin-bottom:15px}.meta td{padding:1px 3px;vertical-align:top}.meta td:first-child{width:115px}.meta td:nth-child(2){width:12px}.body{text-align:justify}.body p{margin:0 0 8px}.simple-table,.check-table,.sp2-table{width:100%;border-collapse:collapse;margin:10px 0}.simple-table th,.simple-table td,.check-table th,.check-table td,.sp2-table th,.sp2-table td{border:1px solid #000;padding:5px;vertical-align:top}.simple-table th,.check-table th{text-align:center}.sp2-table th{background:#1f416d;color:#fff;text-align:center}.sign-right{width:310px;margin:35px 0 0 auto;text-align:center}.sign-two{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:35px;text-align:center}.sign-space{height:58px}.tte{font-size:9pt;color:#1d5f89}.tte-box-v139{display:inline-block;border:1px dashed #1e6e9d;border-radius:8px;padding:5px 9px;color:#155f8c;font-family:Arial,sans-serif;font-size:8.5pt;font-weight:bold;margin:4px 0}.tte-time-v139{display:block;font-size:7.5pt;font-weight:normal;margin-top:2px}.tte-pending-v139{font-size:8pt;color:#777;margin:4px 0}.page-break{page-break-before:always}.doc-links a{color:#000;text-decoration:underline}.small{font-size:9pt}.center{text-align:center}.sp2-head{text-align:center}.sp2-total{font-weight:bold;background:#dff9f5}.nowrap{white-space:nowrap}@media print{.toolbar{display:none}.doc{max-width:none}}</style></head><body><div class="toolbar"><button onclick="window.close()">Tutup</button><button onclick="window.print()">Cetak / Simpan PDF</button></div><main class="doc">${simprovPrintHeaderV139()}${body}</main></body></html>`;};
+
+  const paymentSignatureBeforeV139=paymentSignatureV138;
+  paymentSignatureV138=function(name,role,signed=true){
+    const ctx=paymentPrintContextV139,p=ctx?.p||{},isBidangDoc=['ND_BIDANG','SPTJM'].includes(ctx?.type)&&String(name||'')===String(p.nama_pengaju||'');
+    const validSigned=isBidangDoc?!!p.tte_bidang_oleh:!!signed,who=isBidangDoc?(p.tte_bidang_oleh||name):name,when=isBidangDoc?(p.tte_bidang_waktu||''):'';
+    return `<div>${esc(role||'')}<div class="sign-space"></div>${validSigned?`<div class="tte-box-v139">TTE SIMPROV${when?`<span class="tte-time-v139">${esc(formatDate(when)||when)}</span>`:''}</div>`:'<div class="tte-pending-v139">Belum ditandatangani elektronik</div>'}<br><b>${esc(who||'[NAMA LENGKAP]')}</b></div>`;
+  };
+  const printPaymentBeforeV139=printPaymentDocV138;
+  printPaymentDocV138=function(id,type){paymentPrintContextV139={p:paymentByIdV138(id),type};try{return printPaymentBeforeV139(id,type);}finally{setTimeout(()=>{paymentPrintContextV139=null;},0);}};
+
+  function decodeSuratHtmlV139(raw){
+    let s=String(raw||'');for(let i=0;i<3;i++){const ta=document.createElement('textarea');ta.innerHTML=s;const d=ta.value;if(d===s)break;s=d;}
+    if(!/[<>]/.test(s))return `<p>${esc(s).replace(/\n/g,'<br>')}</p>`;
+    const parsed=new DOMParser().parseFromString(`<div id="suratRootV139">${s}</div>`,'text/html'),root=parsed.getElementById('suratRootV139');if(!root)return `<p>${esc(s)}</p>`;
+    root.querySelectorAll('script,style,iframe,object,embed,form,input,button').forEach(x=>x.remove());
+    root.querySelectorAll('*').forEach(el=>{[...el.attributes].forEach(a=>{const n=a.name.toLowerCase();if(n.startsWith('on')||n.startsWith('data-')||n==='id'||n==='class'||n==='role'||n.startsWith('aria-'))el.removeAttribute(a.name);});if(el.hasAttribute('style')){const st=el.style,keep=[];['textAlign','fontWeight','fontStyle','textDecoration','marginLeft'].forEach(k=>{if(st[k])keep.push(k.replace(/[A-Z]/g,m=>'-'+m.toLowerCase())+':'+st[k]);});if(keep.length)el.setAttribute('style',keep.join(';'));else el.removeAttribute('style');}});
+    return root.innerHTML||'<p>-</p>';
+  }
+  printNotaDinasV133=function(id){
+    const s=(suratWorkspaceV133?.surat||[]).find(x=>String(x.id_surat)===String(id));if(!s)return alert('Surat tidak ditemukan.');const w=window.open('about:blank','_blank');if(!w)return alert('Popup diblokir browser. Izinkan popup untuk mencetak surat.');
+    const body=decodeSuratHtmlV139(s.isi_ringkas||'<p>-</p>'),tujuan=s.tujuan_role==='BIDANG'?(suratWorkspaceV133?.bidangs||[]).find(b=>String(b.id_bidang)===String(s.tujuan_bidang))?.nama_bidang||s.tujuan_bidang||'-':(s.tujuan_role||'Pimpinan'),senderName=s.pengirim_ttd_nama||s.asal_nama||'-',signed=!!(s.pengirim_ttd_digital||s.tanggal_diajukan||String(s.status_surat||'').toUpperCase()!=='DRAFT'),attachment=s.url_file?`<p class="attachment"><b>Lampiran:</b> <a href="${esc(s.url_file)}" target="_blank" rel="noopener">Buka Dokumen Asli — ${esc(s.nama_file||'Lampiran')}</a></p>`:'';
+    const approval=s.persetujuan_digital?`<div class="sign-box"><b>Mengetahui / Menyetujui</b><div class="sign-space"></div><div class="tte-box-v139">TTE SIMPROV</div><br><b>${esc(s.disetujui_oleh||'Pimpinan')}</b><small>${esc(s.persetujuan_digital)}</small></div>`:'';
+    w.document.open();w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Nota Dinas ${esc(s.nomor_surat||'')}</title><style>@page{size:A4;margin:14mm 18mm 17mm}*{box-sizing:border-box}body{font-family:'Times New Roman',serif;font-size:11pt;line-height:1.45;color:#000;margin:0}.toolbar{position:sticky;top:0;z-index:5;background:#eef7ff;padding:10px;text-align:right}.toolbar button{margin-left:6px;padding:8px 12px;border:1px solid #bdd3e2;border-radius:8px;background:white;font-weight:bold}.sheet{max-width:180mm;margin:auto}.simprov-print-head-v139{display:flex;align-items:center;gap:13px;border-bottom:3px solid #174a79;padding:0 0 9px;margin-bottom:18px;color:#123e67}.simprov-print-head-v139 img{width:45px;height:45px;object-fit:contain}.simprov-print-head-v139 div{display:flex;flex-direction:column}.simprov-print-head-v139 b{font-family:Arial,sans-serif;font-size:18pt;line-height:1}.simprov-print-head-v139 span{font-family:Arial,sans-serif;font-size:9.5pt;font-weight:bold;margin-top:3px}.simprov-print-head-v139 small{font-family:Arial,sans-serif;font-size:7.5pt;margin-top:2px}.title{text-align:center;text-decoration:underline;font-weight:bold;font-size:14pt;margin:0 0 20px}.meta{width:100%;border-collapse:collapse;margin:16px 0}.meta td{vertical-align:top;padding:2px}.meta td:first-child{width:110px}.meta td:nth-child(2){width:12px}.isi{text-align:justify}.isi p{margin:0 0 9px}.isi ol,.isi ul{margin:0 0 9px 25px}.attachment{margin-top:20px;padding:12px;border:1px solid #bbb;border-radius:8px}.ttd-row{display:grid;grid-template-columns:${approval?'1fr 1fr':'1fr'};gap:50px;margin-top:35px}.sign-box{text-align:center;${approval?'':'max-width:310px;margin-left:auto'}}.sign-space{height:58px}.tte-box-v139{display:inline-block;border:1px dashed #1e6e9d;border-radius:8px;padding:5px 9px;color:#155f8c;font-family:Arial,sans-serif;font-size:8.5pt;font-weight:bold;margin:4px 0}.sign-box small{display:block;color:#386883;font-size:8pt;margin-top:4px}.footer{margin-top:28px;color:#607080;font-size:8.5pt}@media print{.toolbar{display:none}.sheet{max-width:none}}</style></head><body><div class="toolbar"><button onclick="window.close()">Tutup</button><button onclick="window.print()">Cetak / Simpan PDF</button></div><main class="sheet">${simprovPrintHeaderV139()}<div class="title">NOTA DINAS</div><table class="meta"><tr><td>Kepada Yth</td><td>:</td><td>${esc(tujuan)}</td></tr><tr><td>Dari</td><td>:</td><td>${esc(s.asal_nama||'-')}${s.asal_bidang?` (${esc(bidangName(s.asal_bidang)||s.asal_bidang)})`:''}</td></tr><tr><td>Nomor</td><td>:</td><td>${esc(s.nomor_surat||'-')}</td></tr><tr><td>Tanggal</td><td>:</td><td>${esc(formatDate(s.tanggal_surat)||'-')}</td></tr><tr><td>Sifat</td><td>:</td><td>${esc(s.sifat||'PENTING')}</td></tr><tr><td>Perihal</td><td>:</td><td>${esc(s.perihal||'-')}</td></tr></table><div class="isi">${body}</div>${attachment}<div class="ttd-row">${approval}<div class="sign-box"><b>Pengirim</b><div class="sign-space"></div>${signed?'<div class="tte-box-v139">TTE SIMPROV</div><br>':''}<b>${esc(senderName)}</b><small>${esc(s.pengirim_ttd_digital||'Ditandatangani secara elektronik melalui SIMPROV')}</small></div></div><div class="footer">Dokumen dibuat dan dicatat melalui SIMPROV • ID Surat: ${esc(s.id_surat||'-')}</div></main></body></html>`);w.document.close();
+  };
+
+  window.__SIMPROV_PAYMENT_PATCH_VERSION__=PAYMENT_PATCH_VERSION_V139;
+})();
