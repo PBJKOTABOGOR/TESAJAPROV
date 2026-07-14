@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIMPROV | Sistem Informasi Monitoring Persiapan PORPROV Kota Bogor</title>
+
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="apple-touch-icon" href="logo-siporbo.png" />
+  <link rel="stylesheet" href="style.css?v=1381-pengajuan-pembayaran-sop-final" />
+</head>
+<body>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loader-card loader-premium-card">
+      <div class="loader-logo-stage">
+        <div class="loader-ring"></div>
+        <div class="loader-ring loader-ring-2"></div>
+        <div class="loader-logo-wrap">
+          <img src="logo-siporbo.png" alt="Logo SIPORBO" />
+        </div>
+      </div>
+      <b id="loadingText">Memproses...</b>
+      <small id="loadingSubtext">Mohon tunggu sebentar</small>
+      <div id="loadingProgressWrap" class="loading-progress-wrap hidden" aria-live="polite">
+        <div class="loading-progress-head"><span id="loadingProgressDetail">Menyiapkan proses...</span><b id="loadingProgressPercent">0%</b></div>
+        <div class="loading-progress-track"><i id="loadingProgressBar" style="width:0%"></i></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="publicPage" class="public-page">
+    <header class="public-hero fade-up">
+      <div class="public-brand"><div class="logo-box logo-img-wrap"><img src="logo-siporbo.png" alt="Logo SIMPROV"></div><div><h1>SIMPROV</h1><p>Sistem Informasi Monitoring Persiapan PORPROV Kota Bogor</p><div id="publicIdentity" class="public-identity"></div></div></div>
+      <button class="btn-public-login" onclick="showLoginFromPublic()">Login</button>
+    </header>
+    <section class="public-intro"><div><span class="eyebrow">DASHBOARD PUBLIK</span><h2>Monitoring Anggaran PORPROV</h2><p>Ringkasan agregat perencanaan dan realisasi seluruh bidang tanpa menampilkan data internal atau dokumen sensitif.</p></div><button class="btn-soft" onclick="loadPublicDashboard(true)">Refresh Data</button></section>
+    <section id="publicSummary" class="public-summary-grid"><div class="public-loading">Memuat dashboard publik...</div></section>
+    <section class="public-chart-grid"><article class="public-panel"><h3>Progres Anggaran</h3><div id="publicProgress"></div></article><article class="public-panel"><h3>Ringkasan Kegiatan</h3><div id="publicComposition"></div></article></section>
+    <section class="public-panel"><div class="panel-title-row"><div><h3>Ringkasan per Bidang</h3><p class="panel-sub">Data agregat pagu, realisasi, sisa pagu, dan jumlah kegiatan per bidang.</p></div></div><div id="publicBidangTable" class="table-wrap"></div></section>
+  </div>
+
+  <div id="loginPage" class="login-page hidden">
+    <div class="login-card fade-up">
+      <div class="logo-box logo-img-wrap"><img src="logo-siporbo.png" alt="Logo SIPORBO"></div>
+      <h1>SIMPROV</h1>
+      <p>Sistem Informasi Monitoring Persiapan PORPROV Kota Bogor</p>
+      <small>Struktur anggaran, perencanaan, dan pencairan per bidang</small>
+
+      <label>Username</label>
+      <input id="username" type="text" placeholder="Masukkan username" autocomplete="username" />
+
+      <label>Password</label>
+      <input id="password" type="password" placeholder="Masukkan password" autocomplete="current-password" />
+
+      <button id="loginBtn" onclick="login()">Login</button>
+      <button class="btn-soft btn-back-public" onclick="showPublicFromLogin()">Kembali ke Dashboard Publik</button>
+      <div id="loginMsg" class="msg"></div>
+    </div>
+  </div>
+
+  <main id="appPage" class="app-page hidden">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="logo-mini logo-img-wrap"><img src="logo-siporbo.png" alt="Logo SIPORBO"></div>
+        <div>
+          <h2>SIMPROV</h2>
+          <p>Sistem Informasi Monitoring Persiapan PORPROV Kota Bogor</p>
+          <small id="userInfo">-</small>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn-refresh" onclick="refreshData()">Refresh</button>
+        <button class="btn-danger" onclick="logout()">Logout</button>
+      </div>
+    </header>
+
+    <nav id="menuNav" class="menu-nav"></nav>
+    <section id="summaryCards" class="summary-grid"></section>
+    <section id="contentArea" class="content-area"></section>
+  </main>
+
+  <div id="editModal" class="modal-backdrop hidden">
+    <div class="modal-card fade-up">
+      <div class="modal-head">
+        <div>
+          <h3 id="editModalTitle">Edit Perencanaan</h3>
+          <p id="editModalSub">Perubahan akan diajukan kembali ke admin.</p>
+        </div>
+        <button class="btn-soft" onclick="closeEditModal()">Tutup</button>
+      </div>
+      <input type="hidden" id="editIdKegiatan" />
+      <input type="hidden" id="editMode" />
+      <div class="form-grid">
+        <div class="field"><label>Nama Kegiatan</label><input id="editNamaKegiatan" /></div>
+        <div class="field"><label>Keterangan</label><input id="editKeterangan" /></div>
+        <div class="field"><label>Volume</label><input id="editVolume" inputmode="numeric" oninput="onAngkaInput(this, 'editVolume', 'editHarga', 'editTotalPreview')" /></div>
+        <div class="field"><label>Satuan</label><input id="editSatuan" /></div>
+        <div class="field"><label>Harga Satuan</label><input id="editHarga" inputmode="numeric" oninput="onAngkaInput(this, 'editVolume', 'editHarga', 'editTotalPreview')" /></div>
+        <div class="field"><label>Total Otomatis</label><input id="editTotalPreview" class="readonly-total" value="Rp0" readonly /></div>
+        <div class="field"><label>Metode</label><input id="editMetodePemilihan" class="readonly-total" placeholder="Otomatis sesuai pagu" readonly /></div>
+        <div class="field"><label>Waktu Pemilihan</label><input id="editWaktuPemilihan" type="date" onchange="onWaktuPemilihanInput(true)" /></div>
+        <div id="editMetodePreview" class="field full metode-preview"></div>
+        <div id="alasanPerubahanWrap" class="field full hidden"><label>Alasan Perubahan</label><textarea id="editAlasanPerubahan" rows="3" placeholder="Jelaskan alasan perubahan agar bisa dilihat admin"></textarea></div>
+      </div>
+      <button onclick="submitEditPerencanaan()">Simpan & Ajukan</button>
+    </div>
+  </div>
+
+  <script src="app.js?v=1381-pengajuan-pembayaran-sop-final"></script>
+</body>
+</html>
