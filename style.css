@@ -3034,3 +3034,35 @@ body.modal-open-v122{overflow:hidden}
 .payment-tte-submit-v139{min-width:220px!important}
 .payment-form-v138 button:disabled{opacity:.55;cursor:not-allowed;transform:none!important}
 @media(max-width:720px){.payment-tabs-v139 button{width:100%;min-width:0!important}.payment-budget-card-v139{align-items:flex-start}}
+
+/* =========================================================
+   SIMPROV v140 - Surat & Pengajuan Pembayaran
+   ========================================================= */
+.payment-tabs-v140{
+  display:flex!important;flex-wrap:wrap!important;gap:9px!important;
+}
+.payment-tabs-v140 button{
+  width:auto!important;min-width:0!important;padding:10px 16px!important;
+  border:1px solid #bcd7e8!important;border-radius:12px!important;
+  background:linear-gradient(180deg,#ffffff,#f4faff)!important;
+  color:#174b75!important;box-shadow:0 3px 9px rgba(27,83,123,.06)!important;
+  font-weight:800!important;
+}
+.payment-tabs-v140 button:hover{background:#eaf7ff!important;border-color:#75bde1!important;transform:translateY(-1px)}
+.payment-tabs-v140 button.active{background:linear-gradient(180deg,#eaf8ff,#dff3ff)!important;color:#0c5f91!important;border-color:#4ca9d5!important;box-shadow:0 3px 0 #2a9aca!important}
+.payment-tabs-v140 button span{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:5px;padding:0 5px;border-radius:999px;background:#fff;border:1px solid #c9dfec;font-size:10px}
+.payment-list-head-actions-v140{align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.btn-primary-v140{background:linear-gradient(135deg,#126db1,#35a7d9)!important;color:#fff!important;border:0!important;box-shadow:0 7px 16px rgba(20,112,171,.18)!important}
+.payment-form-v138>.panel-title-row{align-items:flex-start}
+.surat-editor-toolbar-v140{display:flex!important;flex-wrap:wrap!important;gap:7px!important;padding:8px!important;position:sticky!important;top:0!important;z-index:3!important}
+.editor-group-v140{display:flex;align-items:center;gap:4px;padding-right:7px;border-right:1px solid #d5e5ef}
+.editor-group-v140:last-child{border-right:0;padding-right:0}
+.surat-editor-toolbar-v140 .editor-btn-v136{min-width:36px;height:34px;padding:5px 9px!important;display:inline-grid;place-items:center;font-size:12px}
+.summary-pl-v140{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+@media(max-width:760px){
+  .payment-tabs-v140 button{width:100%!important}
+  .payment-list-head-actions-v140{width:100%;justify-content:stretch}
+  .payment-list-head-actions-v140 button{flex:1}
+  .editor-group-v140{border-right:0;border-bottom:1px solid #dce9f1;padding:0 0 5px;width:100%;overflow-x:auto}
+  .summary-pl-v140{grid-template-columns:1fr!important}
+}
