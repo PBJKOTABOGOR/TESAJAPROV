@@ -10905,3 +10905,362 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
 
   window.__SIMPROV_OPTIMIZATION_V144__={version:PATCH_VERSION_V144,refresh:()=>{remoteDirtyV144=true;scheduleRemoteRefreshV144(0);}};
 })();
+
+/* =========================================================
+   SIMPROV v145 - Surat Terpisah, Edit Sumber Harga,
+   Template Dokumen Pencatatan, dan Pengajuan Pembayaran Stabil
+   ========================================================= */
+(function(){
+  const PATCH_VERSION_V145='145.0';
+  let paymentDataUnlockedV145=false;
+  let editStandardSelectedV145=null;
+
+  function roleCanCreateSuratV145(){
+    return ['BIDANG','ADMIN','VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN','BENDAHARA','PIMPINAN'].includes(actualRoleV133());
+  }
+  function roleCanCreatePaymentV145(){
+    return ['BIDANG','ADMIN'].includes(actualRoleV133());
+  }
+  function ownSuratV145(){
+    const all=suratWorkspaceV133?.surat||[];
+    const rows=all.filter(s=>String(s.asal_id_user||'')===String(currentUser?.id_user||''));
+    return typeof sortSuratOldestV136==='function'?sortSuratOldestV136(rows):rows;
+  }
+  function incomingSuratV145(){
+    const all=suratWorkspaceV133?.surat||[];
+    const rows=all.filter(s=>typeof suratIsIncomingV133==='function'?suratIsIncomingV133(s):false);
+    return typeof sortSuratOldestV136==='function'?sortSuratOldestV136(rows):rows;
+  }
+  function suratTabsV145(active){
+    const incoming=incomingSuratV145();
+    const count=incoming.filter(x=>String(x.status_surat||'').toUpperCase()!=='SELESAI').length;
+    return `<div class="surat-tabs-v133 surat-tabs-v145">
+      <button class="${active==='SAYA'?'active':''}" onclick="setSuratTabV133('SAYA')">Surat Saya</button>
+      ${roleCanCreateSuratV145()?`<button class="${active==='BUAT'?'active':''}" onclick="setSuratTabV133('BUAT')">Buat Surat</button>`:''}
+      <button class="${active==='MASUK'?'active':''}" onclick="setSuratTabV133('MASUK')">Surat Masuk <span>${count}</span></button>
+      <button class="${active==='PEMBAYARAN'?'active':''}" onclick="openPaymentWorkspaceV145()">Pengajuan Pembayaran</button>
+    </div>`;
+  }
+
+  window.openPaymentWorkspaceV145=function(tab){
+    suratTabV133='PEMBAYARAN';
+    paymentEditIdV138='';
+    paymentPrefillActivityV138='';
+    paymentDataUnlockedV145=false;
+    paymentTabV138=tab||'DAFTAR';
+    renderSuratV133();
+    if(!paymentWorkspaceV138.loaded)loadPaymentWorkspaceV138(false);
+  };
+
+  setSuratTabV133=function(tab){
+    suratTabV133=tab||'SAYA';
+    suratEditIdV133='';
+    if(suratTabV133==='PEMBAYARAN')return openPaymentWorkspaceV145('DAFTAR');
+    renderSuratV133();
+  };
+
+  renderSuratV133=function(){
+    if(suratTabV133==='PEMBAYARAN'){
+      renderPaymentWorkspaceV138();
+      if(!paymentWorkspaceV138.loaded)loadPaymentWorkspaceV138(false);
+      return;
+    }
+    const area=document.getElementById('contentArea');if(!area)return;
+    if(!suratWorkspaceV133.loaded){
+      area.innerHTML='<section class="panel premium-panel surat-loading-v133"><h3>Surat</h3><div class="skeleton-v133"></div><div class="skeleton-v133 short"></div></section>';
+      return;
+    }
+    if(!['SAYA','BUAT','MASUK'].includes(suratTabV133))suratTabV133='SAYA';
+    if(suratTabV133==='BUAT'&&!roleCanCreateSuratV145())suratTabV133='SAYA';
+    const own=ownSuratV145(),incoming=incomingSuratV145();
+    const ownCards=own.map((s,i)=>suratCompactCardV136(s,i+1,'SENDIRI')).join('');
+    const incomingCards=incoming.map((s,i)=>suratCompactCardV136(s,i+1,'MASUK')).join('');
+    let body='';
+    if(suratTabV133==='BUAT')body=suratFormV133();
+    else if(suratTabV133==='MASUK')body=`<section class="panel fade-up premium-panel surat-inbox-v136"><div class="panel-title-row"><div><h3>Surat Masuk</h3><p class="panel-sub">Diurutkan dari surat paling lama agar tindak lanjut tidak terlewat.</p></div><button class="btn-refresh" onclick="loadSuratWorkspaceV133(true)">Refresh</button></div><div class="surat-package-list-v136">${incomingCards||'<p class="empty">Tidak ada surat masuk yang perlu ditindaklanjuti.</p>'}</div></section>`;
+    else body=`<section class="panel premium-panel surat-own-panel-v136" id="suratSayaPanelV134"><div class="panel-title-row"><div><h3>Surat Saya</h3><p class="panel-sub">Seluruh Nota Dinas yang Anda buat, termasuk draft, pengajuan, dan surat yang dikembalikan.</p></div><div class="action-group"><span class="surat-count-v136">${own.length} surat</span><button class="btn-refresh" onclick="loadSuratWorkspaceV133(true)">Refresh</button></div></div><div class="surat-package-list-v136">${ownCards||'<p class="empty">Belum ada surat yang dibuat.</p>'}</div></section>`;
+    area.innerHTML=`<div class="surat-page-v136"><section class="panel premium-panel surat-head-v133"><div class="panel-title-row"><div><h3>Surat</h3><p class="panel-sub">Pembuatan, tanda tangan elektronik, persetujuan, disposisi, dan tindak lanjut Nota Dinas.</p></div></div>${suratTabsV145(suratTabV133)}</section>${body}<div id="suratActionModalV133" class="modal-backdrop hidden"></div></div>`;
+    if(suratTabV133==='BUAT')setTimeout(()=>{try{updateSuratPreviewValueV136();}catch(e){}},0);
+  };
+
+  const setMenuBaseV145=setMenu;
+  setMenu=function(menu){
+    if(String(menu||'').toUpperCase()==='SURAT')suratTabV133='SAYA';
+    return setMenuBaseV145(menu);
+  };
+
+  /* ---------- Edit sumber harga pada Perencanaan ---------- */
+  function standardsV145(){
+    const rows=dashboard?.standarBiaya||dashboard?.standar_biaya||[];
+    if(rows.length)return rows;
+    return (typeof SB_FLAT_V96!=='undefined'?SB_FLAT_V96:[]).map((x,i)=>({id_standar:'LEGACY-'+i,jenis_biaya:x.nama,kelompok:x.grup,satuan:x.satuan,besaran:x.nilai,kategori_anggaran:grupKeNonV96(x.huruf)?'NON PENGADAAN':'PENGADAAN',jenis_pengadaan:grupKeNonV96(x.huruf)?'': 'Barang',sifat_standar:'BATAS TERTINGGI'}));
+  }
+  function ensureEditSourceFieldsV145(){
+    const grid=document.querySelector('#editModal .form-grid');
+    if(!grid||document.getElementById('editSumberHargaV145'))return;
+    const first=grid.firstElementChild;
+    const source=document.createElement('div');source.className='field';source.innerHTML=`<label>Sumber Harga</label><select id="editSumberHargaV145" onchange="toggleEditSourceV145()"><option value="SB">Gunakan Standar Biaya</option><option value="PASAR">Harga Pasar / Input Manual</option></select>`;
+    const standard=document.createElement('div');standard.className='field';standard.id='editStandardFieldV145';standard.innerHTML=`<label>Standar Biaya</label><div class="sb-pick-row-v96"><input id="editStandardLabelV145" readonly placeholder="Cari & pilih standar biaya..."><input id="editStandardIdV145" type="hidden"><button class="sb-pick-btn-v96" type="button" onclick="openEditStandardPickerV145()">Cari &amp; Pilih</button></div>`;
+    const jenis=document.createElement('div');jenis.className='field';jenis.innerHTML=`<label>Jenis Pengadaan</label><select id="editJenisPengadaanV145"><option>Barang</option><option>Jasa Konstruksi</option><option>Jasa Konsultansi</option><option>Jasa Lainnya</option><option>NON PENGADAAN</option></select>`;
+    const cara=document.createElement('div');cara.className='field';cara.innerHTML=`<label>Cara Pelaksanaan</label><select id="editCaraPelaksanaanV145"><option>Penyedia</option><option>Swakelola</option></select>`;
+    grid.insertBefore(cara,first);grid.insertBefore(jenis,cara);grid.insertBefore(standard,jenis);grid.insertBefore(source,standard);
+  }
+  window.toggleEditSourceV145=function(){
+    const sb=document.getElementById('editSumberHargaV145')?.value==='SB';
+    document.getElementById('editStandardFieldV145')?.classList.toggle('hidden',!sb);
+    const harga=document.getElementById('editHarga');if(harga)harga.readOnly=sb;
+    if(!sb){editStandardSelectedV145=null;const id=document.getElementById('editStandardIdV145'),lab=document.getElementById('editStandardLabelV145');if(id)id.value='';if(lab)lab.value='';}
+  };
+  window.openEditStandardPickerV145=function(){
+    const id=document.getElementById('editIdKegiatan')?.value||'';
+    const plan=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id))||{};
+    const kategori=String(plan.kategori||'PENGADAAN').toUpperCase();
+    let modal=document.getElementById('editStandardPickerV145');if(modal)modal.remove();
+    modal=document.createElement('div');modal.id='editStandardPickerV145';modal.className='sbv-overlay-v95';
+    modal.innerHTML=`<div class="sbv-box-v95"><div class="sbv-head-v95"><div><h3>Pilih Standar Biaya</h3><p class="panel-sub">Daftar dibatasi sesuai kategori perencanaan saat ini.</p></div><button class="btn-red" type="button" onclick="document.getElementById('editStandardPickerV145').remove()">Tutup</button></div><input id="editStandardSearchV145" placeholder="Cari standar biaya..." oninput="renderEditStandardListV145(this.value)"><div class="sbv-body-v95" id="editStandardListV145" data-kategori="${esc(kategori)}"></div></div>`;
+    document.body.appendChild(modal);renderEditStandardListV145('');
+  };
+  window.renderEditStandardListV145=function(q){
+    const root=document.getElementById('editStandardListV145');if(!root)return;
+    const kategori=String(root.dataset.kategori||'PENGADAAN').toUpperCase(),key=String(q||'').toLowerCase();
+    const rows=standardsV145().filter(s=>String(s.kategori_anggaran||'PENGADAAN').toUpperCase()===kategori).filter(s=>!key||`${s.jenis_biaya||s.nama||''} ${s.kelompok||s.grup||''} ${s.satuan||''} ${s.besaran||s.nilai||''}`.toLowerCase().includes(key));
+    root.innerHTML=rows.map((s,i)=>`<div class="sb-card-v96" onclick="selectEditStandardV145('${esc(String(s.id_standar||s.id||i))}')"><div class="sb-huruf-v96">${esc(String(s.kode_kelompok||'SB'))}</div><div class="sb-info-v96"><b>${esc(s.jenis_biaya||s.nama||'-')}</b><small>${esc(s.kelompok||s.grup||'')} • ${esc(s.satuan||'-')}</small></div><div class="sb-nilai-v96"><b>${typeof (s.besaran??s.nilai)==='number'?rupiah(s.besaran??s.nilai):esc(String(s.besaran??s.nilai??'-'))}</b><small>${esc(s.sifat_standar||'')}</small></div></div>`).join('')||'<p class="empty">Tidak ada standar biaya yang sesuai.</p>';
+  };
+  window.selectEditStandardV145=function(id){
+    const rows=standardsV145();
+    const s=rows.find((x,i)=>String(x.id_standar||x.id||i)===String(id));if(!s)return;
+    editStandardSelectedV145=s;
+    const idEl=document.getElementById('editStandardIdV145'),lab=document.getElementById('editStandardLabelV145');
+    if(idEl)idEl.value=s.id_standar||s.id||'';if(lab)lab.value=`${s.jenis_biaya||s.nama||'-'} (${s.satuan||'-'})`;
+    const harga=document.getElementById('editHarga'),satuan=document.getElementById('editSatuan'),jenis=document.getElementById('editJenisPengadaanV145');
+    const amount=Number(s.besaran??s.nilai);if(harga&&Number.isFinite(amount)&&amount>0){harga.value=amount.toLocaleString('id-ID');harga.dispatchEvent(new Event('input',{bubbles:true}));}
+    if(satuan&&s.satuan)satuan.value=s.satuan;
+    if(jenis)jenis.value=String(s.kategori_anggaran||'').toUpperCase()==='NON PENGADAAN'?'NON PENGADAAN':(s.jenis_pengadaan||jenis.value||'Barang');
+    document.getElementById('editStandardPickerV145')?.remove();
+  };
+  const openEditModalBaseV145=openEditModal;
+  openEditModal=function(id,mode){
+    const result=openEditModalBaseV145(id,mode);
+    ensureEditSourceFieldsV145();
+    const k=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id))||{};
+    const hasStandard=!!String(k.id_standar_biaya||k.nama_standar_biaya||'').trim();
+    const source=document.getElementById('editSumberHargaV145'),sid=document.getElementById('editStandardIdV145'),label=document.getElementById('editStandardLabelV145'),jenis=document.getElementById('editJenisPengadaanV145'),cara=document.getElementById('editCaraPelaksanaanV145');
+    if(source)source.value=hasStandard?'SB':'PASAR';
+    if(sid)sid.value=k.id_standar_biaya||'';
+    if(label)label.value=hasStandard?`${k.nama_standar_biaya||'Standar Biaya'}${k.satuan?` (${k.satuan})`:''}`:'';
+    if(jenis)jenis.value=String(k.kategori||'').toUpperCase()==='NON PENGADAAN'?'NON PENGADAAN':(k.jenis_pengadaan||'Barang');
+    if(cara)cara.value=k.cara_pelaksanaan||'Penyedia';
+    editStandardSelectedV145=standardsV145().find(s=>String(s.id_standar||'')===String(k.id_standar_biaya||''))||null;
+    toggleEditSourceV145();
+    return result;
+  };
+
+  submitEditPerencanaan=async function(){
+    const mode=document.getElementById('editMode')?.value||'normal',id=document.getElementById('editIdKegiatan')?.value||'',waktu=document.getElementById('editWaktuPemilihan')?.value||'';
+    if(!waktu){alert('Waktu pemilihan wajib diisi.');return;}
+    const old=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id))||{};
+    const source=document.getElementById('editSumberHargaV145')?.value||'PASAR';
+    const standardId=source==='SB'?(document.getElementById('editStandardIdV145')?.value||''):'';
+    if(source==='SB'&&!standardId){alert('Pilih Standar Biaya terlebih dahulu.');return;}
+    const data={id_kegiatan:id,mode,nama_kegiatan:document.getElementById('editNamaKegiatan')?.value||'',rincian_kebutuhan:'',keterangan:document.getElementById('editKeterangan')?.value||'',volume:toNumber(document.getElementById('editVolume')?.value),satuan:document.getElementById('editSatuan')?.value||'',harga_satuan:toNumber(document.getElementById('editHarga')?.value),waktu_pemilihan:waktu,alasan_perubahan:document.getElementById('editAlasanPerubahan')?.value||'',kategori:old.kategori||'PENGADAAN',jenis_non_pengadaan:old.jenis_non_pengadaan||'',jenis_pengadaan:document.getElementById('editJenisPengadaanV145')?.value||old.jenis_pengadaan||'Barang',cara_pelaksanaan:document.getElementById('editCaraPelaksanaanV145')?.value||old.cara_pelaksanaan||'Penyedia',id_standar_biaya:standardId,sumber_harga:source};
+    const jumlah=data.volume*data.harga_satuan,cek=cekPaguFrontend(jumlah,id);if(!cek.ok){alert(cek.message);return;}
+    showLoading('Menyimpan perubahan...');
+    try{
+      const r=await apiPost({action:'updatePerencanaan',user:currentUser,data});if(!r.success)throw new Error(r.message||'Gagal menyimpan perubahan');
+      const s=editStandardSelectedV145;
+      const fallback=Object.assign({},old,data,{jumlah,metode_pemilihan:data.kategori==='NON PENGADAAN'?'':metodePemilihanByNilai(jumlah),status_perencanaan:mode==='change'?'PERUBAHAN_DIAJUKAN':'DIAJUKAN',perubahan_ke:mode==='change'?toNumber(old.perubahan_ke)+1:toNumber(old.perubahan_ke),nama_standar_biaya:source==='SB'?(s?.jenis_biaya||old.nama_standar_biaya||''):'',sifat_standar:source==='SB'?(s?.sifat_standar||old.sifat_standar||''):'',nilai_standar:source==='SB'?(s?.besaran||old.nilai_standar||''):'',sumber_standar:source==='SB'?(s?.sumber_dasar||old.sumber_standar||''):''});
+      if(typeof applyPlanningRowV141==='function')applyPlanningRowV141(r.perencanaan,fallback);else Object.assign(old,r.perencanaan||fallback);
+      closeEditModal();hideLoading();
+      if(typeof renderPlanningRealtimeV141==='function')renderPlanningRealtimeV141(true);else renderAll();
+      showFastCacheNotice(r.message||'Perencanaan berhasil diperbarui');
+      try{localStorage.setItem('SIMPROV_PLANNING_SIGNAL_V141',JSON.stringify({at:Date.now(),by:currentUser?.id_user||currentUser?.username||''}));}catch(e){}
+      window.__SIMPROV_PLANNING_RT_V141__?.sync?.({silent:true});
+    }catch(e){hideLoading();alert(e.message||String(e));}
+  };
+
+  /* ---------- Template dan SPTJM pada Pencatatan Pengadaan ---------- */
+  function documentHelperActionV145(k,jenis,ctx){
+    if(ctx!=='PGD')return '';
+    const key=dokKeyV94(jenis);
+    if(key===dokKeyV94('Berita Acara Pemeriksaan Barang/Pekerjaan')){
+      const url=TEMPLATE_ACUAN_PL_V123?.['Berita Acara Pemeriksaan Barang/Pekerjaan'];
+      return url?`<button class="btn-soft" type="button" onclick="openTemplateSourceV123('${esc(url)}')">Buka Template</button>`:'';
+    }
+    if(key===dokKeyV94('Berita Acara Serah Terima')){
+      const url=TEMPLATE_ACUAN_PL_V123?.['Berita Acara Serah Terima'];
+      return url?`<button class="btn-soft" type="button" onclick="openTemplateSourceV123('${esc(url)}')">Buka Template</button>`:'';
+    }
+    if(key===dokKeyV94('SPTJM')&&roleCanCreatePaymentV145()){
+      return `<button class="btn-green" type="button" onclick="openPaymentForActivityV145('${esc(k.id_kegiatan)}')">Buat SPTJM melalui SIMPROV</button>`;
+    }
+    return '';
+  }
+  window.openPaymentForActivityV145=function(id){
+    activeMenu='Surat';suratTabV133='PEMBAYARAN';paymentEditIdV138='';paymentPrefillActivityV138=id;paymentDataUnlockedV145=true;paymentTabV138='FORM';renderAll();
+    if(!paymentWorkspaceV138.loaded){loadPaymentWorkspaceV138(false);}else renderPaymentWorkspaceV138();
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+  dokumenTableV95=function(k,jenisList,ctx){
+    ctx=ctx||'PGD';const isNon=ctx==='NON';
+    const docs=isNon?(dashboard?.dokumenNonPengadaan||[]).filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan)):(dashboard?.dokumen||[]).filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan));
+    const bolehUpload=!canManage()&&!isReviewer()&&String(k.id_bidang)===String(currentUser?.id_bidang||'')&&String(k.status_perencanaan||'').toUpperCase()==='DISETUJUI';
+    const rows=jenisList.map(j=>{
+      const d=docs.find(x=>dokKeyV94(x.jenis_dokumen)===dokKeyV94(j)),st=String(d?.status_verifikasi||'').toUpperCase(),valid=d&&(isNon?st==='VALID DOKUMEN':isDokValidV94(d)),repair=d&&['PERBAIKAN DOKUMEN','PERBAIKAN','MENUNGGU VERIFIKASI PERBAIKAN DOKUMEN'].includes(st),canChoose=bolehUpload&&(!d||repair);
+      let aksi='-';if(d&&isPBJVerifierV65()&&!valid&&!repair){const idd=isNon?d.id_dokumen_non:d.id_dokumen;aksi=`<button class="btn-soft" onclick="verifDokV96('${esc(idd)}','VALID','${ctx}')" type="button">Valid</button> <button class="btn-red" onclick="verifDokV96('${esc(idd)}','PERBAIKAN','${ctx}')" type="button">Perbaikan</button>`;}
+      const uploadCell=canChoose?`<input type="file" class="dok-file-v96" data-jenis="${esc(j)}" data-ctx="${ctx}" onchange="this.closest('tr').classList.toggle('siap-upload-v96',this.files.length>0);tampilkanTombolUploadV96()">`:(d?`<span class="muted kecil-v96">${repair?'Upload ulang tersedia':'Sudah diupload'}</span>`:'<span class="muted kecil-v96">-</span>');
+      const history=d?`<button class="btn-mini btn-detail" onclick="${isNon?`openNonHistoryV104('${esc(d.id_dokumen_non)}')`:`openDocStatusModal('${esc(d.id_dokumen)}')`}" type="button">Riwayat</button>`:'-';
+      const helper=documentHelperActionV145(k,j,ctx)||'-';
+      return `<tr><td>${esc(j)}</td><td>${d?`<a href="${esc(d.url_file)}" target="_blank">${esc(d.nama_file||'Buka File')}</a>`:'<span class="muted">Belum diupload</span>'}</td><td>${d?badge(d.status_verifikasi||'MENUNGGU'):'-'}</td><td>${helper}</td>${bolehUpload?`<td>${uploadCell}</td>`:''}<td>${d?esc(d.catatan_verifikator||d.catatan_Verifikator||d.catatan_admin||'-'):'-'}</td><td>${history}</td><td>${aksi}</td></tr>`;
+    }).join('');
+    const tombol=bolehUpload?`<div class="dok-upload-bar-v96 hidden" id="dokUploadBarV96"><span id="dokUploadInfoV96"></span><button onclick="uploadSemuaDokV96('${esc(k.id_kegiatan)}')" type="button">Upload Semua File</button></div>`:'';
+    return `${tombol}<div class="table-wrap"><table class="dok-table-v96"><thead><tr><th>Jenis Dokumen</th><th>File</th><th>Status</th><th>Template / Buat Sistem</th>${bolehUpload?'<th>Upload File</th>':''}<th>Catatan</th><th>Riwayat</th><th>Verifikasi</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  };
+
+  /* ---------- Pengajuan pembayaran: filter, penguncian, TTE cepat ---------- */
+  const paymentFormBaseV145=paymentFormV138;
+  paymentFormV138=function(){
+    const original=paymentWorkspaceV138.kegiatan||[];
+    paymentWorkspaceV138.kegiatan=original.filter(k=>String(k.kategori||'').toUpperCase()!=='NON PENGADAAN');
+    let html='';try{html=paymentFormBaseV145();}finally{paymentWorkspaceV138.kegiatan=original;}
+    html=html.replace(/onclick="submitPaymentV138\('([^']+)'\)"/g,`onclick="submitPaymentFormV145('$1')"`);
+    return html;
+  };
+  const openPaymentFormBaseV145=openPaymentFormV138;
+  openPaymentFormV138=function(id='',activity=''){
+    paymentDataUnlockedV145=!id;
+    return openPaymentFormBaseV145(id,activity);
+  };
+  const closePaymentFormBaseV145=closePaymentFormV138;
+  closePaymentFormV138=function(){paymentDataUnlockedV145=false;return closePaymentFormBaseV145();};
+
+  function applyPaymentEditLockV145(){
+    if(paymentTabV138!=='FORM'||!paymentEditIdV138)return;
+    const p=paymentByIdV138(paymentEditIdV138),docs=paymentDocsV138(paymentEditIdV138);if(!p||!docs.length||paymentDataUnlockedV145)return;
+    const panel=document.querySelector('.payment-form-v138');if(!panel||panel.dataset.lockedV145==='1')return;panel.dataset.lockedV145='1';panel.classList.add('payment-data-locked-v145');
+    const head=panel.querySelector('.panel-title-row');
+    head?.insertAdjacentHTML('afterend',`<div class="payment-lock-notice-v145"><div><b>Data pengajuan dikunci sementara</b><span>Dokumen pendukung sudah diunggah. Klik Edit Data Pengajuan bila memang perlu mengubah Nota Dinas, rincian anggaran, atau rekening tujuan.</span></div><button type="button" class="btn-orange" onclick="unlockPaymentDataV145()">Edit Data Pengajuan</button></div>`);
+    panel.querySelectorAll('input,select,textarea').forEach(el=>{el.disabled=true;});
+    panel.querySelectorAll('button').forEach(btn=>{const txt=String(btn.textContent||'').toUpperCase();if(!txt.includes('KEMBALI')&&!txt.includes('HAPUS PENGAJUAN')&&!btn.closest('.payment-lock-notice-v145'))btn.disabled=true;});
+  }
+  window.unlockPaymentDataV145=async function(){
+    const ok=await confirmActionV133({title:'Edit Data Pengajuan?',message:'Dokumen pendukung sudah diunggah. Perubahan data dapat memengaruhi Nota Dinas, SPTJM, nilai pengajuan, dan rekening tujuan. Pastikan perubahan memang diperlukan.',confirmText:'Ya, Buka Edit Data'});if(!ok)return;
+    paymentDataUnlockedV145=true;renderPaymentWorkspaceV138();
+  };
+
+  function validatePaymentStoredV145(p){
+    if(!p)return 'Pengajuan tidak ditemukan.';
+    const missing=paymentRequiredDocsV138(p).filter(j=>!paymentDocV138(p,j));if(missing.length)return 'Dokumen wajib belum lengkap:\n- '+missing.join('\n- ');
+    const rincian=parseJsonV138(p.rincian_json),rekening=parseJsonV138(p.rekening_json),amount=toNumber(p.jumlah_pengajuan),rt=paymentTotalRincianV138(rincian),at=paymentTotalRincianV138(rekening);
+    if(!rincian.length)return 'Minimal satu rincian penggunaan anggaran wajib diisi.';
+    if(!rekening.length)return 'Minimal satu rekening penerima wajib diisi.';
+    if(Math.abs(rt-amount)>0.5)return 'Total rincian belanja harus sama dengan jumlah pengajuan.';
+    if(Math.abs(at-amount)>0.5)return 'Total rekening tujuan harus sama dengan jumlah pengajuan.';
+    return '';
+  }
+  async function finishPaymentSubmitV145(id){
+    const r=await apiPost({action:'submitPaymentV138',user:currentUser,id_pengajuan:id});if(!r.success)throw new Error(r.message||'Gagal mengajukan verifikasi');
+    const p=paymentByIdV138(id);if(p){p.status_pengajuan='MENUNGGU VERIFIKASI KEUANGAN';p.tahap_aktif='VERIFIKATOR_KEUANGAN';p.tte_bidang_oleh=r.tte_bidang_oleh||currentUser?.nama||'';p.tte_bidang_waktu=r.tte_bidang_waktu||new Date().toISOString();p.updated_at=new Date().toISOString();}
+    paymentTabV138='DAFTAR';paymentEditIdV138='';paymentDataUnlockedV145=false;renderPaymentWorkspaceV138();showFastCacheNotice(r.message||'Pengajuan berhasil ditandatangani dan dikirim ke Verifikator Keuangan.');
+    setTimeout(()=>loadPaymentWorkspaceV138(true),150);
+  }
+  window.submitPaymentFromListV145=async function(id){
+    const p=paymentByIdV138(id),err=validatePaymentStoredV145(p);if(err)return alert(err);
+    const ok=await confirmActionV133({title:'TTE & Ajukan Verifikasi',message:'Nota Dinas Bidang dan SPTJM akan ditandatangani secara elektronik, kemudian pengajuan diteruskan kepada Verifikator Keuangan. Data tidak dapat diedit sampai dikembalikan.',confirmText:'Ya, TTE & Ajukan'});if(!ok)return;
+    showLoading('Menandatangani dan mengajukan verifikasi...');try{await finishPaymentSubmitV145(id);}catch(e){alert(e.message||String(e));}finally{hideLoading();}
+  };
+  window.submitPaymentFormV145=async function(id){
+    const p=paymentByIdV138(id),missing=paymentRequiredDocsV138(p).filter(j=>!paymentDocV138(p,j));if(missing.length)return alert('Dokumen wajib belum lengkap:\n- '+missing.join('\n- '));
+    const data=collectPaymentFormV138(),budget=toNumber((paymentWorkspaceV138.kegiatan||[]).find(k=>String(k.id_kegiatan)===String(data.id_kegiatan))?.jumlah||0),rincianTotal=paymentTotalRincianV138(data.rincian),rekeningTotal=paymentTotalRincianV138(data.rekening);
+    if(!data.id_kegiatan)return alert('Pilih kegiatan terlebih dahulu.');
+    if(!data.rincian.length)return alert('Isi minimal satu rincian penggunaan anggaran.');
+    if(budget>0&&rincianTotal>budget)return alert(`Jumlah pengajuan ${rupiah(rincianTotal)} melebihi pagu kegiatan ${rupiah(budget)}.`);
+    if(!data.rekening.length||Math.abs(rekeningTotal-rincianTotal)>0.5)return alert('Total rekening tujuan harus sama dengan jumlah pengajuan.');
+    const ok=await confirmActionV133({title:'TTE & Ajukan Verifikasi',message:'Perubahan terakhir akan disimpan, lalu Nota Dinas Bidang dan SPTJM ditandatangani secara elektronik dan diteruskan kepada Verifikator Keuangan.',confirmText:'Ya, Simpan, TTE & Ajukan'});if(!ok)return;
+    showLoading('Menyimpan, menandatangani, dan mengajukan...');
+    try{
+      const save=await apiPost({action:'savePaymentDraftV138',user:currentUser,data});if(!save.success)throw new Error(save.message||'Gagal menyimpan pengajuan');
+      paymentEditIdV138=save.id_pengajuan||id;const current=paymentByIdV138(paymentEditIdV138);if(current)Object.assign(current,data,{jumlah_pengajuan:rincianTotal,rincian_json:JSON.stringify(data.rincian),rekening_json:JSON.stringify(data.rekening)});
+      await finishPaymentSubmitV145(paymentEditIdV138);
+    }catch(e){alert(e.message||String(e));}finally{hideLoading();}
+  };
+
+  paymentActionButtonsV138=function(p){
+    const role=actualRoleV133(),s=String(p.status_pengajuan||'').toUpperCase(),out=[];
+    if((role==='BIDANG'||role==='ADMIN')&&['DRAFT','PERBAIKAN BIDANG'].includes(s))out.push(`<button onclick="openPaymentFormV138('${esc(p.id_pengajuan)}')">Edit & Lengkapi</button>`,`<button class="btn-green" onclick="submitPaymentFromListV145('${esc(p.id_pengajuan)}')">TTE & Ajukan Verifikasi</button>`,`<button class="btn-danger" onclick="deletePaymentV138('${esc(p.id_pengajuan)}')">Hapus Pengajuan</button>`);
+    if((role==='VERIFIKATOR_KEUANGAN'||role==='ADMIN')&&s==='MENUNGGU VERIFIKASI KEUANGAN')out.push(`<button class="btn-danger" onclick="verifyPaymentV138('${esc(p.id_pengajuan)}','KEMBALIKAN')">Kembalikan</button>`,`<button class="btn-green" onclick="verifyPaymentV138('${esc(p.id_pengajuan)}','VALID')">Berkas Lengkap & Sah</button>`);
+    if((role==='PIMPINAN'||role==='ADMIN')&&s==='MENUNGGU PERSETUJUAN PIMPINAN')out.push(`<button class="btn-danger" onclick="approvePaymentModalV138('${esc(p.id_pengajuan)}','KEMBALIKAN')">Kembalikan</button>`,`<button class="btn-green" onclick="approvePaymentModalV138('${esc(p.id_pengajuan)}','SETUJUI')">Setujui & Buat Nota Dinas</button>`);
+    if((role==='PIMPINAN'||role==='ADMIN')&&s==='MENUNGGU PERINTAH KETUA HARIAN')out.push(`<button class="btn-green" onclick="issueSP2ModalV138('${esc(p.id_pengajuan)}')">Terbitkan Surat Perintah Pemindahbukuan</button>`);
+    if((role==='BENDAHARA'||role==='ADMIN')&&s==='MENUNGGU PEMBAYARAN BENDAHARA')out.push(`<button class="btn-green" onclick="completePaymentModalV138('${esc(p.id_pengajuan)}')">Catat Pembayaran</button>`);
+    return `<div class="action-group payment-actions-v138">${out.join('')}</div>`;
+  };
+
+  const renderPaymentBaseV145=renderPaymentWorkspaceV138;
+  renderPaymentWorkspaceV138=function(){
+    const result=renderPaymentBaseV145();
+    setTimeout(()=>{
+      const tabs=document.querySelector('.payment-head-v138 .surat-tabs-v133');if(tabs)tabs.outerHTML=suratTabsV145('PEMBAYARAN');
+      applyPaymentEditLockV145();
+    },0);
+    return result;
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V145__=PATCH_VERSION_V145;
+})();
+
+/* =========================================================
+   SIMPROV v145.1 - Final guard untuk update Perencanaan realtime
+   ---------------------------------------------------------
+   Fungsi realtime v141 berada di scope privat. Patch ini memperbarui
+   state global secara langsung lalu meminta sinkronisasi ringan.
+   ========================================================= */
+(function(){
+  function updatePlanningStateV1451(row,fallback){
+    if(!dashboard)return;
+    dashboard.perencanaan=Array.isArray(dashboard.perencanaan)?dashboard.perencanaan:[];
+    var merged=Object.assign({},fallback||{},row||{});
+    try{merged=normalizeDashboardData({perencanaan:[merged]}).perencanaan[0]||merged;}catch(e){}
+    var idx=dashboard.perencanaan.findIndex(function(x){return String(x.id_kegiatan)===String(merged.id_kegiatan);});
+    if(idx>=0)dashboard.perencanaan[idx]=Object.assign({},dashboard.perencanaan[idx],merged);else dashboard.perencanaan.unshift(merged);
+    var id=String(merged.id_bidang||'');
+    var total=dashboard.perencanaan.filter(function(x){return String(x.id_bidang)===id;}).reduce(function(n,x){return n+toNumber(x.jumlah||toNumber(x.volume)*toNumber(x.harga_satuan));},0);
+    var rekap=(dashboard.rekap||[]).find(function(x){return String(x.id_bidang)===id;});
+    if(rekap){rekap.total_perencanaan=total;rekap.jumlah_kegiatan=dashboard.perencanaan.filter(function(x){return String(x.id_bidang)===id;}).length;}
+    try{writeDashboardCache(dashboard);}catch(e){}
+  }
+
+  submitEditPerencanaan=async function(){
+    var mode=document.getElementById('editMode')?.value||'normal',id=document.getElementById('editIdKegiatan')?.value||'',waktu=document.getElementById('editWaktuPemilihan')?.value||'';
+    if(!waktu){alert('Waktu pemilihan wajib diisi.');return;}
+    var old=(dashboard?.perencanaan||[]).find(function(x){return String(x.id_kegiatan)===String(id);})||{};
+    var source=document.getElementById('editSumberHargaV145')?.value||'PASAR';
+    var standardId=source==='SB'?(document.getElementById('editStandardIdV145')?.value||''):'';
+    if(source==='SB'&&!standardId){alert('Pilih Standar Biaya terlebih dahulu.');return;}
+    var data={id_kegiatan:id,mode:mode,nama_kegiatan:document.getElementById('editNamaKegiatan')?.value||'',rincian_kebutuhan:'',keterangan:document.getElementById('editKeterangan')?.value||'',volume:toNumber(document.getElementById('editVolume')?.value),satuan:document.getElementById('editSatuan')?.value||'',harga_satuan:toNumber(document.getElementById('editHarga')?.value),waktu_pemilihan:waktu,alasan_perubahan:document.getElementById('editAlasanPerubahan')?.value||'',kategori:old.kategori||'PENGADAAN',jenis_non_pengadaan:old.jenis_non_pengadaan||'',jenis_pengadaan:document.getElementById('editJenisPengadaanV145')?.value||old.jenis_pengadaan||'Barang',cara_pelaksanaan:document.getElementById('editCaraPelaksanaanV145')?.value||old.cara_pelaksanaan||'Penyedia',id_standar_biaya:standardId,sumber_harga:source};
+    var jumlah=data.volume*data.harga_satuan,cek=cekPaguFrontend(jumlah,id);if(!cek.ok){alert(cek.message);return;}
+    showLoading('Menyimpan perubahan...');
+    try{
+      var r=await apiPost({action:'updatePerencanaan',user:currentUser,data:data});if(!r.success)throw new Error(r.message||'Gagal menyimpan perubahan');
+      var s=typeof editStandardSelectedV145!=='undefined'?editStandardSelectedV145:null;
+      var fallback=Object.assign({},old,data,{jumlah:jumlah,metode_pemilihan:data.kategori==='NON PENGADAAN'?'':metodePemilihanByNilai(jumlah),status_perencanaan:mode==='change'?'PERUBAHAN_DIAJUKAN':'DIAJUKAN',perubahan_ke:mode==='change'?toNumber(old.perubahan_ke)+1:toNumber(old.perubahan_ke),nama_standar_biaya:source==='SB'?(s?.jenis_biaya||old.nama_standar_biaya||''):'',sifat_standar:source==='SB'?(s?.sifat_standar||old.sifat_standar||''):'',nilai_standar:source==='SB'?(s?.besaran||old.nilai_standar||''):'',sumber_standar:source==='SB'?(s?.sumber_dasar||old.sumber_standar||''):''});
+      updatePlanningStateV1451(r.perencanaan,fallback);
+      closeEditModal();hideLoading();
+      try{renderSummary();renderPerencanaan();}catch(e){renderAll();}
+      showFastCacheNotice(r.message||'Perencanaan berhasil diperbarui');
+      try{localStorage.setItem('SIMPROV_PLANNING_SIGNAL_V141',JSON.stringify({at:Date.now(),by:currentUser?.id_user||currentUser?.username||''}));}catch(e){}
+      window.__SIMPROV_PLANNING_RT_V141__?.sync?.({silent:true});
+    }catch(e){hideLoading();alert(e.message||String(e));}
+  };
+
+  /* Jenis/cara pelaksanaan ditampilkan sebagai informasi terkontrol.
+     Pengguna fokus mengganti sumber harga/standar biaya tanpa mengubah
+     klasifikasi perencanaan secara tidak sengaja. */
+  var openEditModalBaseV1451=openEditModal;
+  openEditModal=function(id,mode){
+    var result=openEditModalBaseV1451(id,mode);
+    setTimeout(function(){
+      var jenis=document.getElementById('editJenisPengadaanV145'),cara=document.getElementById('editCaraPelaksanaanV145');
+      if(jenis)jenis.disabled=true;if(cara)cara.disabled=true;
+    },0);
+    return result;
+  };
+})();
