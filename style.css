@@ -3066,3 +3066,6 @@ body.modal-open-v122{overflow:hidden}
   .editor-group-v140{border-right:0;border-bottom:1px solid #dce9f1;padding:0 0 5px;width:100%;overflow-x:auto}
   .summary-pl-v140{grid-template-columns:1fr!important}
 }
+
+/* SIMPROV v141 - indikator sinkronisasi Perencanaan */
+.planning-realtime-v141{display:inline-flex;align-items:center;gap:6px;margin:4px 0 10px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.01em;background:#eaf8ef;color:#16723b;border:1px solid #bfe8cd}.planning-realtime-v141::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px rgba(22,114,59,.11)}.planning-realtime-v141.sync{background:#eaf4ff;color:#1769aa;border-color:#bfddf4}.planning-realtime-v141.sync::before{animation:planningPulseV141 1s infinite}.planning-realtime-v141.wait{background:#fff8df;color:#8a6200;border-color:#efd98d}.planning-realtime-v141.warn{background:#fff0ec;color:#a13b22;border-color:#f0c4b8}@keyframes planningPulseV141{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
