@@ -10553,3 +10553,355 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
     }
   };
 })();
+
+/* =========================================================
+   SIMPROV v141 - Perencanaan Super Cepat & Near-Realtime
+   Prinsip: optimistic UI, endpoint ringan, polling adaptif,
+   tanpa reload dashboard penuh setelah aksi perencanaan.
+   ========================================================= */
+(function(){
+  const PLANNING_RT_VERSION_V141='141.0';
+  let planningRevisionV141='';
+  let planningSyncInFlightV141=false;
+  let planningSyncTimerV141=null;
+  let planningPendingRenderV141=false;
+  let planningLastSyncAtV141=0;
+
+  function isPlanningMenuV141(){return String(activeMenu||'').toUpperCase()==='PERENCANAAN';}
+  function planningCacheKeyV141(){const u=currentUser||{};return 'SIMPROV_PLANNING_RT_V141_'+(u.id_user||u.username||u.id_bidang||'guest');}
+  function savePlanningCacheV141(payload){try{localStorage.setItem(planningCacheKeyV141(),JSON.stringify({savedAt:Date.now(),payload:payload}));}catch(e){}}
+  function readPlanningCacheV141(){try{return JSON.parse(localStorage.getItem(planningCacheKeyV141())||'null');}catch(e){return null;}}
+  function planningFingerprintV141(rows){return JSON.stringify((rows||[]).map(x=>[x.id_kegiatan,x.nama_kegiatan,x.volume,x.satuan,x.harga_satuan,x.jumlah,x.status_perencanaan,x.alasan_penolakan,x.alasan_perubahan,x.perubahan_ke,x.riwayat_perubahan,x.waktu_pemilihan,x.status_pencairan]));}
+  function planningBusyV141(){
+    if(document.hidden)return true;
+    if(document.querySelector('#editModal:not(.hidden),.modal:not(.hidden),.modal-backdrop:not(.hidden)'))return true;
+    const a=document.activeElement,root=document.getElementById('contentArea');
+    return !!(a&&root&&root.contains(a)&&(a.matches('input,textarea,select,[contenteditable="true"]')));
+  }
+  function planningFormSnapshotV141(){
+    const root=document.getElementById('contentArea'),out={};if(!root)return out;
+    root.querySelectorAll('input[id],select[id],textarea[id],[contenteditable="true"][id]').forEach(el=>{out[el.id]={value:el.matches('[contenteditable="true"]')?el.innerHTML:el.value,checked:!!el.checked,type:el.type||'',html:el.matches('[contenteditable="true"]')};});
+    return out;
+  }
+  function restorePlanningFormV141(snap){Object.keys(snap||{}).forEach(id=>{const el=document.getElementById(id),v=snap[id];if(!el)return;if(v.html)el.innerHTML=v.value;else{el.value=v.value;if(v.type==='checkbox'||v.type==='radio')el.checked=v.checked;}});}
+  function planningStatusBadgeV141(text,mode){
+    let el=document.getElementById('planningRealtimeV141');
+    if(!el){
+      const panel=[...document.querySelectorAll('#contentArea .panel')].find(p=>p.querySelector('table')&&/Perencanaan/i.test(p.textContent||''));
+      const heading=panel?.querySelector('h3');if(!heading)return;
+      el=document.createElement('span');el.id='planningRealtimeV141';el.className='planning-realtime-v141';heading.insertAdjacentElement('afterend',el);
+    }
+    el.className='planning-realtime-v141 '+(mode||'ok');el.textContent=text||'Realtime aktif';
+  }
+  function recomputePlanningRekapV141(idBidang){
+    if(!dashboard)return;dashboard.rekap=Array.isArray(dashboard.rekap)?dashboard.rekap:[];
+    const ids=idBidang?[String(idBidang)]:[...new Set((dashboard.perencanaan||[]).map(x=>String(x.id_bidang||'')))];
+    ids.forEach(id=>{let rec=dashboard.rekap.find(x=>String(x.id_bidang)===id);if(!rec){const b=(dashboard.bidangs||[]).find(x=>String(x.id_bidang)===id)||{};rec={id_bidang:id,nama_bidang:b.nama_bidang||id,pagu:toNumber(b.pagu),status_akses:b.status_akses||'BUKA'};dashboard.rekap.push(rec);}const rows=(dashboard.perencanaan||[]).filter(x=>String(x.id_bidang)===id);rec.total_perencanaan=rows.reduce((n,x)=>n+toNumber(x.jumlah||toNumber(x.volume)*toNumber(x.harga_satuan)),0);rec.jumlah_kegiatan=rows.length;rec.kegiatan_disetujui=rows.filter(x=>String(x.status_perencanaan||'').toUpperCase()==='DISETUJUI').length;});
+  }
+  function applyPlanningRowV141(row,fallback){
+    if(!dashboard)return null;dashboard.perencanaan=Array.isArray(dashboard.perencanaan)?dashboard.perencanaan:[];
+    const data=normalizeDashboardData({perencanaan:[Object.assign({},fallback||{},row||{})]}).perencanaan[0];
+    const idx=dashboard.perencanaan.findIndex(x=>String(x.id_kegiatan)===String(data.id_kegiatan));
+    if(idx>=0)dashboard.perencanaan[idx]=Object.assign({},dashboard.perencanaan[idx],data);else dashboard.perencanaan.unshift(data);
+    recomputePlanningRekapV141(data.id_bidang);writeDashboardCache(dashboard);return data;
+  }
+  function removePlanningRowV141(id){if(!dashboard)return;const old=(dashboard.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id));dashboard.perencanaan=(dashboard.perencanaan||[]).filter(x=>String(x.id_kegiatan)!==String(id));if(old)recomputePlanningRekapV141(old.id_bidang);writeDashboardCache(dashboard);}
+  function renderPlanningRealtimeV141(force){
+    if(!isPlanningMenuV141())return;
+    if(!force&&planningBusyV141()){planningPendingRenderV141=true;planningStatusBadgeV141('Data baru tersedia • diterapkan setelah selesai mengetik','wait');return;}
+    const snap=planningFormSnapshotV141(),y=window.scrollY;
+    try{renderSummary();renderPerencanaan();restorePlanningFormV141(snap);planningPendingRenderV141=false;planningStatusBadgeV141('Realtime • baru saja diperbarui','ok');requestAnimationFrame(()=>window.scrollTo(0,y));}catch(e){console.warn('PLANNING_RENDER_V141',e);}
+  }
+  async function planningApiV141(){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+    try{const res=await fetch(API_URL,{method:'POST',body:JSON.stringify({action:'getPerencanaanRealtimeV141',user:currentUser}),signal:controller.signal});const txt=await res.text();if(!res.ok)throw new Error('HTTP '+res.status);return JSON.parse(txt);}finally{clearTimeout(timer);}
+  }
+  function mergePlanningPayloadV141(r,forceRender){
+    if(!r?.success||!dashboard)return false;
+    const before=planningFingerprintV141(dashboard.perencanaan||[]),after=planningFingerprintV141(r.perencanaan||[]),changed=before!==after;
+    dashboard.perencanaan=normalizeDashboardData({perencanaan:r.perencanaan||[]}).perencanaan;
+    (r.rekap||[]).forEach(n=>{let old=(dashboard.rekap||[]).find(x=>String(x.id_bidang)===String(n.id_bidang));if(old)Object.assign(old,n);else{dashboard.rekap=dashboard.rekap||[];dashboard.rekap.push(n);}});
+    planningRevisionV141=r.revision||planningRevisionV141;planningLastSyncAtV141=Date.now();writeDashboardCache(dashboard);savePlanningCacheV141(r);
+    if(changed||forceRender)renderPlanningRealtimeV141(forceRender);
+    else if(isPlanningMenuV141())planningStatusBadgeV141('Realtime • data sudah terbaru','ok');
+    return changed;
+  }
+  async function syncPlanningRealtimeV141(opts){
+    opts=opts||{};if(!currentUser||planningSyncInFlightV141)return false;
+    planningSyncInFlightV141=true;if(isPlanningMenuV141())planningStatusBadgeV141(opts.silent?'Memeriksa pembaruan...':'Sinkronisasi data terbaru...','sync');
+    try{const r=await planningApiV141();if(!r.success)throw new Error(r.message||'Gagal sinkronisasi');return mergePlanningPayloadV141(r,!!opts.forceRender);}catch(e){if(isPlanningMenuV141())planningStatusBadgeV141('Realtime aktif • koneksi akan dicoba ulang','warn');console.warn('PLANNING_SYNC_V141',e);return false;}finally{planningSyncInFlightV141=false;}
+  }
+  function schedulePlanningSyncV141(delay){clearTimeout(planningSyncTimerV141);planningSyncTimerV141=setTimeout(async()=>{if(currentUser&&isPlanningMenuV141()&&!document.hidden)await syncPlanningRealtimeV141({silent:true});schedulePlanningSyncV141(isPlanningMenuV141()?5000:20000);},Math.max(250,delay||7000));}
+  function announcePlanningChangeV141(){try{localStorage.setItem('SIMPROV_PLANNING_SIGNAL_V141',JSON.stringify({at:Date.now(),by:currentUser?.id_user||currentUser?.username||''}));}catch(e){}schedulePlanningSyncV141(500);}
+
+  const baseSetMenuV141=setMenu;
+  setMenu=function(m){
+    const planning=String(m||'').toUpperCase()==='PERENCANAAN';
+    if(planning){const cache=readPlanningCacheV141();if(cache?.payload&&dashboard){mergePlanningPayloadV141(cache.payload,false);}}
+    baseSetMenuV141(m);
+    if(planning){planningStatusBadgeV141('Realtime • menyiapkan data terbaru','sync');syncPlanningRealtimeV141({silent:true});schedulePlanningSyncV141(5000);}
+  };
+
+  const baseApplyCreatedV141=window.applyCreatedPlanningV140;
+  window.applyCreatedPlanningV140=function(response,data){baseApplyCreatedV141(response,data);recomputePlanningRekapV141(currentUser?.id_bidang);writeDashboardCache(dashboard);renderPlanningRealtimeV141(true);announcePlanningChangeV141();};
+
+  submitEditPerencanaan=async function(){
+    const mode=document.getElementById('editMode')?.value||'normal',id=document.getElementById('editIdKegiatan')?.value||'',waktu=document.getElementById('editWaktuPemilihan')?.value||'';
+    if(!waktu){alert('Waktu pemilihan wajib diisi.');return;}
+    const old=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id))||{};
+    const data={id_kegiatan:id,mode,nama_kegiatan:document.getElementById('editNamaKegiatan')?.value||'',rincian_kebutuhan:'',keterangan:document.getElementById('editKeterangan')?.value||'',volume:toNumber(document.getElementById('editVolume')?.value),satuan:document.getElementById('editSatuan')?.value||'',harga_satuan:toNumber(document.getElementById('editHarga')?.value),waktu_pemilihan:waktu,alasan_perubahan:document.getElementById('editAlasanPerubahan')?.value||'',kategori:old.kategori||'PENGADAAN',jenis_non_pengadaan:old.jenis_non_pengadaan||''};
+    const jumlah=data.volume*data.harga_satuan,cek=cekPaguFrontend(jumlah,id);if(!cek.ok){alert(cek.message);return;}
+    showLoading('Menyimpan perubahan...');
+    try{const r=await apiPost({action:'updatePerencanaan',user:currentUser,data});if(!r.success)throw new Error(r.message||'Gagal menyimpan perubahan');const fallback=Object.assign({},old,data,{jumlah,metode_pemilihan:data.kategori==='NON PENGADAAN'?'':metodePemilihanByNilai(jumlah),status_perencanaan:mode==='change'?'PERUBAHAN_DIAJUKAN':'DIAJUKAN',perubahan_ke:mode==='change'?toNumber(old.perubahan_ke)+1:toNumber(old.perubahan_ke)});applyPlanningRowV141(r.perencanaan,fallback);closeEditModal();hideLoading();renderPlanningRealtimeV141(true);showFastCacheNotice(r.message||'Perencanaan berhasil diperbarui');announcePlanningChangeV141();syncPlanningRealtimeV141({silent:true});}catch(e){hideLoading();alert(e.message||String(e));}
+  };
+
+  setujui=async function(id){
+    const old=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id))||{};showLoading('Menyetujui perencanaan...');
+    try{const r=await apiPost({action:'setujuiPerencanaan',user:currentUser,id_kegiatan:id});if(!r.success)throw new Error(r.message||'Gagal menyetujui');applyPlanningRowV141(r.perencanaan,Object.assign({},old,{status_perencanaan:'DISETUJUI',alasan_penolakan:''}));hideLoading();renderPlanningRealtimeV141(true);showFastCacheNotice(r.message||'Perencanaan disetujui');announcePlanningChangeV141();syncPlanningRealtimeV141({silent:true});}catch(e){hideLoading();alert(e.message||String(e));}
+  };
+
+  tolak=async function(id){
+    const catatan=prompt('Alasan perbaikan wajib diisi:');if(!catatan||!catatan.trim())return;
+    const old=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id))||{};showLoading('Mengembalikan perencanaan...');
+    try{const r=await apiPost({action:'tolakPerencanaan',user:currentUser,id_kegiatan:id,catatan:catatan.trim()});if(!r.success)throw new Error(r.message||'Gagal mengembalikan');applyPlanningRowV141(r.perencanaan,Object.assign({},old,{status_perencanaan:'DITOLAK',alasan_penolakan:catatan.trim()}));hideLoading();renderPlanningRealtimeV141(true);showFastCacheNotice(r.message||'Perencanaan dikembalikan');announcePlanningChangeV141();syncPlanningRealtimeV141({silent:true});}catch(e){hideLoading();alert(e.message||String(e));}
+  };
+
+  hapusPerencanaan=async function(id){
+    const k=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id));if(k&&isKegiatanLocked(k)){alert('Kegiatan sudah terkunci karena dokumen pencairan sudah divalidasi.');return;}if(!aksesPerencanaanTerbuka()){alert('Akses perencanaan bidang sedang ditutup Verifikator.');return;}if(!confirm('Hapus perencanaan ini? Data yang dihapus tidak dapat dikembalikan.'))return;
+    showLoading('Menghapus perencanaan...');try{const r=await apiPost({action:'deletePerencanaan',user:currentUser,id_kegiatan:id});if(!r.success)throw new Error(r.message||'Gagal menghapus');removePlanningRowV141(id);hideLoading();renderPlanningRealtimeV141(true);showFastCacheNotice(r.message||'Perencanaan berhasil dihapus');announcePlanningChangeV141();syncPlanningRealtimeV141({silent:true});}catch(e){hideLoading();alert(e.message||String(e));}
+  };
+
+  if(typeof syncDashboardSilentV111==='function'){
+    const baseSilentV141=syncDashboardSilentV111;
+    syncDashboardSilentV111=function(){if(isPlanningMenuV141())return syncPlanningRealtimeV141({silent:true});return baseSilentV141.apply(this,arguments);};
+  }
+
+  document.addEventListener('focusout',()=>{if(planningPendingRenderV141)setTimeout(()=>renderPlanningRealtimeV141(false),100);});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&isPlanningMenuV141())syncPlanningRealtimeV141({silent:true});});
+  window.addEventListener('focus',()=>{if(isPlanningMenuV141()&&Date.now()-planningLastSyncAtV141>3000)syncPlanningRealtimeV141({silent:true});});
+  window.addEventListener('storage',e=>{if(e.key==='SIMPROV_PLANNING_SIGNAL_V141'&&currentUser)syncPlanningRealtimeV141({silent:true});});
+  schedulePlanningSyncV141(5000);
+  window.__SIMPROV_PLANNING_RT_V141__={version:PLANNING_RT_VERSION_V141,sync:syncPlanningRealtimeV141};
+})();
+
+/* =========================================================
+   SIMPROV v143 - Tampilan pasti terbaru setelah aksi (aman, aditif)
+   ---------------------------------------------------------
+   MASALAH: setelah melakukan aksi (verifikasi, pencairan, upload,
+   pembayaran, dll), loadDashboard sempat menampilkan data dari cache
+   lama sepersekian detik sebelum data terbaru dari server muncul.
+   Pada koneksi lambat, "kedip data lama" ini terasa seperti tampilan
+   belum ter-update.
+
+   PERBAIKAN: setelah sebuah aksi TULIS berhasil, cache dashboard
+   dibuang. Dengan begitu loadDashboard berikutnya langsung memakai
+   data terbaru dari server, tanpa menampilkan cache lama dulu.
+
+   TIDAK MENYENTUH:
+   - Mesin realtime Perencanaan v141 (savePerencanaan, updatePerencanaan,
+     setujui/tolak/deletePerencanaan, getPerencanaanRealtimeV141) -
+     semua itu DIKECUALIKAN agar realtime-nya tetap seperti semula.
+   - Aksi baca (getDashboard dll) tidak diapa-apakan.
+   - Nama action, format request/response, dan data - tidak berubah.
+
+   AMAN: hanya menghapus cache SETELAH server memastikan aksi berhasil.
+   Kalau aksi gagal, cache tidak disentuh. Kalau penghapusan cache
+   gagal pun, tidak fatal (dibungkus try/catch).
+   ========================================================= */
+(function(){
+  if(typeof apiPost !== 'function' || typeof cacheKeyDashboard !== 'function') return;
+
+  // Aksi yang TIDAK boleh memicu penghapusan cache:
+  // - aksi baca (tidak mengubah data)
+  // - aksi perencanaan (sudah dikelola mesin realtime sendiri)
+  var LEWATI_V143 = {
+    getDashboard:1, getPublicDashboard:1, getPbjDataV94:1,
+    getPaymentWorkspaceV138:1, getSuratWorkspaceV133:1, getSuratLampiranV137:1,
+    getSystemIdentity:1, getVerifierAccounts:1, login:1,
+    getPerencanaanRealtimeV141:1, savePerencanaan:1, updatePerencanaan:1,
+    setujuiPerencanaan:1, tolakPerencanaan:1, deletePerencanaan:1
+  };
+
+  var __apiPostBaseV143 = apiPost;
+  apiPost = function(payload){
+    var hasil = __apiPostBaseV143(payload);
+    try{
+      var a = payload && payload.action;
+      if(a && !LEWATI_V143[a] && hasil && typeof hasil.then === 'function'){
+        hasil.then(function(r){
+          if(r && r.success){
+            try{ localStorage.removeItem(cacheKeyDashboard()); }catch(e){}
+          }
+        }).catch(function(){ /* biarkan handler asli yang menangani error */ });
+      }
+    }catch(e){ /* jangan sampai membungkus apiPost bikin error */ }
+    return hasil;   // kembalikan promise yang SAMA -> handler lama tetap jalan
+  };
+})();
+
+
+/* =========================================================
+   SIMPROV v144 - Optimasi Stabil Tanpa Mengubah Alur
+   ---------------------------------------------------------
+   1) Menghapus request PBJ tambahan yang sudah tidak memiliki route
+      backend. Data penyedia/proses sudah ikut dalam getDashboard.
+   2) Menyamakan alias data lama/baru agar menu Pengadaan Langsung
+      tetap membaca payload dashboard utama.
+   3) Single-flight untuk semua action baca penting.
+   4) Mencegah response baca lama menimpa hasil aksi tulis terbaru.
+   5) Sinkronisasi lintas-tab hanya saat user aman/idle, sehingga
+      tampilan lebih realtime tanpa mengganggu form yang sedang diisi.
+   Semua perubahan bersifat aditif dan memakai fallback ke fungsi lama.
+   ========================================================= */
+(function(){
+  const PATCH_VERSION_V144='144.0';
+
+  /* Payload backend v96 sudah mengirim penyedia/proses di getDashboard.
+     Alias dipertahankan supaya fungsi lama tidak perlu diubah. */
+  const normalizeBaseV144=normalizeDashboardData;
+  normalizeDashboardData=function(payload){
+    const out=normalizeBaseV144(payload||{});
+    if(!Array.isArray(out.penyediaV94)) out.penyediaV94=Array.isArray(out.penyedia)?out.penyedia:[];
+    if(!Array.isArray(out.prosesPengadaanV96)) out.prosesPengadaanV96=Array.isArray(out.prosesPengadaan)?out.prosesPengadaan:[];
+    if(!Array.isArray(out.dokumenGeneratePengadaanV96)) out.dokumenGeneratePengadaanV96=Array.isArray(out.dokumenGeneratePengadaan)?out.dokumenGeneratePengadaan:[];
+    if(!Array.isArray(out.pbjTahapanV94)) out.pbjTahapanV94=[];
+    return out;
+  };
+
+  /* v94/v96 masih memanggil getPbjDataV94, padahal backend sekarang
+     memasukkan data tersebut ke getDashboard. Gunakan core dashboard
+     sebelum wrapper v94 agar satu kali buka dashboard hanya satu request. */
+  const loadDashboardFallbackV144=loadDashboard;
+  loadDashboard=async function(withLoader=true){
+    if(typeof __loadDashboardV94Base==='function'){
+      await __loadDashboardV94Base(withLoader);
+      if(dashboard) dashboard=normalizeDashboardData(dashboard);
+      return;
+    }
+    return loadDashboardFallbackV144(withLoader);
+  };
+
+  const READ_ACTIONS_V144=new Set([
+    'login','getDashboard','getPublicDashboard','getSuratWorkspaceV133',
+    'getSuratLampiranV137','getVerifierAccounts','getSystemIdentity',
+    'getPaymentWorkspaceV138','getPerencanaanRealtimeV141','forceDriveAuth'
+  ]);
+  const PLANNING_WRITE_V144=new Set([
+    'savePerencanaan','updatePerencanaan','setujuiPerencanaan',
+    'tolakPerencanaan','deletePerencanaan'
+  ]);
+  const readInFlightV144=new Map();
+  let dataEpochV144=0;
+  const apiPostBaseV144=apiPost;
+  const SIGNAL_KEY_V144='SIMPROV_DATA_SIGNAL_V144';
+
+  function requestKeyV144(payload){
+    const u=currentUser||{};
+    return [payload?.action||'',u.id_user||u.username||'public',payload?.username||'',payload?.id_kegiatan||'',payload?.id_pengajuan||'',payload?.id_surat||''].join('|');
+  }
+  function invalidateCachesV144(action){
+    try{ if(typeof cacheKeyDashboard==='function') localStorage.removeItem(cacheKeyDashboard()); }catch(e){}
+    try{
+      if(/Surat/i.test(action||'') && typeof suratCacheKeyV133==='function') sessionStorage.removeItem(suratCacheKeyV133());
+    }catch(e){}
+  }
+  function broadcastWriteV144(action){
+    try{
+      localStorage.setItem(SIGNAL_KEY_V144,JSON.stringify({at:Date.now(),action:action||'',by:currentUser?.id_user||currentUser?.username||''}));
+    }catch(e){}
+  }
+
+  apiPost=function(payload){
+    const action=String(payload?.action||'');
+    const isRead=READ_ACTIONS_V144.has(action);
+    if(!isRead){
+      const result=apiPostBaseV144(payload);
+      if(result&&typeof result.then==='function'){
+        result.then(r=>{
+          if(r&&r.success){
+            dataEpochV144++;
+            invalidateCachesV144(action);
+            if(!PLANNING_WRITE_V144.has(action)) broadcastWriteV144(action);
+          }
+        }).catch(()=>{});
+      }
+      return result;
+    }
+
+    const key=requestKeyV144(payload);
+    if(readInFlightV144.has(key)) return readInFlightV144.get(key);
+    const startedEpoch=dataEpochV144;
+    const request=Promise.resolve(apiPostBaseV144(payload)).then(async r=>{
+      /* Bila ada aksi tulis selesai saat request baca masih berjalan,
+         response pertama berpotensi berasal dari snapshot lama. Ambil
+         ulang sekali agar handler selalu menerima data sesudah penulisan. */
+      if(action!=='login' && r&&r.success && startedEpoch!==dataEpochV144){
+        await new Promise(resolve=>setTimeout(resolve,0));
+        return apiPostBaseV144(Object.assign({},payload,{_fresh_v144:Date.now()}));
+      }
+      return r;
+    }).finally(()=>readInFlightV144.delete(key));
+    readInFlightV144.set(key,request);
+    return request;
+  };
+
+  /* Sinkronisasi lintas tab/perangkat browser. Refresh hanya diterapkan
+     ketika user tidak mengetik, tidak membuka modal, dan tidak upload. */
+  let remoteDirtyV144=false;
+  let remoteTimerV144=null;
+  function uiBusyV144(){
+    if(document.hidden) return true;
+    const loading=document.getElementById('loadingOverlay');
+    if(loading&&!loading.classList.contains('hidden')) return true;
+    if(document.querySelector('.modal-backdrop:not(.hidden),.modal:not(.hidden),#confirmModalV133,.upload-progress-v135')) return true;
+    const a=document.activeElement;
+    if(a&&a.matches('input,textarea,select,[contenteditable="true"]')) return true;
+    const idleFor=Date.now()-(typeof lastActivityV133==='number'?lastActivityV133:0);
+    return idleFor<8000;
+  }
+  function scheduleRemoteRefreshV144(delay=1500){
+    clearTimeout(remoteTimerV144);
+    remoteTimerV144=setTimeout(applyRemoteRefreshV144,delay);
+  }
+  async function applyRemoteRefreshV144(){
+    if(!remoteDirtyV144||!currentUser) return;
+    if(uiBusyV144()){ scheduleRemoteRefreshV144(4000); return; }
+    try{
+      if(String(activeMenu||'').toUpperCase()==='PERENCANAAN' && window.__SIMPROV_PLANNING_RT_V141__?.sync){
+        await window.__SIMPROV_PLANNING_RT_V141__.sync({silent:true});
+      }else if(String(activeMenu||'').toUpperCase()==='SURAT'){
+        if(typeof suratTabV133!=='undefined' && suratTabV133==='BUAT'){ scheduleRemoteRefreshV144(5000); return; }
+        if(typeof suratTabV133!=='undefined' && suratTabV133==='PEMBAYARAN'){
+          if(typeof paymentTabV138!=='undefined' && paymentTabV138==='FORM'){ scheduleRemoteRefreshV144(5000); return; }
+          if(typeof loadPaymentWorkspaceV138==='function') await loadPaymentWorkspaceV138(true);
+        }else if(typeof loadSuratWorkspaceV133==='function'){
+          await loadSuratWorkspaceV133(true);
+        }
+      }else{
+        const oldScroll=window.scrollY;
+        const r=await apiPost({action:'getDashboard',user:currentUser});
+        if(r?.success){
+          dashboard=normalizeDashboardData(r);
+          writeDashboardCache(dashboard);
+          renderAll();
+          requestAnimationFrame(()=>window.scrollTo(0,oldScroll));
+        }
+      }
+      remoteDirtyV144=false;
+      if(typeof showFastCacheNotice==='function') showFastCacheNotice('Data terbaru dari pengguna lain sudah disinkronkan.');
+    }catch(e){
+      console.warn('REMOTE_SYNC_V144',e);
+      scheduleRemoteRefreshV144(8000);
+    }
+  }
+  window.addEventListener('storage',e=>{
+    if(e.key!==SIGNAL_KEY_V144||!e.newValue||!currentUser) return;
+    try{ if(typeof cacheKeyDashboard==='function') localStorage.removeItem(cacheKeyDashboard()); }catch(err){}
+    remoteDirtyV144=true;
+    scheduleRemoteRefreshV144(1200);
+  });
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&remoteDirtyV144)scheduleRemoteRefreshV144(500);});
+  window.addEventListener('focus',()=>{if(remoteDirtyV144)scheduleRemoteRefreshV144(500);});
+
+  window.__SIMPROV_OPTIMIZATION_V144__={version:PATCH_VERSION_V144,refresh:()=>{remoteDirtyV144=true;scheduleRemoteRefreshV144(0);}};
+})();
