@@ -7,7 +7,7 @@
 
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="logo-siporbo.png" />
-  <link rel="stylesheet" href="style.css?v=1460-surat-flow-role" />
+  <link rel="stylesheet" href="style.css?v=1470-payment-lock-queue-source" />
 </head>
 <body>
   <div class="bg-orb orb-a"></div>
@@ -54,7 +54,12 @@
       <input id="username" type="text" placeholder="Masukkan username" autocomplete="username" />
 
       <label>Password</label>
-      <input id="password" type="password" placeholder="Masukkan password" autocomplete="current-password" />
+      <div class="password-field-v148">
+        <input id="password" type="password" placeholder="Masukkan password" autocomplete="current-password" />
+        <button id="passwordToggleV148" type="button" class="password-toggle-v148" onclick="togglePasswordV148()" aria-label="Tampilkan password" title="Tampilkan password">
+          <span aria-hidden="true">👁</span>
+        </button>
+      </div>
 
       <button id="loginBtn" onclick="login()">Login</button>
       <button class="btn-soft btn-back-public" onclick="showPublicFromLogin()">Kembali ke Dashboard Publik</button>
@@ -110,6 +115,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1460-surat-flow-role"></script>
+  <script src="app.js?v=1480-login-session-print-consistency"></script>
 </body>
 </html>
