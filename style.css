@@ -3069,3 +3069,17 @@ body.modal-open-v122{overflow:hidden}
 
 /* SIMPROV v141 - indikator sinkronisasi Perencanaan */
 .planning-realtime-v141{display:inline-flex;align-items:center;gap:6px;margin:4px 0 10px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.01em;background:#eaf8ef;color:#16723b;border:1px solid #bfe8cd}.planning-realtime-v141::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px rgba(22,114,59,.11)}.planning-realtime-v141.sync{background:#eaf4ff;color:#1769aa;border-color:#bfddf4}.planning-realtime-v141.sync::before{animation:planningPulseV141 1s infinite}.planning-realtime-v141.wait{background:#fff8df;color:#8a6200;border-color:#efd98d}.planning-realtime-v141.warn{background:#fff0ec;color:#a13b22;border-color:#f0c4b8}@keyframes planningPulseV141{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+
+/* =========================================================
+   SIMPROV v145 - Surat terpisah, edit sumber harga, payment lock
+   ========================================================= */
+.surat-tabs-v145{display:flex;flex-wrap:wrap;gap:10px}
+.surat-tabs-v145 button{min-height:42px}
+.payment-lock-notice-v145{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 18px;padding:14px 16px;border:1px solid #f0c36b;background:#fff9e9;border-radius:14px;color:#6f4b00}
+.payment-lock-notice-v145 div{display:flex;flex-direction:column;gap:4px}
+.payment-lock-notice-v145 span{font-size:13px;line-height:1.5}
+.payment-data-locked-v145 input:disabled,.payment-data-locked-v145 select:disabled,.payment-data-locked-v145 textarea:disabled{opacity:.82;background:#f3f6f8;color:#43566a;cursor:not-allowed}
+.payment-data-locked-v145 button:disabled{opacity:.48;cursor:not-allowed}
+.dok-table-v96 td:nth-child(4) .btn-soft,.dok-table-v96 td:nth-child(4) .btn-green{white-space:nowrap}
+#editStandardFieldV145.hidden{display:none}
+@media(max-width:760px){.payment-lock-notice-v145{align-items:stretch;flex-direction:column}.surat-tabs-v145 button{flex:1 1 140px}}
