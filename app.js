@@ -11528,3 +11528,424 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
 
   window.__SIMPROV_PATCH_VERSION_V146__=PATCH_VERSION_V146;
 })();
+
+
+/* =========================================================
+   SIMPROV v147 - Penguncian Ulang, Template HPS, Antrean Role,
+   Notifikasi Antrean, dan Preservasi Sumber Harga
+   ========================================================= */
+(function(){
+  const PATCH_VERSION_V147='147.0';
+  const HPS_TEMPLATE_URL_V147='https://docs.google.com/document/d/1qhYrUspAPu8I3qbez51bQf5uFSF2QnJ7/edit';
+
+  function roleQueueStatusesV147(role){
+    role=String(role||actualRoleV133()||'').toUpperCase();
+    if(role==='PIMPINAN')return ['MENUNGGU PERSETUJUAN PIMPINAN','MENUNGGU PERINTAH KETUA HARIAN'];
+    if(role==='VERIFIKATOR_KEUANGAN')return ['MENUNGGU VERIFIKASI KEUANGAN'];
+    if(role==='BENDAHARA')return ['MENUNGGU PEMBAYARAN BENDAHARA'];
+    if(role==='BIDANG')return ['PERBAIKAN BIDANG'];
+    if(role==='ADMIN')return ['MENUNGGU PERSETUJUAN PIMPINAN','MENUNGGU PERINTAH KETUA HARIAN','MENUNGGU VERIFIKASI KEUANGAN','MENUNGGU PEMBAYARAN BENDAHARA','PERBAIKAN BIDANG'];
+    return [];
+  }
+  function paymentQueueRowsV147(role){
+    const statuses=roleQueueStatusesV147(role);
+    return (paymentWorkspaceV138?.pengajuan||[]).filter(p=>statuses.includes(String(p.status_pengajuan||'').toUpperCase()));
+  }
+  function paymentQueueCountV147(role){return paymentQueueRowsV147(role).length;}
+  function queueBadgeV147(count){return `<span class="queue-badge-v147" aria-label="${Number(count)||0} antrean">${Number(count)||0}</span>`;}
+
+  /* 1. Setelah edit pengajuan disimpan, form otomatis dikunci kembali. */
+  savePaymentDraftV138=async function(){
+    const data=collectPaymentFormV138();
+    const wasEditing=!!String(data.id_pengajuan||paymentEditIdV138||'');
+    const activity=(paymentWorkspaceV138.kegiatan||[]).find(k=>String(k.id_kegiatan)===String(data.id_kegiatan));
+    const budget=toNumber(activity?.jumlah||0),rincianTotal=paymentTotalRincianV138(data.rincian),rekeningTotal=paymentTotalRincianV138(data.rekening);
+    if(!data.id_kegiatan)return alert('Pilih kegiatan terlebih dahulu.');
+    if(!data.rincian.length)return alert('Isi minimal satu rincian penggunaan anggaran.');
+    if(budget>0&&rincianTotal>budget)return alert(`Jumlah pengajuan ${rupiah(rincianTotal)} melebihi pagu kegiatan ${rupiah(budget)}.`);
+    if(data.rekening.length&&!data.rekening.every(x=>x.uraian&&x.nama_rekening&&x.nama_bank&&x.nomor_rekening&&x.jumlah>0))return alert('Lengkapi seluruh data rekening tujuan atau hapus baris yang belum digunakan.');
+    if(rekeningTotal>rincianTotal)return alert('Total rekening tujuan tidak boleh melebihi jumlah pengajuan.');
+    const ok=await confirmActionV133({
+      title:wasEditing?'Simpan Perubahan Pengajuan':'Simpan & Buat Pengajuan',
+      message:wasEditing?'Perubahan akan disimpan. Setelah berhasil, data pengajuan dikunci kembali agar tidak berubah tanpa sengaja.':'Data Nota Dinas, SPTJM, rincian anggaran, dan rekening tujuan akan dibuat sebagai draft pengajuan.',
+      confirmText:wasEditing?'Ya, Simpan & Kunci':'Ya, Simpan & Buat'
+    });
+    if(!ok)return;
+    showLoading(wasEditing?'Menyimpan dan mengunci kembali...':'Membuat pengajuan pembayaran...');
+    try{
+      const r=await apiPost({action:'savePaymentDraftV138',user:currentUser,data});
+      if(!r.success)throw new Error(r.message||'Gagal menyimpan pengajuan');
+      const id=r.id_pengajuan||data.id_pengajuan;
+      paymentEditIdV138=id;paymentPrefillActivityV138=data.id_kegiatan;
+      if(r.pengajuan){
+        const other=(paymentWorkspaceV138.pengajuan||[]).filter(x=>String(x.id_pengajuan)!==String(id));
+        paymentWorkspaceV138.pengajuan=[...other,r.pengajuan];
+      }else{
+        const old=paymentByIdV138(id);
+        if(old)Object.assign(old,data,{jumlah_pengajuan:rincianTotal,rincian_json:JSON.stringify(data.rincian),rekening_json:JSON.stringify(data.rekening),updated_at:new Date().toISOString()});
+      }
+      paymentTabV138='FORM';
+      /* openPaymentFormV138(id) menjalankan guard v145: status unlocked kembali false. */
+      openPaymentFormV138(id);
+      showFastCacheNotice(wasEditing?'Perubahan tersimpan. Data pengajuan sudah dikunci kembali.':(r.message||'Pengajuan berhasil dibuat.'));
+      setTimeout(()=>loadPaymentWorkspaceV138(true),250);
+    }catch(e){alert(e.message||String(e));}
+    finally{hideLoading();}
+  };
+
+  /* 2. Template Spesifikasi Teknis dan HPS diletakkan pada kolom template. */
+  function fixHpsTemplateRowV147(root){
+    if(!root)return;
+    root.querySelectorAll('tbody tr').forEach(tr=>{
+      const cells=tr.querySelectorAll('td');if(cells.length<4)return;
+      const first=cells[0];
+      if(dokKeyV94(first.textContent)===dokKeyV94('Spesifikasi Teknis dan HPS')){
+        first.querySelectorAll('.btn-hps-opt-v121').forEach(x=>x.remove());
+        first.querySelectorAll('br').forEach(br=>{if(!br.nextSibling||br.nextSibling.nodeType===3&&!String(br.nextSibling.textContent||'').trim())br.remove();});
+        cells[3].innerHTML=`<button class="btn-soft" type="button" onclick="openTemplateSourceV123('${esc(HPS_TEMPLATE_URL_V147)}')">Buka Template</button>`;
+      }
+    });
+  }
+  const dokumenTableBaseV147=dokumenTableV95;
+  dokumenTableV95=function(k,jenisList,ctx){
+    const html=dokumenTableBaseV147.apply(this,arguments);
+    if((ctx||'PGD')!=='PGD')return html;
+    try{const box=document.createElement('div');box.innerHTML=html;fixHpsTemplateRowV147(box);return box.innerHTML;}catch(e){return html;}
+  };
+  pasangTombolHpsOptionalV121=function(){
+    const area=document.getElementById('contentArea');fixHpsTemplateRowV147(area);
+  };
+
+  /* 3-5. Menu role ringkas dan notifikasi antrean berwarna merah. */
+  menuListV133=function(){
+    const role=actualRoleV133();
+    if(role==='ADMIN')return ['Dashboard Monitoring','Struktur Anggaran','Perencanaan','Pengadaan Langsung','Pencairan','Non Pengadaan','Surat','Manajemen Akses'];
+    if(role==='VERIFIKATOR_PBJ')return ['Dashboard Monitoring','Struktur Anggaran','Perencanaan','Pengadaan Langsung','Pencairan','Non Pengadaan','Surat','Laporan'];
+    if(role==='VERIFIKATOR_KEUANGAN')return ['Dashboard Monitoring','Pengadaan Langsung','Antrean Verifikasi'];
+    if(role==='PIMPINAN')return ['Dashboard Monitoring','Antrean Persetujuan Pengajuan'];
+    if(role==='BENDAHARA')return ['Dashboard Monitoring','Surat'];
+    if(role==='AUDITOR')return ['Dashboard Monitoring','Struktur Anggaran','Perencanaan','Pengadaan Langsung','Pencairan','Non Pengadaan','Surat','Laporan'];
+    return ['Struktur Anggaran','Perencanaan','Pengadaan Langsung','Pencairan','Non Pengadaan','Surat','Laporan'];
+  };
+  renderMenu=function(){
+    const menus=menuListV133();if(!menus.includes(activeMenu))activeMenu=menus[0];
+    const labels={Pencairan:'Pencatatan Pengadaan','Non Pengadaan':'Pencatatan Non Pengadaan'};
+    const role=actualRoleV133(),count=paymentQueueCountV147(role);
+    document.getElementById('menuNav').innerHTML=menus.map(m=>{
+      const isQueue=m==='Antrean Verifikasi'||m==='Antrean Persetujuan Pengajuan';
+      return `<button class="${activeMenu===m?'active':''}" onclick="setMenu('${m.replace(/'/g,"\\'")}')">${labels[m]||m}${isQueue?queueBadgeV147(count):''}</button>`;
+    }).join('');
+  };
+
+  const renderContentBaseV147=renderContent;
+  renderContent=function(){
+    if(activeMenu==='Antrean Verifikasi'||activeMenu==='Antrean Persetujuan Pengajuan'){
+      paymentTabV138='DAFTAR';renderPaymentWorkspaceV138();if(!paymentWorkspaceV138.loaded)loadPaymentWorkspaceV138(false);return;
+    }
+    return renderContentBaseV147();
+  };
+  const setMenuBaseV147=setMenu;
+  setMenu=function(menu){
+    const m=String(menu||''),queue=m==='Antrean Verifikasi'||m==='Antrean Persetujuan Pengajuan';
+    if(queue)showLoading(m==='Antrean Persetujuan Pengajuan'?'Memuat antrean persetujuan...':'Memuat antrean verifikasi...');
+    const r=setMenuBaseV147(menu);
+    if(queue){
+      paymentTabV138='DAFTAR';
+      const done=()=>{renderMenu();renderPaymentWorkspaceV138();hideLoading();};
+      if(paymentWorkspaceV138.loaded)done();
+      else loadPaymentWorkspaceV138(false).then(done).catch(e=>{hideLoading();alert(e.message||String(e));});
+    }
+    return r;
+  };
+
+  paymentListV138=function(){
+    const role=actualRoleV133();let rows=[...(paymentWorkspaceV138.pengajuan||[])].sort((a,b)=>new Date(b.updated_at||0)-new Date(a.updated_at||0));
+    let title='Daftar Pengajuan Pembayaran',sub='Alur: Bidang → Pimpinan/Ketua Harian → Verifikator Keuangan → Bendahara.';
+    if(role==='VERIFIKATOR_KEUANGAN'&&activeMenu==='Antrean Verifikasi'){rows=paymentQueueRowsV147(role);title='Antrean Verifikasi Keuangan';}
+    if(role==='PIMPINAN'&&activeMenu==='Antrean Persetujuan Pengajuan'){rows=paymentQueueRowsV147(role);title='Antrean Persetujuan Pengajuan';sub='Pengajuan yang menunggu persetujuan elektronik Pimpinan/Ketua Harian.';}
+    if(role==='BENDAHARA'){title='Antrean Pembayaran Bendahara';}
+    const canCreate=['BIDANG','ADMIN'].includes(role);
+    return `<section class="panel premium-panel payment-list-panel-v140"><div class="panel-title-row"><div><h3>${title}</h3><p class="panel-sub">${sub}</p></div><div class="action-group payment-list-head-actions-v140"><button class="btn-refresh" onclick="loadPaymentWorkspaceV138(true)">Refresh</button>${canCreate?'<button class="btn-primary-v140" onclick="openPaymentFormV138()">Buat Pengajuan</button>':''}</div></div><div class="payment-list-v138">${rows.map(paymentCardV138).join('')||'<p class="empty">Tidak ada pengajuan yang menunggu proses.</p>'}</div></section>`;
+  };
+
+  function decorateQueueUiV147(){
+    const role=actualRoleV133(),count=paymentQueueCountV147(role),queuePage=activeMenu==='Antrean Verifikasi'||activeMenu==='Antrean Persetujuan Pengajuan';
+    const tabs=document.querySelector('.payment-head-v138 .surat-tabs-v133');
+    if(tabs){
+      if(queuePage&&(role==='PIMPINAN'||role==='VERIFIKATOR_KEUANGAN')){
+        tabs.innerHTML=`<button type="button" class="active">Pengajuan Pembayaran ${queueBadgeV147(count)}</button>`;
+      }else{
+        const btn=[...tabs.querySelectorAll('button')].find(b=>String(b.textContent||'').includes('Pengajuan Pembayaran'));
+        if(btn){btn.querySelectorAll('.queue-badge-v147').forEach(x=>x.remove());btn.insertAdjacentHTML('beforeend',queueBadgeV147(count));}
+      }
+    }
+    renderMenu();
+  }
+  const renderPaymentBaseV147=renderPaymentWorkspaceV138;
+  renderPaymentWorkspaceV138=function(){const r=renderPaymentBaseV147();setTimeout(decorateQueueUiV147,30);return r;};
+  const loadPaymentBaseV147=loadPaymentWorkspaceV138;
+  loadPaymentWorkspaceV138=async function(){const r=await loadPaymentBaseV147.apply(this,arguments);setTimeout(decorateQueueUiV147,20);return r;};
+
+  /* 6. Sumber harga pada edit selalu mengikuti data awal perencanaan. */
+  function planningStandardsV147(){
+    const rows=dashboard?.standarBiaya||dashboard?.standar_biaya||[];if(rows.length)return rows;
+    return (typeof SB_FLAT_V96!=='undefined'?SB_FLAT_V96:[]).map((x,i)=>({id_standar:'LEGACY-'+i,jenis_biaya:x.nama,satuan:x.satuan,besaran:x.nilai,sifat_standar:'BATAS TERTINGGI'}));
+  }
+  function parseStandardNameV147(k){
+    const text=String(k?.keterangan||k?.rincian_kebutuhan||'');
+    const m=text.match(/Standar\s+Biaya\s*:\s*([^|]+)/i);return m?m[1].trim():'';
+  }
+  function sourceInfoV147(k){
+    const explicit=String(k?.sumber_harga||'').toUpperCase();
+    const markerName=parseStandardNameV147(k);
+    const useSb=explicit==='SB'||explicit.includes('STANDAR')||!!String(k?.id_standar_biaya||k?.nama_standar_biaya||markerName||'').trim();
+    const standards=planningStandardsV147();
+    let standard=standards.find(s=>String(s.id_standar||s.id||'')===String(k?.id_standar_biaya||''));
+    const wanted=String(k?.nama_standar_biaya||markerName||'').trim().toLowerCase();
+    if(!standard&&wanted)standard=standards.find(s=>String(s.jenis_biaya||s.nama||'').trim().toLowerCase()===wanted);
+    if(!standard&&useSb){
+      const price=toNumber(k?.harga_satuan),unit=String(k?.satuan||'').trim().toLowerCase();
+      standard=standards.find(s=>toNumber(s.besaran??s.nilai)===price&&(!unit||String(s.satuan||'').trim().toLowerCase()===unit));
+    }
+    return {source:useSb?'SB':'PASAR',standard,name:k?.nama_standar_biaya||markerName||standard?.jenis_biaya||standard?.nama||''};
+  }
+  const openEditModalBaseV147=openEditModal;
+  openEditModal=function(id,mode){
+    const r=openEditModalBaseV147(id,mode);
+    setTimeout(()=>{
+      const k=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id))||{},info=sourceInfoV147(k);
+      const source=document.getElementById('editSumberHargaV145'),sid=document.getElementById('editStandardIdV145'),label=document.getElementById('editStandardLabelV145'),harga=document.getElementById('editHarga'),field=document.getElementById('editStandardFieldV145');
+      if(source)source.value=info.source;
+      if(sid)sid.value=info.standard?.id_standar||info.standard?.id||k.id_standar_biaya||'';
+      if(label)label.value=info.source==='SB'?`${info.name||'Standar Biaya'}${k.satuan?` (${k.satuan})`:''}`:'';
+      if(field)field.classList.toggle('hidden',info.source!=='SB');
+      if(harga)harga.readOnly=info.source==='SB';
+    },30);
+    return r;
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V147__=PATCH_VERSION_V147;
+})();
+
+
+/* =========================================================
+   SIMPROV v148 - Konsistensi Dokumen, Login Cepat, dan Sesi Aman
+   ========================================================= */
+(function(){
+  const PATCH_VERSION_V148='148.0';
+  const SESSION_KEY_V148='simprov_session_v148';
+  const SESSION_IDLE_MS_V148=30*60*1000;
+  const SESSION_ABSOLUTE_MS_V148=8*60*60*1000;
+  const SESSION_WARNING_MS_V148=2*60*1000;
+  let loginBusyV148=false;
+  let sessionTimerV148=null;
+  let sessionLastPersistV148=0;
+  let sessionListenersBoundV148=false;
+
+  function loginMessageV148(text,state=''){
+    const el=document.getElementById('loginMsg');
+    if(!el)return;
+    el.textContent=text||'';
+    el.classList.remove('login-checking-v148','login-error-v148','login-success-v148');
+    if(state)el.classList.add(`login-${state}-v148`);
+  }
+  function loginButtonV148(busy){
+    const btn=document.getElementById('loginBtn');
+    if(!btn)return;
+    btn.disabled=!!busy;
+    btn.classList.toggle('is-loading-v148',!!busy);
+    btn.textContent=busy?'Memeriksa...':'Login';
+  }
+  async function loginRequestFastV148(username,password){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),10000);
+    try{
+      const res=await fetch(API_URL,{method:'POST',body:JSON.stringify({action:'loginFastV148',username,password}),signal:controller.signal});
+      const txt=await res.text();
+      if(!res.ok)throw new Error(`Server login merespons HTTP ${res.status}`);
+      try{return JSON.parse(txt);}catch(e){throw new Error('Respons login tidak valid. Pastikan deployment Apps Script menggunakan URL /exec terbaru.');}
+    }catch(e){
+      if(e?.name==='AbortError')throw new Error('Server login belum merespons dalam 10 detik. Coba sekali lagi.');
+      throw e;
+    }finally{clearTimeout(timer);}
+  }
+
+  window.togglePasswordV148=function(){
+    const input=document.getElementById('password'),btn=document.getElementById('passwordToggleV148');
+    if(!input)return;
+    const show=input.type==='password';
+    input.type=show?'text':'password';
+    if(btn){btn.setAttribute('aria-label',show?'Sembunyikan password':'Tampilkan password');btn.title=show?'Sembunyikan password':'Tampilkan password';btn.querySelector('span').textContent=show?'🙈':'👁';}
+    input.focus({preventScroll:true});
+  };
+
+  function readSessionV148(){try{return JSON.parse(localStorage.getItem(SESSION_KEY_V148)||'null');}catch(e){return null;}}
+  function writeSessionV148(meta){try{localStorage.setItem(SESSION_KEY_V148,JSON.stringify(meta));}catch(e){}}
+  function clearSessionV148(){
+    try{localStorage.removeItem(SESSION_KEY_V148);localStorage.removeItem('siporbo_user');}catch(e){}
+    document.getElementById('sessionWarningV148')?.remove();
+    document.getElementById('idleWarningV133')?.remove();
+  }
+  function createSessionV148(user){
+    const now=Date.now();
+    const meta={user_id:String(user?.id_user||user?.username||''),logged_at:now,last_activity:now,absolute_expires_at:now+SESSION_ABSOLUTE_MS_V148,idle_timeout_ms:SESSION_IDLE_MS_V148};
+    writeSessionV148(meta);lastActivityV133=now;return meta;
+  }
+  function sessionValidV148(meta,user){
+    if(!meta||!user)return false;
+    const now=Date.now(),uid=String(user?.id_user||user?.username||'');
+    if(meta.user_id&&uid&&String(meta.user_id)!==uid)return false;
+    if(now>=Number(meta.absolute_expires_at||0))return false;
+    if(now-Number(meta.last_activity||0)>=SESSION_IDLE_MS_V148)return false;
+    return true;
+  }
+  function persistActivityV148(force=false){
+    if(!currentUser)return;
+    const now=Date.now();lastActivityV133=now;
+    document.getElementById('sessionWarningV148')?.remove();
+    document.getElementById('idleWarningV133')?.remove();
+    if(!force&&now-sessionLastPersistV148<10000)return;
+    let meta=readSessionV148();
+    if(!meta||String(meta.user_id||'')!==String(currentUser?.id_user||currentUser?.username||''))meta=createSessionV148(currentUser);
+    meta.last_activity=now;writeSessionV148(meta);sessionLastPersistV148=now;
+  }
+  function showSessionWarningV148(remaining){
+    if(document.getElementById('sessionWarningV148'))return;
+    const d=document.createElement('div');d.id='sessionWarningV148';d.className='session-warning-v148';
+    d.innerHTML=`<b>Sesi akan berakhir dalam ${Math.max(1,Math.ceil(remaining/60000))} menit karena tidak ada aktivitas.</b><button class="btn-soft" type="button" onclick="resetIdleV133()">Lanjutkan Sesi</button>`;
+    document.body.appendChild(d);
+  }
+  function autoLogoutSessionV148(message){
+    if(sessionTimerV148)clearInterval(sessionTimerV148);
+    if(typeof idleTimerV133!=='undefined'&&idleTimerV133)clearInterval(idleTimerV133);
+    clearSessionV148();
+    currentUser=null;dashboard=null;
+    document.getElementById('appPage')?.classList.add('hidden');
+    document.getElementById('publicPage')?.classList.add('hidden');
+    document.getElementById('loginPage')?.classList.remove('hidden');
+    loginMessageV148(message||'Sesi berakhir. Silakan login kembali.','error');
+    const pass=document.getElementById('password');if(pass){pass.value='';pass.type='password';}
+  }
+  function checkSessionV148(){
+    if(!currentUser)return;
+    const meta=readSessionV148(),now=Date.now();
+    if(!meta||!sessionValidV148(meta,currentUser)){
+      const absolute=meta&&now>=Number(meta.absolute_expires_at||0);
+      autoLogoutSessionV148(absolute?'Batas sesi 8 jam telah berakhir. Silakan login kembali.':'Sesi berakhir setelah 30 menit tanpa aktivitas. Silakan login kembali.');
+      return;
+    }
+    const remaining=SESSION_IDLE_MS_V148-(now-Number(meta.last_activity||0));
+    if(remaining<=SESSION_WARNING_MS_V148)showSessionWarningV148(remaining);
+  }
+  function startSessionV148(createNew=false){
+    if(!currentUser)return;
+    if(typeof idleTimerV133!=='undefined'&&idleTimerV133){clearInterval(idleTimerV133);idleTimerV133=null;}
+    if(sessionTimerV148)clearInterval(sessionTimerV148);
+    let meta=readSessionV148();
+    if(createNew||!sessionValidV148(meta,currentUser))meta=createSessionV148(currentUser);
+    lastActivityV133=Number(meta.last_activity||Date.now());
+    if(!sessionListenersBoundV148){
+      ['pointerdown','keydown','touchstart','wheel','scroll'].forEach(ev=>document.addEventListener(ev,()=>persistActivityV148(false),{passive:true}));
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkSessionV148();});
+      window.addEventListener('focus',checkSessionV148);
+      sessionListenersBoundV148=true;
+    }
+    sessionTimerV148=setInterval(checkSessionV148,15000);
+    checkSessionV148();
+  }
+
+  resetIdleV133=function(){persistActivityV148(true);};
+  startIdleLogoutV133=function(){startSessionV148(false);};
+  autoLogoutV133=function(){autoLogoutSessionV148('Sesi berakhir setelah 30 menit tanpa aktivitas. Silakan login kembali.');};
+
+  login=async function(){
+    if(loginBusyV148)return;
+    const username=document.getElementById('username')?.value.trim()||'';
+    const password=document.getElementById('password')?.value||'';
+    if(!username||!password){loginMessageV148('Username dan password wajib diisi.','error');return;}
+    loginBusyV148=true;loginButtonV148(true);loginMessageV148('Memeriksa username dan password...','checking');
+    try{
+      const r=await loginRequestFastV148(username,password);
+      if(!r?.success){loginMessageV148(r?.message||'Username atau password salah','error');document.getElementById('password')?.focus();return;}
+      currentUser=r.user;
+      localStorage.setItem('siporbo_user',JSON.stringify(currentUser));
+      createSessionV148(currentUser);
+      loginMessageV148('Login berhasil. Memuat dashboard...','success');
+      const role=typeof actualRoleV133==='function'?actualRoleV133():String(currentUser?.role||'').toUpperCase();
+      activeMenu=role==='BIDANG'?'Struktur Anggaran':'Dashboard Monitoring';
+      document.getElementById('publicPage')?.classList.add('hidden');
+      document.getElementById('loginPage')?.classList.add('hidden');
+      document.getElementById('appPage')?.classList.remove('hidden');
+      startSessionV148(true);
+      showLoading('Memuat dashboard...');
+      try{await loadDashboard(false);}finally{hideLoading();}
+    }catch(e){loginMessageV148(e?.message||'Gagal terhubung ke server login.','error');}
+    finally{loginBusyV148=false;loginButtonV148(false);}
+  };
+
+  const logoutBaseV148=logout;
+  logout=async function(){
+    const before=!!currentUser;
+    const result=await logoutBaseV148.apply(this,arguments);
+    if(before&&!currentUser){if(sessionTimerV148)clearInterval(sessionTimerV148);clearSessionV148();}
+    return result;
+  };
+
+  function bindLoginUxV148(){
+    const user=document.getElementById('username'),pass=document.getElementById('password');
+    [user,pass].forEach(el=>{if(el&&!el.dataset.enterLoginV148){el.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();login();}});el.dataset.enterLoginV148='1';}});
+  }
+
+  /* Dokumen yang dicetak dari form edit memakai persis data yang sedang
+     terlihat pada input. Setelah disimpan, daftar memakai record yang sama. */
+  const paymentPrintDataBaseV148=paymentPrintDataV138;
+  paymentPrintDataV138=function(id){
+    const base=paymentPrintDataBaseV148(id);
+    const form=document.getElementById('payActivityV138');
+    const sameForm=form&&String(paymentEditIdV138||'')===String(id||'');
+    if(!sameForm)return base;
+    try{
+      const live=collectPaymentFormV138();
+      const activity=paymentActivityV138(live.id_kegiatan)||base.activity;
+      const p={...(base.p||{}),...live,
+        id_pengajuan:id,
+        nama_kegiatan:activity?.nama_kegiatan||base.p?.nama_kegiatan||'',
+        id_bidang:activity?.id_bidang||base.p?.id_bidang||'',
+        rincian_json:JSON.stringify(live.rincian||[]),
+        rekening_json:JSON.stringify(live.rekening||[])
+      };
+      const bidang=(paymentWorkspaceV138.bidang||[]).find(b=>String(b.id_bidang)===String(p.id_bidang))||base.bidang;
+      return {p,activity,bidang,rincian:live.rincian||base.rincian,rekening:live.rekening||base.rekening};
+    }catch(e){return base;}
+  };
+
+  window.onload=async function(){
+    bindLoginUxV148();
+    const raw=localStorage.getItem('siporbo_user');let saved=null;
+    try{saved=raw?JSON.parse(raw):null;}catch(e){saved=null;}
+    if(saved){
+      let meta=readSessionV148();
+      /* Kompatibilitas satu kali untuk sesi dari versi lama. */
+      if(!meta)meta=createSessionV148(saved);
+      if(sessionValidV148(meta,saved)){
+        currentUser=saved;
+        const role=typeof actualRoleV133==='function'?actualRoleV133():String(saved.role||'').toUpperCase();
+        activeMenu=role==='BIDANG'?'Struktur Anggaran':'Dashboard Monitoring';
+        document.getElementById('publicPage')?.classList.add('hidden');
+        document.getElementById('loginPage')?.classList.add('hidden');
+        document.getElementById('appPage')?.classList.remove('hidden');
+        startSessionV148(false);
+        await loadDashboard(true);
+        return;
+      }
+      clearSessionV148();
+    }
+    document.getElementById('appPage')?.classList.add('hidden');
+    document.getElementById('loginPage')?.classList.add('hidden');
+    document.getElementById('publicPage')?.classList.remove('hidden');
+    if(typeof loadPublicDashboard==='function')loadPublicDashboard(false);
+  };
+
+  setTimeout(bindLoginUxV148,0);
+  window.__SIMPROV_PATCH_VERSION_V148__=PATCH_VERSION_V148;
+})();
