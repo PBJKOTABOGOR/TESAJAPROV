@@ -3153,3 +3153,28 @@ body.modal-open-v122{overflow:hidden}
 .queue-badge-v149.is-zero-v149{background:#fff;color:#17577f;border:1px solid #b9d6e9;box-shadow:none}
 .queue-badge-v149.has-count-v149{background:#dc2626;color:#fff;border:2px solid #fff;box-shadow:0 3px 9px rgba(185,28,28,.3)}
 @media(max-width:720px){.document-helper-actions-v149{align-items:stretch;flex-direction:column}.document-helper-separator-v149{display:none}.document-helper-actions-v149 .btn-soft,.document-helper-actions-v149 .btn-green{width:100%}}
+
+/* SIMPROV v150 */
+.paket-pagu-v150{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  width:max-content;
+  margin-top:7px;
+  padding:4px 9px;
+  border:1px solid #cfe3f4;
+  border-radius:999px;
+  background:#f5faff;
+  color:#567086;
+  font-size:11px;
+  line-height:1.2;
+}
+.paket-pagu-v150 b{color:#0b4f82;font-size:12px}
+.payment-created-v150{
+  display:block;
+  margin-top:4px;
+  color:#60758a;
+  font-weight:600;
+}
+.btn-buat-dokumen-v150{white-space:nowrap}
+
