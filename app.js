@@ -8,7 +8,7 @@ let perencanaanPage = 1;
 let pencairanPage = 1;
 let filters = {
   rencanaBidang: "ALL", rencanaStatus: "ALL", rencanaSearch: "",
-  cairBidang: "ALL", cairStatus: "ALL", cairSearch: "" 
+  cairBidang: "ALL", cairStatus: "ALL", cairSearch: ""
 };
 let VerifikatorEditRows = {};
 let collapseState = { perencanaanInput: false, uploadPencairan: false };
@@ -6625,7 +6625,7 @@ function renderDetailNonPengadaanV95(k){
     <div class="non-stat-v96"><small>Total Bruto</small><b>${rupiah(n?.total_bruto || 0)}</b></div>
     <div class="non-stat-v96"><small>Total Pajak</small><b>${rupiah(n?.total_pajak || 0)}</b></div>
     <div class="non-stat-v96"><small>Total Netto</small><b>${rupiah(n?.total_netto || 0)}</b></div>
-    <div class="non-stat-v96"><small>Dokumen PDF</small><b>${n?.url_pdf ? `<a href="${esc(n.url_pdf)}" target="_blank">Buka PDF v${esc(String(n.versi_pdf || 1))}</a>` : 'Belum dibuat'}</b></div>
+    <div class="non-stat-v96"><small>Dokumen PDF</small><b>${n?.url_pdf ? `<a href="${esc(n.url_pdf)}" target="_blank">Buka PDF</a>` : 'Belum dibuat'}</b></div>
   </div>`;
   let honorBtn = '';
   if(isHonor && isBidangSendiri && approved && !final){
@@ -7005,7 +7005,7 @@ renderDetailNonPengadaanV95=function(k){
   const isBidangSendiri=!canManage()&&!isReviewer()&&String(k.id_bidang)===String(currentUser?.id_bidang||'');
   const isHonor=String(k.jenis_non_pengadaan||'Honorarium').toUpperCase().includes('HONOR');
   const uploadedCount=docs.filter(d=>d.url_file).length, validCount=docs.filter(d=>String(d.status_verifikasi||'').toUpperCase()==='VALID DOKUMEN').length;
-  const ringkas=`<div class="non-stat-grid-v96"><div class="non-stat-v96"><small>Jenis</small><b>${esc(k.jenis_non_pengadaan||'Non Pengadaan')}</b></div><div class="non-stat-v96"><small>Nilai Perencanaan</small><b>${rupiah(k.jumlah)}</b></div><div class="non-stat-v96"><small>Total Bruto</small><b>${rupiah(n?.total_bruto||0)}</b></div><div class="non-stat-v96"><small>Total Pajak</small><b>${rupiah(n?.total_pajak||0)}</b></div><div class="non-stat-v96"><small>Total Netto</small><b>${rupiah(n?.total_netto||0)}</b></div><div class="non-stat-v96"><small>Dokumen PDF</small><b>${n?.url_pdf?`<a href="${esc(n.url_pdf)}" target="_blank">Buka PDF v${esc(String(n.versi_pdf||1))}</a>`:'Belum dibuat'}</b></div></div>`;
+  const ringkas=`<div class="non-stat-grid-v96"><div class="non-stat-v96"><small>Jenis</small><b>${esc(k.jenis_non_pengadaan||'Non Pengadaan')}</b></div><div class="non-stat-v96"><small>Nilai Perencanaan</small><b>${rupiah(k.jumlah)}</b></div><div class="non-stat-v96"><small>Total Bruto</small><b>${rupiah(n?.total_bruto||0)}</b></div><div class="non-stat-v96"><small>Total Pajak</small><b>${rupiah(n?.total_pajak||0)}</b></div><div class="non-stat-v96"><small>Total Netto</small><b>${rupiah(n?.total_netto||0)}</b></div><div class="non-stat-v96"><small>Dokumen PDF</small><b>${n?.url_pdf?`<a href="${esc(n.url_pdf)}" target="_blank">Buka PDF</a>`:'Belum dibuat'}</b></div></div>`;
   const honorBtn=isHonor&&isBidangSendiri&&approved&&!final?`<button onclick="openHonorModalV79('${esc(k.id_kegiatan)}')" type="button">${n?.url_pdf?'Buat Ulang Dokumen Honor':'Buat Dokumen Honorarium'}</button>`:'';
   let catatHtml='';
   if(!approved) catatHtml='<p class="empty">Perencanaan belum DISETUJUI Verifikator.</p>';
@@ -7680,7 +7680,7 @@ renderDetailNonPengadaanV95=function(k){
   const isHonor=String(k.jenis_non_pengadaan||'Honorarium').toUpperCase().includes('HONOR');
   const complete=latest.length===2&&latest.every(d=>d.url_file);
   const allValid=complete&&latest.every(d=>String(d.status_verifikasi||'').toUpperCase()==='VALID DOKUMEN');
-  const ringkas=`<div class="non-stat-grid-v96"><div class="non-stat-v96"><small>Jenis</small><b>${esc(k.jenis_non_pengadaan||'Non Pengadaan')}</b></div><div class="non-stat-v96"><small>Nilai Perencanaan</small><b>${rupiah(k.jumlah)}</b></div><div class="non-stat-v96"><small>Total Bruto</small><b>${rupiah(n?.total_bruto||0)}</b></div><div class="non-stat-v96"><small>Total Pajak</small><b>${rupiah(n?.total_pajak||0)}</b></div><div class="non-stat-v96"><small>Total Netto</small><b>${rupiah(n?.total_netto||0)}</b></div><div class="non-stat-v96"><small>Dokumen PDF</small><b>${n?.url_pdf?`<a href="${esc(n.url_pdf)}" target="_blank">Buka PDF v${esc(String(n.versi_pdf||1))}</a>`:'Belum dibuat'}</b></div></div>`;
+  const ringkas=`<div class="non-stat-grid-v96"><div class="non-stat-v96"><small>Jenis</small><b>${esc(k.jenis_non_pengadaan||'Non Pengadaan')}</b></div><div class="non-stat-v96"><small>Nilai Perencanaan</small><b>${rupiah(k.jumlah)}</b></div><div class="non-stat-v96"><small>Total Bruto</small><b>${rupiah(n?.total_bruto||0)}</b></div><div class="non-stat-v96"><small>Total Pajak</small><b>${rupiah(n?.total_pajak||0)}</b></div><div class="non-stat-v96"><small>Total Netto</small><b>${rupiah(n?.total_netto||0)}</b></div><div class="non-stat-v96"><small>Dokumen PDF</small><b>${n?.url_pdf?`<a href="${esc(n.url_pdf)}" target="_blank">Buka PDF</a>`:'Belum dibuat'}</b></div></div>`;
   const honorBtn=isHonor&&isOwner&&approved&&!final?`<button onclick="openHonorModalV79('${esc(k.id_kegiatan)}')" type="button">${n?.url_pdf?'Buat Ulang Dokumen Honor':'Buat Dokumen Honorarium'}</button>`:'';
   let catatHtml='';
   if(!approved) catatHtml='<p class="empty">Perencanaan belum disetujui Verifikator.</p>';
@@ -12387,4 +12387,115 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
     };
   }
 
+})();
+
+/* =========================================================
+   SIMPROV v152 - Riwayat per role + menu Bendahara (aditif)
+   ---------------------------------------------------------
+   Menambah tampilan RIWAYAT (dari data pengajuan yang SUDAH ADA,
+   tanpa mengubah backend/sheet/endpoint):
+     - Verifikator Keuangan : + menu "Riwayat Verifikasi"
+     - Pimpinan             : + menu "Riwayat Persetujuan Pengajuan"
+     - Bendahara            : menu ditata menjadi
+         Dashboard Monitoring, Antrean Pembayaran Bendahara,
+         Riwayat Pembayaran Bendahara
+   "Riwayat" = pengajuan yang sudah diproses oleh role tsb, ditentukan
+   dari field yang sudah terisi di data (tanggal_persetujuan,
+   tanggal_verifikasi, tanggal_bayar, dst). Kartu memakai
+   paymentCardV138 yang sama, jadi tampilan & aksinya konsisten.
+   Semua override diletakkan paling akhir agar menjadi versi aktif.
+   ========================================================= */
+(function(){
+  if(typeof menuListV133 !== 'function' || typeof paymentCardV138 !== 'function') return;
+
+  var nn = function(v){ return String(v==null?'':v).trim() !== ''; };
+  var up = function(v){ return String(v==null?'':v).toUpperCase(); };
+  var payAll = function(){ return (typeof paymentWorkspaceV138==='object' && paymentWorkspaceV138 && Array.isArray(paymentWorkspaceV138.pengajuan)) ? paymentWorkspaceV138.pengajuan : []; };
+
+  /* Antrean (menunggu aksi role) - status mengikuti yang sudah dipakai sistem. */
+  function payQueueV152(role){
+    var r=up(role), st=[];
+    if(r==='PIMPINAN') st=['MENUNGGU PERSETUJUAN PIMPINAN','MENUNGGU PERINTAH KETUA HARIAN'];
+    else if(r==='VERIFIKATOR_KEUANGAN') st=['MENUNGGU VERIFIKASI KEUANGAN'];
+    else if(r==='BENDAHARA') st=['MENUNGGU PEMBAYARAN BENDAHARA'];
+    return payAll().filter(function(p){ return st.indexOf(up(p.status_pengajuan))>=0; });
+  }
+
+  /* Riwayat (sudah diproses role) - dilihat dari field yang sudah terisi. */
+  function payHistoryV152(role){
+    var r=up(role);
+    if(r==='PIMPINAN') return payAll().filter(function(p){ return nn(p.tanggal_persetujuan)||nn(p.pimpinan_penyetuju)||nn(p.ketua_harian_nama)||nn(p.tanggal_perintah); });
+    if(r==='VERIFIKATOR_KEUANGAN') return payAll().filter(function(p){ return nn(p.tanggal_verifikasi)||nn(p.verifikator_nama); });
+    if(r==='BENDAHARA') return payAll().filter(function(p){ return nn(p.tanggal_bayar)||nn(p.bendahara_nama)||up(p.status_pengajuan)==='SELESAI'; });
+    return [];
+  }
+
+  /* Urutan terbaru dulu. */
+  function payTimeV152(row){
+    if(!row) return 0;
+    var keys=['updated_at','created_at','tanggal_bayar','tanggal_verifikasi','tanggal_persetujuan','tanggal_perintah'];
+    for(var i=0;i<keys.length;i++){ var t=Date.parse(row[keys[i]]); if(!isNaN(t)) return t; }
+    var m=String(row.id_pengajuan||'').match(/(\d{13})/); if(m) return Number(m[1]);
+    return Number(row._row||0);
+  }
+  function paySortV152(rows){ return (rows||[]).slice().sort(function(a,b){ return payTimeV152(b)-payTimeV152(a) || Number(b._row||0)-Number(a._row||0); }); }
+
+  /* Halaman baru: peta menu -> konfigurasi. */
+  var PAGES_V152 = {
+    'Riwayat Verifikasi'            : {role:'VERIFIKATOR_KEUANGAN', kind:'history', title:'Riwayat Verifikasi Keuangan',   sub:'Pengajuan pembayaran yang sudah Anda verifikasi.'},
+    'Riwayat Persetujuan Pengajuan' : {role:'PIMPINAN',            kind:'history', title:'Riwayat Persetujuan Pengajuan',  sub:'Pengajuan pembayaran yang sudah Anda setujui/perintahkan.'},
+    'Antrean Pembayaran Bendahara'  : {role:'BENDAHARA',           kind:'queue',   title:'Antrean Pembayaran Bendahara',   sub:'Pengajuan yang menunggu pembayaran oleh Bendahara.'},
+    'Riwayat Pembayaran Bendahara'  : {role:'BENDAHARA',           kind:'history', title:'Riwayat Pembayaran Bendahara',   sub:'Pengajuan yang sudah dibayar oleh Bendahara.'}
+  };
+  function isPayPageV152(menu){ return Object.prototype.hasOwnProperty.call(PAGES_V152, String(menu||'')); }
+
+  function payPanelHtmlV152(cfg, innerHtml){
+    return '<section class="panel premium-panel payment-list-panel-v140">'+
+      '<div class="panel-title-row"><div><h3>'+esc(cfg.title)+'</h3><p class="panel-sub">'+esc(cfg.sub)+'</p></div>'+
+      '<div class="action-group payment-list-head-actions-v140"><button class="btn-refresh" onclick="loadPaymentWorkspaceV138(true)">Refresh</button></div></div>'+
+      '<div class="payment-list-v138">'+innerHtml+'</div></section>';
+  }
+
+  function renderPayPageV152(menu){
+    var cfg=PAGES_V152[menu]; if(!cfg) return;
+    var area=document.getElementById('contentArea'); if(!area) return;
+    var draw=function(){
+      var rows = cfg.kind==='queue' ? payQueueV152(cfg.role) : payHistoryV152(cfg.role);
+      rows = paySortV152(rows);
+      var cards = rows.map(paymentCardV138).join('') || '<p class="empty">'+(cfg.kind==='queue'?'Tidak ada pengajuan yang menunggu proses.':'Belum ada riwayat.')+'</p>';
+      area.innerHTML = payPanelHtmlV152(cfg, cards);
+    };
+    if(typeof paymentWorkspaceV138==='object' && paymentWorkspaceV138 && paymentWorkspaceV138.loaded){
+      draw();
+    } else {
+      area.innerHTML = payPanelHtmlV152(cfg, '<p class="empty">Memuat data...</p>');
+      if(typeof loadPaymentWorkspaceV138==='function'){
+        loadPaymentWorkspaceV138(false).then(function(){ if(isPayPageV152(activeMenu)) renderPayPageV152(activeMenu); }).catch(function(){
+          if(isPayPageV152(activeMenu)){ var a=document.getElementById('contentArea'); if(a) a.innerHTML=payPanelHtmlV152(cfg,'<p class="empty">Gagal memuat data. Klik Refresh untuk mencoba lagi.</p>'); }
+        });
+      }
+    }
+  }
+
+  /* Routing tampilan: halaman baru dirender sendiri, halaman lain apa adanya. */
+  var __renderContentBaseV152 = renderContent;
+  renderContent = function(){
+    if(isPayPageV152(activeMenu)){ renderPayPageV152(activeMenu); return; }
+    return __renderContentBaseV152.apply(this, arguments);
+  };
+
+  /* Menu per role. Role lain memakai daftar menu aktif yang sudah ada. */
+  var __menuListBaseV152 = menuListV133;
+  menuListV133 = function(){
+    var role = (typeof actualRoleV133==='function') ? actualRoleV133() : '';
+    if(role==='VERIFIKATOR_KEUANGAN') return ['Dashboard Monitoring','Pengadaan Langsung','Antrean Verifikasi','Riwayat Verifikasi'];
+    if(role==='PIMPINAN')             return ['Dashboard Monitoring','Surat','Antrean Persetujuan Pengajuan','Riwayat Persetujuan Pengajuan'];
+    if(role==='BENDAHARA')            return ['Dashboard Monitoring','Antrean Pembayaran Bendahara','Riwayat Pembayaran Bendahara'];
+    return __menuListBaseV152();
+  };
+
+  /* Ekspos helper untuk keperluan uji/diagnostik (tidak mengubah perilaku). */
+  window.__payHistoryV152 = payHistoryV152;
+  window.__payQueueV152 = payQueueV152;
+  window.__PAGES_V152 = PAGES_V152;
 })();
