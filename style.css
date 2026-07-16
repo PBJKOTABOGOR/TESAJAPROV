@@ -145,7 +145,7 @@ body:before{
   box-shadow:0 35px 100px rgba(15,76,129,.22), inset 0 1px 0 rgba(255,255,255,.95) !important;
 }
 .login-card:after{
-  content:"Secure Access • SIPORBO";display:block;margin-top:18px;padding:10px 12px;border-radius:14px;
+  content:"Secure Access • SIMPROV";display:block;margin-top:18px;padding:10px 12px;border-radius:14px;
   background:linear-gradient(135deg,rgba(15,76,129,.08),rgba(14,165,198,.08));
   color:#486176;font-size:12px;font-weight:800;text-align:center;letter-spacing:.35px;
 }
@@ -3178,3 +3178,27 @@ body.modal-open-v122{overflow:hidden}
 }
 .btn-buat-dokumen-v150{white-space:nowrap}
 
+
+/* =========================================================
+   SIMPROV v151 - Perbaikan tombol mata password (perubahan 1)
+   Masalah: aturan ".login-card button{position:relative}" menimpa
+   posisi tombol sehingga ikon mata jatuh ke BAWAH input.
+   Perbaikan (spesifisitas tinggi + !important) tanpa mengubah
+   aturan lama: ikon kembali di dalam kolom password, sisi kanan,
+   rata tengah, tidak menambah tinggi form, tidak menutupi teks. */
+.login-card .password-field-v148{position:relative;width:100%}
+.login-card .password-field-v148 #password{width:100%;padding-right:52px}
+.login-card .password-field-v148 .password-toggle-v148{
+  position:absolute !important;
+  top:50% !important; right:8px !important; bottom:auto !important; left:auto !important;
+  transform:translateY(-50%) !important;
+  margin:0 !important;
+  width:36px !important; height:34px !important;
+  display:grid !important; place-items:center;
+  overflow:visible !important;
+  z-index:5;
+}
+/* matikan animasi kilau (:after) yang ikut menempel di tombol mata */
+.login-card .password-field-v148 .password-toggle-v148:after{
+  content:none !important; display:none !important; animation:none !important;
+}
