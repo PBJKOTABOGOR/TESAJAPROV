@@ -3202,3 +3202,14 @@ body.modal-open-v122{overflow:hidden}
 .login-card .password-field-v148 .password-toggle-v148:after{
   content:none !important; display:none !important; animation:none !important;
 }
+
+/* =========================================================
+   SIMPROV v153 - Rapikan tampilan (aditif, CSS saja)
+   - Sembunyikan badge versi internal "SIMPROV v95" pada daftar paket.
+   - Sembunyikan chip jabatan di dashboard PUBLIK
+     ("Ketua Umum: -", "Sekretaris Umum: ...", "Verifikator: -").
+   Tidak mengubah data, logika, maupun elemen lain. Hanya menyembunyikan
+   tampilan; elemen tetap ada di DOM sehingga tidak ada JS yang rusak.
+   ========================================================= */
+.paket-badge-v95.ver{ display:none !important; }
+#publicIdentity, .public-identity{ display:none !important; }
