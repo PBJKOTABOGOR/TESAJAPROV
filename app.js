@@ -8,7 +8,7 @@ let perencanaanPage = 1;
 let pencairanPage = 1;
 let filters = {
   rencanaBidang: "ALL", rencanaStatus: "ALL", rencanaSearch: "",
-  cairBidang: "ALL", cairStatus: "ALL", cairSearch: ""
+  cairBidang: "ALL", cairStatus: "ALL", cairSearch: "" 
 };
 let VerifikatorEditRows = {};
 let collapseState = { perencanaanInput: false, uploadPencairan: false };
