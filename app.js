@@ -11949,3 +11949,142 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
   setTimeout(bindLoginUxV148,0);
   window.__SIMPROV_PATCH_VERSION_V148__=PATCH_VERSION_V148;
 })();
+
+/* =========================================================
+   SIMPROV v149 - Template Pencatatan dan Badge Surat Realtime
+   ---------------------------------------------------------
+   - Kolom Template / Buat Sistem konsisten dan tidak mengubah
+     alur upload/verifikasi dokumen yang sudah berjalan.
+   - Badge Pengajuan Pembayaran selalu tampil sejak menu Surat
+     dibuka, lalu diperbarui tanpa memindahkan halaman user.
+   ========================================================= */
+(function(){
+  const PATCH_VERSION_V149='149.0';
+  const DOC_TEMPLATE_V149={
+    'HASIL SURVEY HARGA':'https://docs.google.com/document/d/14j7drG8yHZNDkt_JoEbuJcevlBtZRyiw/edit',
+    'SPESIFIKASI TEKNIS DAN HPS':'https://docs.google.com/document/d/1qhYrUspAPu8I3qbez51bQf5uFSF2QnJ7/edit',
+    'SPTJM':'https://docs.google.com/document/d/1oYu7Y_6kZdOEeYQ2nSRVmaYmSyF6W1LT/edit',
+    'NOTA DINAS PENCAIRAN':'https://docs.google.com/document/d/1H8itzSph9WWe2sjFmviuh2rP8wZiXMHi/edit'
+  };
+  let paymentBadgeLoadingV149=false;
+
+  function docLabelV149(cell){
+    if(!cell)return '';
+    const first=[...cell.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&String(n.textContent||'').trim());
+    return String(first?.textContent||cell.textContent||'').replace(/\s+/g,' ').trim();
+  }
+  function helperButtonV149(label,onclick,kind='soft'){
+    const cls=kind==='system'?'btn-green document-system-btn-v149':'btn-soft';
+    return `<button class="${cls}" type="button" onclick="${onclick}">${label}</button>`;
+  }
+  function helperActionsV149(k,label,currentHtml=''){
+    const key=dokKeyV94(label);
+    const id=esc(k?.id_kegiatan||'');
+    const actions=[];
+    const template=DOC_TEMPLATE_V149[key];
+    if(template)actions.push(helperButtonV149('Buka Template',`openTemplateSourceV123('${esc(template)}')`));
+    if(key===dokKeyV94('Spesifikasi Teknis dan HPS'))actions.push(helperButtonV149('Buat di Sistem',`bukaHpsOptionalV121('${id}')`,'system'));
+    if(key===dokKeyV94('SPTJM')&&['BIDANG','ADMIN'].includes(String(actualRoleV133()||'').toUpperCase()))actions.push(helperButtonV149('Buat di Sistem',`openPaymentForActivityV145('${id}')`,'system'));
+    if(actions.length)return `<div class="document-helper-actions-v149">${actions.map((x,i)=>`${i?'<span class="document-helper-separator-v149">/</span>':''}${x}`).join('')}</div>`;
+    return currentHtml&&String(currentHtml).trim()!=='-'?currentHtml:'-';
+  }
+  function enhanceDocumentHelpersV149(root,k){
+    if(!root||!k)return;
+    root.querySelectorAll('tbody tr').forEach(tr=>{
+      const cells=tr.querySelectorAll('td');
+      if(cells.length<4)return;
+      const label=docLabelV149(cells[0]);
+      const key=dokKeyV94(label);
+      if([
+        dokKeyV94('Hasil Survey Harga'),
+        dokKeyV94('Spesifikasi Teknis dan HPS'),
+        dokKeyV94('SPTJM'),
+        dokKeyV94('Nota Dinas Pencairan')
+      ].includes(key))cells[3].innerHTML=helperActionsV149(k,label,cells[3].innerHTML);
+    });
+  }
+
+  const dokumenTableBaseV149=dokumenTableV95;
+  dokumenTableV95=function(k,jenisList,ctx){
+    const html=dokumenTableBaseV149.apply(this,arguments);
+    if((ctx||'PGD')!=='PGD')return html;
+    try{
+      const box=document.createElement('div');
+      box.innerHTML=html;
+      enhanceDocumentHelpersV149(box,k);
+      return box.innerHTML;
+    }catch(e){return html;}
+  };
+  /* Guard pasca-render: patch lama tidak boleh mengembalikan tombol HPS
+     menjadi hanya Buka Template. */
+  pasangTombolHpsOptionalV121=function(k){
+    enhanceDocumentHelpersV149(document.getElementById('contentArea'),k);
+  };
+
+  function queueStatusesV149(role){
+    role=String(role||actualRoleV133()||'').toUpperCase();
+    if(role==='PIMPINAN')return ['MENUNGGU PERSETUJUAN PIMPINAN','MENUNGGU PERINTAH KETUA HARIAN'];
+    if(role==='VERIFIKATOR_KEUANGAN')return ['MENUNGGU VERIFIKASI KEUANGAN'];
+    if(role==='BENDAHARA')return ['MENUNGGU PEMBAYARAN BENDAHARA'];
+    if(role==='BIDANG')return ['PERBAIKAN BIDANG'];
+    if(role==='ADMIN')return ['MENUNGGU PERSETUJUAN PIMPINAN','MENUNGGU PERINTAH KETUA HARIAN','MENUNGGU VERIFIKASI KEUANGAN','MENUNGGU PEMBAYARAN BENDAHARA','PERBAIKAN BIDANG'];
+    return [];
+  }
+  function paymentBadgeCountV149(){
+    const statuses=queueStatusesV149(actualRoleV133());
+    return (paymentWorkspaceV138?.pengajuan||[]).filter(p=>statuses.includes(String(p.status_pengajuan||'').toUpperCase())).length;
+  }
+  function paymentBadgeHtmlV149(count){
+    count=Number(count)||0;
+    return `<span class="queue-badge-v149 ${count>0?'has-count-v149':'is-zero-v149'}" aria-label="${count} antrean pengajuan pembayaran">${count}</span>`;
+  }
+  function decoratePaymentBadgeV149(){
+    document.querySelectorAll('.surat-tabs-v133').forEach(tabs=>{
+      const btn=[...tabs.querySelectorAll('button')].find(b=>String(b.textContent||'').replace(/\s+/g,' ').trim().startsWith('Pengajuan Pembayaran'));
+      if(!btn)return;
+      btn.querySelectorAll('.queue-badge-v147,.queue-badge-v149').forEach(x=>x.remove());
+      btn.insertAdjacentHTML('beforeend',paymentBadgeHtmlV149(paymentBadgeCountV149()));
+    });
+  }
+  async function preloadPaymentBadgeV149(force=false){
+    if(!currentUser||paymentBadgeLoadingV149)return;
+    if(paymentWorkspaceV138?.loaded&&!force){decoratePaymentBadgeV149();return;}
+    paymentBadgeLoadingV149=true;
+    try{
+      const r=await apiPost({action:'getPaymentWorkspaceV138',user:currentUser});
+      if(!r?.success)throw new Error(r?.message||'Gagal memuat notifikasi pengajuan pembayaran');
+      /* Hanya memperbarui state. Jangan memanggil renderPaymentWorkspaceV138,
+         supaya halaman Surat Saya/Buat Surat tidak berpindah sendiri. */
+      paymentWorkspaceV138={...r,loaded:true,loading:false};
+      decoratePaymentBadgeV149();
+      renderMenu();
+    }catch(e){
+      /* Badge 0 tetap tampil; error preload tidak mengganggu Menu Surat. */
+      decoratePaymentBadgeV149();
+    }finally{paymentBadgeLoadingV149=false;}
+  }
+
+  const renderSuratBaseV149=renderSuratV133;
+  renderSuratV133=function(){
+    const r=renderSuratBaseV149.apply(this,arguments);
+    setTimeout(()=>{
+      decoratePaymentBadgeV149();
+      if(activeMenu==='Surat'&&!paymentWorkspaceV138?.loaded)preloadPaymentBadgeV149(false);
+    },20);
+    return r;
+  };
+  const renderPaymentBaseV149=renderPaymentWorkspaceV138;
+  renderPaymentWorkspaceV138=function(){
+    const r=renderPaymentBaseV149.apply(this,arguments);
+    setTimeout(decoratePaymentBadgeV149,30);
+    return r;
+  };
+  const loadPaymentBaseV149=loadPaymentWorkspaceV138;
+  loadPaymentWorkspaceV138=async function(){
+    const r=await loadPaymentBaseV149.apply(this,arguments);
+    setTimeout(()=>{decoratePaymentBadgeV149();renderMenu();},20);
+    return r;
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V149__=PATCH_VERSION_V149;
+})();
