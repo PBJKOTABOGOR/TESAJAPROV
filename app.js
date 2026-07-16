@@ -12088,3 +12088,228 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
 
   window.__SIMPROV_PATCH_VERSION_V149__=PATCH_VERSION_V149;
 })();
+
+/* =========================================================
+   SIMPROV v150 - Pagu Paket, Urutan Terbaru, Konsistensi
+   Dokumen Non Pengadaan, dan Tanggal Pengajuan
+   ========================================================= */
+(function(){
+  const PATCH_VERSION_V150='150.0';
+
+  function parseIndonesianDateV150(value){
+    const s=String(value||'').trim();
+    if(!s)return 0;
+    if(/^\d{12,13}$/.test(s)){
+      const n=Number(s); if(Number.isFinite(n))return s.length===13?n:n*1000;
+    }
+    const direct=Date.parse(s);
+    if(Number.isFinite(direct))return direct;
+    const dmy=s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\D+(\d{1,2})[:.](\d{2}))?/);
+    if(dmy){
+      return new Date(Number(dmy[3]),Number(dmy[2])-1,Number(dmy[1]),Number(dmy[4]||0),Number(dmy[5]||0)).getTime();
+    }
+    const months={januari:0,februari:1,maret:2,april:3,mei:4,juni:5,juli:6,agustus:7,september:8,oktober:9,november:10,desember:11};
+    const indo=s.toLowerCase().match(/(\d{1,2})\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\s+(\d{4})(?:\D+(\d{1,2})[:.](\d{2}))?/);
+    if(indo){
+      return new Date(Number(indo[3]),months[indo[2]],Number(indo[1]),Number(indo[4]||0),Number(indo[5]||0)).getTime();
+    }
+    return 0;
+  }
+
+  function recordTimeV150(row){
+    if(!row)return 0;
+    const fields=[
+      'created_at','tanggal_dibuat','tanggal_buat','tanggal_input','waktu_input',
+      'tanggal_pengajuan','tanggal_surat','input_at','createdAt','updated_at'
+    ];
+    for(const key of fields){
+      const t=parseIndonesianDateV150(row[key]);
+      if(t)return t;
+    }
+    const ids=[row.id_kegiatan,row.id_pengajuan,row.id_surat,row.id_paket];
+    for(const id of ids){
+      const match=String(id||'').match(/(?:^|\D)(\d{13})(?:\D|$)/);
+      if(match)return Number(match[1]);
+    }
+    return Number(row._row||row.row_number||0);
+  }
+
+  function newestRowsV150(rows){
+    return [...(rows||[])].map((row,index)=>({row,index,time:recordTimeV150(row)}))
+      .sort((a,b)=>b.time-a.time||Number(b.row?._row||0)-Number(a.row?._row||0)||b.index-a.index)
+      .map(x=>x.row);
+  }
+
+  function createdLabelV150(row){
+    const raw=row?.created_at||row?.tanggal_dibuat||row?.tanggal_buat||row?.tanggal_input||row?.tanggal_pengajuan||row?.updated_at||'';
+    if(!raw)return '-';
+    try{
+      if(typeof formatDate==='function'){
+        const formatted=formatDate(raw);
+        if(formatted&&formatted!=='Invalid Date')return formatted;
+      }
+    }catch(e){}
+    return String(raw);
+  }
+
+  /* 1-2. Ketiga daftar paket menampilkan Pagu dan selalu terbaru di atas. */
+  paketListHtmlV95=function(list,opts){
+    const ordered=newestRowsV150(list);
+    const q=String(paketSearchV95||'').toLowerCase();
+    const filtered=ordered.filter(k=>!q||
+      String(k.nama_kegiatan||'').toLowerCase().includes(q)||
+      String(k.id_kegiatan||'').toLowerCase().includes(q)||
+      bidangName(k.id_bidang).toLowerCase().includes(q)||
+      paketStatusV95(k).toLowerCase().includes(q)
+    );
+    const rows=filtered.map(k=>{
+      const selesai=typeof paketSudahSelesaiV117==='function'&&paketSudahSelesaiV117(k);
+      return `<tr class="paket-row-v95 ${selesai?'paket-row-selesai-v117':''}">
+        <td>
+          <a href="javascript:void(0)" onclick="bukaPaketV95('${esc(k.id_kegiatan)}')" class="paket-link-v95 ${selesai?'paket-link-selesai-v117':''}">${esc(k.nama_kegiatan)}</a>
+          <div class="paket-meta-v96">${metodeBadgeV95(k)}</div>
+          <div class="paket-pagu-v150"><span>Pagu</span><b>${rupiah(toNumber(k.jumlah||k.pagu||0))}</b></div>
+        </td>
+        <td>${selesai?'<span class="paket-status-selesai-v117">Paket Sudah Selesai</span>':esc(paketStatusV95(k))}</td>
+        <td>${esc(paketTanggalV95(k))}</td>
+        <td>${esc(bidangName(k.id_bidang))}</td>
+        <td><button class="btn-soft paket-buka-v95" onclick="bukaPaketV95('${esc(k.id_kegiatan)}')" type="button">${esc(opts.aksiLabel||'Buka Paket')}</button></td>
+      </tr>`;
+    }).join('');
+    const buatBtn=(!canManage()&&!isReviewer())?`<button onclick="buatPaketV95()" type="button" class="paket-buat-v95">+ Buat Paket</button>`:'';
+    return `<section class="panel fade-up premium-panel">
+      <div class="panel-title-row"><div><h3>${esc(opts.judul)}</h3><p class="panel-sub">${opts.sub}</p></div>
+      <div class="action-group">${buatBtn}<button class="btn-refresh" onclick="refreshData()" type="button">Refresh Data</button></div></div>
+      ${opts.info||''}
+      <div class="paket-toolbar-v95"><span>Tampilan <b id="paketCountV96">${filtered.length}</b> paket</span>
+      <input type="text" placeholder="Cari nama paket / bidang / status..." value="${esc(paketSearchV95)}" oninput="paketSearchV95=this.value;renderContent()"></div>
+      <div class="table-wrap"><table class="paket-table-v95"><thead><tr><th>Nama Paket</th><th>Status</th><th>Tanggal Buat</th><th>Bidang / Satuan Kerja</th><th>Aksi</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" class="empty">Belum ada paket.</td></tr>'}</tbody></table></div>
+    </section>`;
+  };
+
+  /* 3. Semua kegiatan Non Pengadaan yang sudah disetujui memakai aksi
+     "Buat Dokumen". Untuk selain honorarium tombol membuka paket pencatatan. */
+  window.buatDokumenNonPengadaanV150=function(id){
+    const k=typeof kegiatanById==='function'?kegiatanById(id):(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id));
+    if(!k)return alert('Data kegiatan tidak ditemukan.');
+    if(String(k.jenis_non_pengadaan||'').toUpperCase().includes('HONOR')&&typeof openHonorModalV79==='function'){
+      return openHonorModalV79(String(id));
+    }
+    paketAktifV95=String(id);
+    paketSearchV95='';
+    activeMenu='Non Pengadaan';
+    renderMenu();
+    if(typeof renderSummary==='function')renderSummary();
+    renderContent();
+    if(typeof updateIdentityHeaderV77==='function')updateIdentityHeaderV77();
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+
+  const renderPlanningRowBaseV150=renderPerencanaanRow;
+  renderPerencanaanRow=function(k){
+    let html=renderPlanningRowBaseV150.apply(this,arguments);
+    const approved=String(k?.status_perencanaan||'').toUpperCase()==='DISETUJUI';
+    const owner=!canManage()&&!isReviewer()&&String(k?.id_bidang||'')===String(currentUser?.id_bidang||'');
+    if(!approved||!owner||!isNonKategoriV81(k))return html;
+    const replacement=`<button class="btn-mini btn-green btn-buat-dokumen-v150" type="button" onclick="buatDokumenNonPengadaanV150('${esc(k.id_kegiatan)}')">Buat Dokumen</button>`;
+    html=html.replace(
+      /<button\b[^>]*(?:disabled\b[^>]*)?>\s*(?:Upload Manual di Pencatatan Non Pengadaan|Buat Dokumen)\s*<\/button>/gi,
+      replacement
+    );
+    if(!/btn-buat-dokumen-v150/.test(html)&&/Upload Manual di Pencatatan Non Pengadaan/i.test(html)){
+      html=html.replace(/<[^>]+>\s*Upload Manual di Pencatatan Non Pengadaan\s*<\/[^>]+>/i,replacement);
+    }
+    return html;
+  };
+
+  /* 4. Daftar pengajuan menampilkan tanggal dibuat dan mengurutkan
+     berdasarkan waktu pembuatan, bukan waktu update status. */
+  paymentCardV138=function(p){
+    const bidang=(paymentWorkspaceV138.bidang||[]).find(b=>String(b.id_bidang)===String(p.id_bidang));
+    const dibuat=createdLabelV150(p);
+    return `<details class="payment-card-v138">
+      <summary>
+        <div>
+          <b>${esc(p.nama_kegiatan||'-')}</b>
+          <small>${esc(p.id_pengajuan)} • ${esc(bidang?.nama_bidang||p.id_bidang||'-')}</small>
+          <small class="payment-created-v150">Tanggal pembuatan: ${esc(dibuat)}</small>
+        </div>
+        <span class="payment-status-v138 ${paymentStatusClassV138(p.status_pengajuan)}">${esc(paymentStatusLabelV138(p.status_pengajuan))}</span>
+      </summary>
+      <div class="payment-card-body-v138">
+        ${paymentTimelineV138(p)}
+        <div class="payment-meta-v138">
+          <span><b>Nilai:</b> ${rupiah(p.jumlah_pengajuan)}</span>
+          <span><b>Nota Dinas:</b> ${esc(p.nomor_nd_bidang||'-')}</span>
+          <span><b>Dibuat:</b> ${esc(dibuat)}</span>
+          <span><b>Tahap:</b> ${esc(p.tahap_aktif||'-')}</span>
+          <span><b>Terakhir diperbarui:</b> ${esc(formatDate(p.updated_at)||'-')}</span>
+        </div>
+        <h4>Dokumen Sistem</h4>${paymentGeneratedButtonsV138(p)}
+        <h4>Dokumen Pendukung Asli</h4>
+        <p class="panel-sub">Tombol di bawah membuka file asli yang diunggah, bukan tampilan lampiran buatan sistem.</p>
+        ${paymentOriginalDocsV138(p)}
+        ${p.catatan_verifikasi?`<div class="payment-note-v138"><b>Catatan:</b> ${esc(p.catatan_verifikasi)}</div>`:''}
+        <details class="surat-history-v133"><summary>Riwayat Pengajuan</summary><pre>${esc(p.riwayat||'Belum ada riwayat')}</pre></details>
+        ${paymentActionButtonsV138(p)}
+      </div>
+    </details>`;
+  };
+
+  function paymentQueueRowsLocalV150(role){
+    const r=String(role||'').toUpperCase();
+    let statuses=[];
+    if(r==='PIMPINAN')statuses=['MENUNGGU PERSETUJUAN PIMPINAN','MENUNGGU PERINTAH KETUA HARIAN'];
+    else if(r==='VERIFIKATOR_KEUANGAN')statuses=['MENUNGGU VERIFIKASI KEUANGAN'];
+    else if(r==='BENDAHARA')statuses=['MENUNGGU PEMBAYARAN BENDAHARA'];
+    else if(r==='BIDANG')statuses=['PERBAIKAN BIDANG'];
+    else if(r==='ADMIN')statuses=['MENUNGGU PERSETUJUAN PIMPINAN','MENUNGGU PERINTAH KETUA HARIAN','MENUNGGU VERIFIKASI KEUANGAN','MENUNGGU PEMBAYARAN BENDAHARA','PERBAIKAN BIDANG'];
+    return (paymentWorkspaceV138?.pengajuan||[]).filter(p=>statuses.includes(String(p.status_pengajuan||'').toUpperCase()));
+  }
+
+  paymentListV138=function(){
+    const role=actualRoleV133();
+    let rows=newestRowsV150(paymentWorkspaceV138.pengajuan||[]);
+    let title='Daftar Pengajuan Pembayaran',sub='Alur: Bidang → Pimpinan/Ketua Harian → Verifikator Keuangan → Bendahara.';
+    if(role==='VERIFIKATOR_KEUANGAN'&&activeMenu==='Antrean Verifikasi'){
+      rows=newestRowsV150(paymentQueueRowsLocalV150(role));title='Antrean Verifikasi Keuangan';
+    }
+    if(role==='PIMPINAN'&&activeMenu==='Antrean Persetujuan Pengajuan'){
+      rows=newestRowsV150(paymentQueueRowsLocalV150(role));title='Antrean Persetujuan Pengajuan';sub='Pengajuan yang menunggu persetujuan elektronik Pimpinan/Ketua Harian.';
+    }
+    if(role==='BENDAHARA')title='Antrean Pembayaran Bendahara';
+    const canCreate=['BIDANG','ADMIN'].includes(role);
+    return `<section class="panel premium-panel payment-list-panel-v140">
+      <div class="panel-title-row"><div><h3>${title}</h3><p class="panel-sub">${sub}</p></div>
+      <div class="action-group payment-list-head-actions-v140"><button class="btn-refresh" onclick="loadPaymentWorkspaceV138(true)">Refresh</button>${canCreate?'<button class="btn-primary-v140" onclick="openPaymentFormV138()">Buat Pengajuan</button>':''}</div></div>
+      <div class="payment-list-v138">${rows.map(paymentCardV138).join('')||'<p class="empty">Tidak ada pengajuan yang menunggu proses.</p>'}</div>
+    </section>`;
+  };
+
+  /* 4. Surat Saya menggunakan urutan terbaru. Render aktif v146 menyusun
+     data lama ke baru, sehingga daftar dibalik setelah selesai dirender. */
+  function sortSuratSayaDomV150(){
+    const list=document.querySelector('#suratSayaPanelV134 .surat-package-list-v136');
+    if(!list||list.dataset.sortedV150==='1')return;
+    const cards=[...list.children].filter(el=>el.classList?.contains('surat-package-card-v136'));
+    if(cards.length<2){list.dataset.sortedV150='1';return;}
+    cards.reverse().forEach(card=>list.appendChild(card));
+    [...list.querySelectorAll('.surat-package-card-v136')].forEach((card,index)=>{
+      const no=index+1;
+      const badge=card.querySelector('.surat-number-v136');if(badge)badge.textContent=String(no);
+      const small=card.querySelector('.surat-summary-title-v136 small');
+      if(small)small.innerHTML=small.innerHTML.replace(/Surat ke-\d+/i,'Surat ke-'+no);
+    });
+    list.dataset.sortedV150='1';
+  }
+  const renderSuratBaseV150=renderSuratV133;
+  renderSuratV133=function(){
+    const result=renderSuratBaseV150.apply(this,arguments);
+    setTimeout(sortSuratSayaDomV150,0);
+    return result;
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V150__=PATCH_VERSION_V150;
+})();
+
