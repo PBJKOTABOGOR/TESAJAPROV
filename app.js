@@ -6101,7 +6101,7 @@ function paketListHtmlV95(list, opts){
       <td>${esc(bidangName(k.id_bidang))}</td>
       <td><button class="btn-soft paket-buka-v95" onclick="bukaPaketV95('${esc(k.id_kegiatan)}')" type="button">${esc(opts.aksiLabel || 'Buka Paket')}</button></td>
     </tr>`).join('');
-  const buatBtn = (!canManage() && !isReviewer()) ? `<button onclick="buatPaketV95()" type="button" class="paket-buat-v95">Buat Paket</button>` : '';
+  const buatBtn = (!canManage() && !isReviewer() && !isVerifierV77()) ? `<button onclick="buatPaketV95()" type="button" class="paket-buat-v95">Buat Paket</button>` : '';
   return `<section class="panel fade-up premium-panel">
     <div class="panel-title-row"><div><h3>${esc(opts.judul)}</h3><p class="panel-sub">${opts.sub}</p></div>
     <div class="action-group">${buatBtn}<button class="btn-refresh" onclick="refreshData()" type="button">Refresh Data</button></div></div>
@@ -6133,7 +6133,7 @@ function renderPencatatanPengadaanV95(){
     paketAktifV95 = null;
   }
   document.getElementById('contentArea').innerHTML = paketListHtmlV95(all, {
-    judul:'Pencatatan Pengadaan - Belanja Langsung (&le; 500 juta)',
+    judul:'Pencatatan Pengadaan – Belanja Langsung (≤ Rp500 juta)',
     sub:'Daftar paket Belanja Langsung yang telah dibuat dari perencanaan.',
     aksiLabel:'Paket Pencatatan', butuhSetuju:true,
     info:(dashboard?.perencanaan || []).some(k => isProcurementV83(k) && isPipelineV94(k)) ? '<p class="small">Paket Pengadaan Langsung dan Tender tersedia pada menu Pengadaan Langsung.</p>' : ''
@@ -6399,7 +6399,7 @@ paketListHtmlV95 = function(list, opts){
       <td><button class="btn-soft paket-buka-v95" onclick="bukaPaketV95('${esc(k.id_kegiatan)}')" type="button">${esc(opts.aksiLabel || 'Buka Paket')}</button></td>
     </tr>`;
   }).join('');
-  const buatBtn = (!canManage() && !isReviewer()) ? `<button onclick="buatPaketV95()" type="button" class="paket-buat-v95">+ Buat Paket</button>` : '';
+  const buatBtn = (!canManage() && !isReviewer() && !isVerifierV77()) ? `<button onclick="buatPaketV95()" type="button" class="paket-buat-v95">+ Buat Paket</button>` : '';
   return `<section class="panel fade-up premium-panel">
     <div class="panel-title-row"><div><h3>${esc(opts.judul)}</h3><p class="panel-sub">${opts.sub}</p></div>
     <div class="action-group">${buatBtn}<button class="btn-refresh" onclick="refreshData()" type="button">Refresh Data</button></div></div>
@@ -8214,7 +8214,7 @@ paketListHtmlV95 = function(list, opts){
       <td>${esc(paketTanggalV95(k))}</td><td>${esc(bidangName(k.id_bidang))}</td>
       <td><button class="btn-soft paket-buka-v95" onclick="bukaPaketV95('${esc(k.id_kegiatan)}')" type="button">${esc(opts.aksiLabel||'Buka Paket')}</button></td></tr>`;
   }).join('');
-  const buatBtn=(!canManage()&&!isReviewer())?`<button onclick="buatPaketV95()" type="button" class="paket-buat-v95">+ Buat Paket</button>`:'';
+  const buatBtn=(!canManage()&&!isReviewer()&&!isVerifierV77())?`<button onclick="buatPaketV95()" type="button" class="paket-buat-v95">+ Buat Paket</button>`:'';
   return `<section class="panel fade-up premium-panel"><div class="panel-title-row"><div><h3>${esc(opts.judul)}</h3><p class="panel-sub">${opts.sub}</p></div><div class="action-group">${buatBtn}<button class="btn-refresh" onclick="refreshData()" type="button">Refresh Data</button></div></div>${opts.info||''}<div class="paket-toolbar-v95"><span>Tampilan <b id="paketCountV96">${filtered.length}</b> paket</span><input type="text" placeholder="Cari nama paket / bidang / status..." value="${esc(paketSearchV95)}" oninput="paketSearchV95=this.value;renderContent()"></div><div class="table-wrap"><table class="paket-table-v95"><thead><tr><th>Nama Paket</th><th>Status</th><th>Tanggal Buat</th><th>Bidang / Satuan Kerja</th><th>Aksi</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">Belum ada paket.</td></tr>'}</tbody></table></div></section>`;
 };
 
@@ -10146,7 +10146,7 @@ async function deletePaymentV138(id){const ok=await confirmActionV133({title:'Ha
 function renderPaymentWorkspaceV138(){
   const area=document.getElementById('contentArea');if(!area)return;if(!paymentWorkspaceV138.loaded){area.innerHTML='<section class="panel premium-panel"><h3>Pengajuan Pembayaran</h3><div class="skeleton-v133"></div><div class="skeleton-v133 short"></div></section>';if(!paymentWorkspaceV138.loading)loadPaymentWorkspaceV138(false);return;}
   const role=actualRoleV133(),canCreate=role==='BIDANG'||role==='ADMIN';if(paymentTabV138==='FORM'&&!canCreate)paymentTabV138='DAFTAR';
-  area.innerHTML=`<div class="payment-page-v138"><section class="panel premium-panel payment-head-v138"><div class="panel-title-row"><div><h3>Pengajuan Pembayaran</h3><p class="panel-sub">Nota Dinas, SPTJM, Lembar Verifikasi, Nota Dinas kepada Ketua Harian, dan Surat Perintah Pemindahbukuan dibuat langsung di SIMPROV.</p></div></div><div class="surat-tabs-v133"><button onclick="suratTabV133='BUAT';renderSuratV133()">Nota Dinas Umum</button><button onclick="suratTabV133='MASUK';renderSuratV133()">Surat Masuk</button><button class="active" onclick="setPaymentTabV138('DAFTAR')">Pengajuan Pembayaran</button>${canCreate?`<button class="${paymentTabV138==='FORM'?'active':''}" onclick="openPaymentFormV138()">Buat Pengajuan</button>`:''}</div></section><section class="payment-sop-note-v138"><b>Pedoman SOP:</b> Bidang membuat Nota Dinas dan SPTJM → Verifikator Keuangan membuat Lembar Verifikasi → Ketua/Sekretaris Umum menyetujui dan membuat Nota Dinas kepada Ketua Harian → Ketua Harian menerbitkan SP2 → Bendahara membayar.</section>${paymentTabV138==='FORM'?paymentFormV138():paymentListV138()}<div id="paymentActionModalHostV138"></div></div>`;setTimeout(syncPaymentTotalV138,0);
+  area.innerHTML=`<div class="payment-page-v138"><section class="panel premium-panel payment-head-v138"><div class="panel-title-row"><div><h3>Pengajuan Pembayaran</h3><p class="panel-sub">Nota Dinas, SPTJM, Lembar Verifikasi, Nota Dinas kepada Ketua Harian, dan Surat Perintah Pemindahbukuan dibuat langsung di SIMPROV.</p></div></div><div class="surat-tabs-v133"><button onclick="suratTabV133='BUAT';renderSuratV133()">Nota Dinas Umum</button><button onclick="suratTabV133='MASUK';renderSuratV133()">Surat Masuk</button><button class="active" onclick="setPaymentTabV138('DAFTAR')">Pengajuan Pembayaran</button>${canCreate?`<button class="${paymentTabV138==='FORM'?'active':''}" onclick="openPaymentFormV138()">Buat Pengajuan</button>`:''}</div></section><section class="payment-sop-note-v138"><b>Alur di Sistem:</b> Bidang membuat Nota Dinas dan SPTJM → Verifikator Keuangan membuat Lembar Verifikasi → Ketua/Sekretaris Umum menyetujui dan membuat Nota Dinas kepada Ketua Harian → Ketua Harian menerbitkan SP2 → Bendahara membayar.</section>${paymentTabV138==='FORM'?paymentFormV138():paymentListV138()}<div id="paymentActionModalHostV138"></div></div>`;setTimeout(syncPaymentTotalV138,0);
 }
 
 const renderSuratBaseV138=renderSuratV133;
@@ -10338,7 +10338,7 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
   renderPaymentWorkspaceV138=function(){
     const area=document.getElementById('contentArea');if(!area)return;if(!paymentWorkspaceV138.loaded){area.innerHTML='<section class="panel premium-panel"><h3>Pengajuan Pembayaran</h3><div class="skeleton-v133"></div><div class="skeleton-v133 short"></div></section>';if(!paymentWorkspaceV138.loading)loadPaymentWorkspaceV138(false);return;}
     const canCreate=isPaymentCreatorV139();if(paymentTabV138==='FORM'&&!canCreate)paymentTabV138='DAFTAR';
-    area.innerHTML=`<div class="payment-page-v138"><section class="panel premium-panel payment-head-v138"><div class="panel-title-row"><div><h3>Pengajuan Pembayaran</h3><p class="panel-sub">Nota Dinas, SPTJM, Lembar Verifikasi, Nota Dinas kepada Ketua Harian, dan Surat Perintah Pemindahbukuan dibuat langsung di SIMPROV.</p></div></div><div class="surat-tabs-v133 payment-tabs-v139"><button onclick="suratTabV133='BUAT';renderSuratV133()">Nota Dinas Umum</button><button onclick="suratTabV133='MASUK';renderSuratV133()">Surat Masuk</button><button class="${paymentTabV138==='DAFTAR'?'active':''}" onclick="setPaymentTabV138('DAFTAR')">Pengajuan Pembayaran</button>${canCreate?`<button class="${paymentTabV138==='FORM'?'active':''}" onclick="openPaymentFormV138()">Buat Pengajuan</button>`:''}</div></section><section class="payment-sop-note-v138"><b>Pedoman SOP:</b> Bidang membuat Nota Dinas dan SPTJM → Verifikator Keuangan membuat Lembar Verifikasi → Ketua/Sekretaris Umum menyetujui dan membuat Nota Dinas kepada Ketua Harian → Ketua Harian menerbitkan SP2 → Bendahara membayar.</section>${paymentTabV138==='FORM'?paymentFormV138():paymentListV138()}<div id="paymentActionModalHostV138"></div></div>`;setTimeout(paymentSetBudgetMessageV139,0);
+    area.innerHTML=`<div class="payment-page-v138"><section class="panel premium-panel payment-head-v138"><div class="panel-title-row"><div><h3>Pengajuan Pembayaran</h3><p class="panel-sub">Nota Dinas, SPTJM, Lembar Verifikasi, Nota Dinas kepada Ketua Harian, dan Surat Perintah Pemindahbukuan dibuat langsung di SIMPROV.</p></div></div><div class="surat-tabs-v133 payment-tabs-v139"><button onclick="suratTabV133='BUAT';renderSuratV133()">Nota Dinas Umum</button><button onclick="suratTabV133='MASUK';renderSuratV133()">Surat Masuk</button><button class="${paymentTabV138==='DAFTAR'?'active':''}" onclick="setPaymentTabV138('DAFTAR')">Pengajuan Pembayaran</button>${canCreate?`<button class="${paymentTabV138==='FORM'?'active':''}" onclick="openPaymentFormV138()">Buat Pengajuan</button>`:''}</div></section><section class="payment-sop-note-v138"><b>Alur di Sistem:</b> Bidang membuat Nota Dinas dan SPTJM → Verifikator Keuangan membuat Lembar Verifikasi → Ketua/Sekretaris Umum menyetujui dan membuat Nota Dinas kepada Ketua Harian → Ketua Harian menerbitkan SP2 → Bendahara membayar.</section>${paymentTabV138==='FORM'?paymentFormV138():paymentListV138()}<div id="paymentActionModalHostV138"></div></div>`;setTimeout(paymentSetBudgetMessageV139,0);
   };
 
   function simprovLogoUrlV139(){try{return new URL('logo-siporbo.png',window.location.href).href;}catch(e){return 'logo-siporbo.png';}}
@@ -10430,7 +10430,7 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
     }
     const canCreate=canCreatePaymentV140();
     if(paymentTabV138==='FORM'&&!canCreate)paymentTabV138='DAFTAR';
-    area.innerHTML=`<div class="payment-page-v138"><section class="panel premium-panel payment-head-v138"><div class="panel-title-row"><div><h3>Pengajuan Pembayaran</h3><p class="panel-sub">Nota Dinas, SPTJM, Lembar Verifikasi, Nota Dinas kepada Ketua Harian, dan Surat Perintah Pemindahbukuan dibuat langsung di SIMPROV.</p></div></div><div class="surat-tabs-v133 payment-tabs-v140"><button onclick="suratTabV133='BUAT';renderSuratV133()">Buat Surat</button><button onclick="suratTabV133='MASUK';renderSuratV133()">Surat Masuk <span>${typeof suratIncomingCountV134==='function'?suratIncomingCountV134((suratWorkspaceV133?.surat||[]).filter(suratIsIncomingV133)):''}</span></button><button class="active" onclick="setPaymentTabV138('DAFTAR')">Pengajuan Pembayaran</button></div></section><section class="payment-sop-note-v138"><b>Pedoman SOP:</b> Bidang membuat Nota Dinas dan SPTJM → Verifikator Keuangan membuat Lembar Verifikasi → Ketua/Sekretaris Umum menyetujui dan membuat Nota Dinas kepada Ketua Harian → Ketua Harian menerbitkan SP2 → Bendahara membayar.</section>${paymentTabV138==='FORM'?paymentFormV138():paymentListV138()}<div id="paymentActionModalHostV138"></div></div>`;
+    area.innerHTML=`<div class="payment-page-v138"><section class="panel premium-panel payment-head-v138"><div class="panel-title-row"><div><h3>Pengajuan Pembayaran</h3><p class="panel-sub">Nota Dinas, SPTJM, Lembar Verifikasi, Nota Dinas kepada Ketua Harian, dan Surat Perintah Pemindahbukuan dibuat langsung di SIMPROV.</p></div></div><div class="surat-tabs-v133 payment-tabs-v140"><button onclick="suratTabV133='BUAT';renderSuratV133()">Buat Surat</button><button onclick="suratTabV133='MASUK';renderSuratV133()">Surat Masuk <span>${typeof suratIncomingCountV134==='function'?suratIncomingCountV134((suratWorkspaceV133?.surat||[]).filter(suratIsIncomingV133)):''}</span></button><button class="active" onclick="setPaymentTabV138('DAFTAR')">Pengajuan Pembayaran</button></div></section><section class="payment-sop-note-v138"><b>Alur di Sistem:</b> Bidang membuat Nota Dinas dan SPTJM → Verifikator Keuangan membuat Lembar Verifikasi → Ketua/Sekretaris Umum menyetujui dan membuat Nota Dinas kepada Ketua Harian → Ketua Harian menerbitkan SP2 → Bendahara membayar.</section>${paymentTabV138==='FORM'?paymentFormV138():paymentListV138()}<div id="paymentActionModalHostV138"></div></div>`;
     setTimeout(()=>{if(typeof syncPaymentTotalV138==='function')syncPaymentTotalV138();},0);
   };
 
@@ -11521,7 +11521,7 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
     const result=renderPaymentBaseV146();
     setTimeout(()=>{
       const tabs=document.querySelector('.payment-head-v138 .surat-tabs-v133');if(tabs)tabs.outerHTML=suratTabsV146('PEMBAYARAN');
-      document.querySelectorAll('.payment-sop-note-v138').forEach(el=>el.innerHTML='<b>Pedoman SOP:</b> Bidang membuat Nota Dinas dan SPTJM → Pimpinan/Ketua Harian menyetujui → Verifikator Keuangan memeriksa → Bendahara membayar.');
+      document.querySelectorAll('.payment-sop-note-v138').forEach(el=>el.innerHTML='<b>Alur di Sistem:</b> Bidang membuat Nota Dinas dan SPTJM → Pimpinan/Ketua Harian menyetujui → Verifikator Keuangan memeriksa → Bendahara membayar.');
     },0);
     return result;
   };
@@ -12176,7 +12176,7 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
         <td><button class="btn-soft paket-buka-v95" onclick="bukaPaketV95('${esc(k.id_kegiatan)}')" type="button">${esc(opts.aksiLabel||'Buka Paket')}</button></td>
       </tr>`;
     }).join('');
-    const buatBtn=(!canManage()&&!isReviewer())?`<button onclick="buatPaketV95()" type="button" class="paket-buat-v95">+ Buat Paket</button>`:'';
+    const buatBtn=(!canManage()&&!isReviewer()&&!isVerifierV77())?`<button onclick="buatPaketV95()" type="button" class="paket-buat-v95">+ Buat Paket</button>`:'';
     return `<section class="panel fade-up premium-panel">
       <div class="panel-title-row"><div><h3>${esc(opts.judul)}</h3><p class="panel-sub">${opts.sub}</p></div>
       <div class="action-group">${buatBtn}<button class="btn-refresh" onclick="refreshData()" type="button">Refresh Data</button></div></div>
@@ -12313,3 +12313,78 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
   window.__SIMPROV_PATCH_VERSION_V150__=PATCH_VERSION_V150;
 })();
 
+
+/* =========================================================
+   SIMPROV v151 - Penyesuaian UI, Menu, dan Role (aditif)
+   Semua ditaruh di akhir file agar menjadi definisi AKTIF terakhir.
+   Tidak mengubah data, endpoint, sheet, atau fungsi backend.
+   ========================================================= */
+(function(){
+
+  /* [2] Sembunyikan chip jabatan (Ketua Umum/Sekretaris/Verifikator/
+         Ketua Bidang/Wakil, dst) dari header untuk SEMUA role.
+         Data di backend TIDAK dihapus - hanya tampilan header. */
+  if(typeof updateIdentityHeaderV77 === 'function'){
+    updateIdentityHeaderV77 = function(){
+      var box = document.getElementById('systemIdentityV77');
+      if(box) box.remove();   /* buang chip bila terlanjur dibuat */
+    };
+  }
+  try{
+    var existingChip = document.getElementById('systemIdentityV77');
+    if(existingChip) existingChip.remove();
+  }catch(e){}
+
+  /* [5] & [7] Menu per role.
+     - PIMPINAN     : Dashboard Monitoring, Surat, Antrean Persetujuan Pengajuan
+     - VERIFIKATOR_PBJ : tanpa Surat & Laporan
+     Role lain (Admin, Bidang, Verifikator Keuangan, Bendahara, Auditor)
+     TIDAK diubah - memakai daftar menu aktif yang sudah ada. */
+  if(typeof menuListV133 === 'function'){
+    var __menuListBaseV151 = menuListV133;
+    menuListV133 = function(){
+      var role = (typeof actualRoleV133 === 'function') ? actualRoleV133() : '';
+      if(role === 'PIMPINAN'){
+        return ['Dashboard Monitoring','Surat','Antrean Persetujuan Pengajuan'];
+      }
+      if(role === 'VERIFIKATOR_PBJ'){
+        return ['Dashboard Monitoring','Struktur Anggaran','Perencanaan','Pengadaan Langsung','Pencairan','Non Pengadaan'];
+      }
+      return __menuListBaseV151();
+    };
+  }
+
+  /* [8] Pengaman handler: Verifikator PBJ tidak boleh membuka form Buat Paket,
+         walau fungsi dipanggil lewat console. Backend pembuatan paket TIDAK diubah. */
+  if(typeof buatPaketV95 === 'function'){
+    var __buatPaketBaseV151 = buatPaketV95;
+    buatPaketV95 = function(){
+      if(typeof isVerifierV77 === 'function' && isVerifierV77()){
+        alert('Verifikator hanya dapat memeriksa dan memvalidasi paket, tidak membuat paket baru.');
+        return;
+      }
+      return __buatPaketBaseV151.apply(this, arguments);
+    };
+    window.buatPaketV95 = buatPaketV95;
+  }
+
+  /* [1] Tombol mata password: pertahankan fokus DAN posisi kursor saat diklik. */
+  if(typeof window.togglePasswordV148 === 'function'){
+    window.togglePasswordV148 = function(){
+      var input = document.getElementById('password');
+      var btn = document.getElementById('passwordToggleV148');
+      if(!input) return;
+      var selStart = input.selectionStart, selEnd = input.selectionEnd;   /* simpan kursor */
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      if(btn){
+        btn.setAttribute('aria-label', show ? 'Sembunyikan password' : 'Tampilkan password');
+        btn.title = show ? 'Sembunyikan password' : 'Tampilkan password';
+        var sp = btn.querySelector('span'); if(sp) sp.textContent = show ? '🙈' : '👁';
+      }
+      input.focus({preventScroll:true});
+      try{ input.setSelectionRange(selStart, selEnd); }catch(e){}          /* kembalikan kursor */
+    };
+  }
+
+})();
