@@ -3228,6 +3228,3 @@ body.modal-open-v122{overflow:hidden}
   border:2px solid #cbd5e1!important;
   box-shadow:none!important;
 }
-
-/* SIMPROV v155 - Non Pengadaan cetak HTML */
-.non-modal-v155{max-width:1120px}.non-pay-row-v155{position:relative}.non-row-calculation-v155{grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;padding:10px 12px;border-radius:10px;background:rgba(11,99,206,.06);font-size:12px}.non-row-calculation-v155 span{display:flex;gap:6px}.non-modal-totals-v155{margin-top:12px;padding:12px 14px;border-radius:10px;background:#eef6ff;border:1px solid rgba(11,99,206,.18);font-size:13px;text-align:right}.non-modal-totals-v155 b{color:#0b63ce}.dok-table-v96 input[type=file].non-doc-file-v155{max-width:230px}.non-stat-grid-v96+button{margin-top:14px}@media(max-width:780px){.non-row-calculation-v155{gap:8px;flex-direction:column}.non-modal-totals-v155{text-align:left}}
