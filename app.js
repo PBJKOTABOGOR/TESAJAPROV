@@ -12737,3 +12737,150 @@ if(typeof renderPerencanaanRow==='function'){
   var __renderPerencanaanRowV155=renderPerencanaanRow;
   renderPerencanaanRow=function(k){var html=__renderPerencanaanRowV155(k);if(String(k?.kategori||'').toUpperCase()==='NON PENGADAAN')html=html.replace(/>Buat Dokumen</g,'>Simpan Data &amp; Cetak Dokumen<');return html;};
 }
+
+/* =========================================================
+   SIMPROV v155 R2 - Honorarium-only print + flexible realization
+   ---------------------------------------------------------
+   - Cetak/versi dokumen hanya untuk jenis Honorarium.
+   - Non Honorarium hanya memakai Tanda Terima dan Bukti Potong Pajak.
+   - Pencatatan realisasi tidak menunggu upload/verifikasi dokumen.
+   - Nilai realisasi tetap dapat diperiksa/dikoreksi Verifikator.
+   ========================================================= */
+function isHonorNonV155R2(k){
+  return String(k?.jenis_non_pengadaan||'').trim().toUpperCase().includes('HONOR');
+}
+function requiredNonDocsV155R2(k){
+  return isHonorNonV155R2(k)?['Dokumen Honorarium TTD','Tanda Terima','Bukti Potong Pajak']:['Tanda Terima','Bukti Potong Pajak'];
+}
+
+latestRequiredNonDocsV155=function(docs,idKegiatan){
+  docs=Array.isArray(docs)?docs:[];
+  idKegiatan=idKegiatan||(docs[0]?.id_kegiatan||'');
+  const k=typeof kegiatanById==='function'?kegiatanById(idKegiatan):(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(idKegiatan));
+  const required=requiredNonDocsV155R2(k),version=isHonorNonV155R2(k)?toNumber(nonVersionsV155(idKegiatan)[0]?.versi_pdf):0;
+  const sorted=docs.slice().sort((a,b)=>toNumber(a._row)-toNumber(b._row)),map={};
+  sorted.forEach(function(d){
+    const key=String(d.jenis_dokumen||'').trim().toUpperCase();
+    if(!required.map(x=>x.toUpperCase()).includes(key))return;
+    if(key==='DOKUMEN HONORARIUM TTD'&&version>0&&toNumber(d.versi_dokumen)!==version)return;
+    map[key]=d;
+  });
+  return required.map(j=>map[j.toUpperCase()]).filter(Boolean);
+};
+latestRequiredNonDocsV109=function(docs){return latestRequiredNonDocsV155(docs,docs?.[0]?.id_kegiatan||'');};
+
+var __openHonorModalV155R2=openHonorModalV79;
+openHonorModalV79=function(id){
+  const k=typeof kegiatanById==='function'?kegiatanById(id):(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id));
+  if(!k)return alert('Data kegiatan tidak ditemukan.');
+  if(!isHonorNonV155R2(k))return alert('Pembuatan daftar pembayaran hanya tersedia untuk jenis Honorarium.');
+  return __openHonorModalV155R2.apply(this,arguments);
+};
+
+function nonPrintCityDateV155R2(n){
+  const d=nonPrintDateObjectV155(n?.tanggal_generate||n?.tanggal_input)||new Date();
+  return d.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Jakarta'});
+}
+renderNonPrintWindowV155=function(win,id,version){
+  const k=kegiatanById(id),n=nonVersionV155(id,version),rows=nonRecipientsV155(id,version);
+  if(!k||!n){if(win&&!win.closed)win.document.body.innerHTML='<p>Data versi tidak ditemukan.</p>';return;}
+  if(!isHonorNonV155R2(k)){if(win&&!win.closed)win.close();return alert('Dokumen cetak hanya tersedia untuk Honorarium.');}
+  if(!win||win.closed)win=window.open('','_blank');
+  if(!win)return alert('Popup diblokir browser. Izinkan popup lalu klik Cetak kembali.');
+  const logo=new URL('logo-siporbo.png',window.location.href).href,title='DAFTAR PEMBAYARAN HONORARIUM';
+  const period=nonPrintPeriodV155(k,n),eventDate=nonPrintEventDateV155(k,n),sign=nonPrintSignatoriesV155(k);
+  const totalBruto=rows.reduce((s,x)=>s+toNumber(x.jumlah_bruto),0),totalPajak=rows.reduce((s,x)=>s+toNumber(x.nilai_pajak),0),totalNetto=rows.reduce((s,x)=>s+toNumber(x.jumlah_netto),0);
+  const terbilang=typeof numberWordsV138==='function'?numberWordsV138(totalNetto):nonPrintMoneyV155(totalNetto);
+  const bodyRows=rows.map(function(p,i){
+    const no=i+1,side=i%2===0?'left':'right';
+    return `<tr><td class="center">${no}</td><td class="name">${esc(p.nama_penerima||'-')}</td><td class="center date-cell">${esc(eventDate)}</td><td class="center">${esc(p.jabatan_peran||'-')}</td><td class="center">${toNumber(p.volume)}</td><td class="center">${esc(p.satuan||'-')}</td><td class="money">${nonPrintMoneyV155(p.tarif_honor)}</td><td class="money">${nonPrintMoneyV155(p.jumlah_bruto)}</td><td class="money"><b>${nonPrintMoneyV155(p.nilai_pajak)}</b></td><td class="money"><b>${nonPrintMoneyV155(p.jumlah_netto)}</b></td><td class="recipient-sign ${side}"><span>${no}</span></td></tr>`;
+  }).join('');
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${title} - ${esc(k.id_kegiatan)} V${version}</title><style>
+    *{box-sizing:border-box}html,body{margin:0;padding:0;color:#111}body{font-family:Arial,sans-serif;background:#edf1f5}.toolbar{position:sticky;top:0;z-index:10;display:flex;justify-content:flex-end;gap:8px;padding:11px 18px;background:#fff;border-bottom:1px solid #d7dde5}.toolbar button{border:0;border-radius:8px;padding:10px 15px;font-weight:700;cursor:pointer}.print{background:#0b63ce;color:#fff}.close{background:#e8edf3;color:#223}.page{width:297mm;min-height:210mm;margin:14px auto;background:#fff;padding:8mm 10mm 9mm;box-shadow:0 6px 24px #0002}.system-head{display:flex;align-items:center;gap:9px;padding-bottom:5px;border-bottom:2px solid #1767aa}.system-head img{width:27px;height:27px;object-fit:contain}.system-head b{display:block;font-size:13px;color:#115b98;line-height:1}.system-head span{display:block;font-size:7.5px;font-weight:700;margin-top:2px}.system-head small{display:block;font-size:6.5px;color:#5c6670;margin-top:1px}.doc-title{text-align:center;text-transform:uppercase;margin:8mm 0 7mm}.doc-title h1{font-size:14pt;margin:0 0 4mm;font-weight:800}.doc-title h2{font-size:12pt;margin:0 0 3mm;font-weight:800}.doc-title h3{font-size:11pt;margin:0;font-weight:800}.payment-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.4pt}.payment-table th,.payment-table td{border:1px solid #111;padding:2.2mm 1.4mm;vertical-align:middle}.payment-table th{text-align:center;font-weight:700;line-height:1.18}.payment-table tbody tr{height:15mm}.payment-table .center{text-align:center}.payment-table .name{text-align:left;font-weight:600}.payment-table .money{text-align:right;white-space:nowrap}.payment-table .date-cell{line-height:1.3}.payment-table .recipient-sign{position:relative;padding:0;height:15mm}.payment-table .recipient-sign span{position:absolute;top:2.2mm;font-weight:700}.payment-table .recipient-sign.left span{left:2mm}.payment-table .recipient-sign.right span{right:2mm}.payment-table tfoot td{font-weight:800;background:#fafafa;height:9mm}.payment-table .total-label{text-align:right}.payment-table col.no{width:3%}.payment-table col.nama{width:14.5%}.payment-table col.tanggal{width:12.5%}.payment-table col.jabatan{width:11.5%}.payment-table col.vol{width:3.5%}.payment-table col.sat{width:4.5%}.payment-table col.harga{width:9%}.payment-table col.jumlah{width:9%}.payment-table col.pajak{width:8.5%}.payment-table col.netto{width:10%}.payment-table col.ttd{width:14%}.terbilang{display:grid;grid-template-columns:35mm 4mm 1fr;gap:2mm;margin:8mm 0 0 6mm;font-family:'Times New Roman',serif;font-size:10pt}.terbilang em{font-weight:700}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:42mm;margin:8mm 20mm 0;text-align:center;font-family:'Times New Roman',serif;font-size:10pt}.signatures .sign-right{display:flex;flex-direction:column;align-items:center}.signatures .city-date{margin-bottom:4mm}.signatures .space{height:24mm}.signatures .name-line{font-weight:800;text-decoration:underline}.signatures small{display:block;margin-top:1mm}.audit{margin-top:7mm;border-top:1px solid #bbc3cc;padding-top:2mm;font-size:6.8pt;color:#66717d;display:flex;justify-content:space-between;gap:8mm}.audit span:last-child{text-align:right}@media print{body{background:#fff}.toolbar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:auto;padding:5mm 7mm 6mm}.payment-table thead{display:table-header-group}.payment-table tr{break-inside:avoid}.system-head{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4 landscape;margin:5mm}}</style></head><body>
+    <div class="toolbar"><button class="print" onclick="window.print()">Cetak / Simpan PDF</button><button class="close" onclick="window.close()">Tutup</button></div><main class="page">
+    <header class="system-head"><img src="${logo}" alt="Logo SIMPROV"><div><b>SIMPROV</b><span>Sistem Informasi Monitoring Persiapan PORPROV Kota Bogor</span><small>Dokumen resmi dibuat dan tercatat melalui SIMPROV</small></div></header>
+    <section class="doc-title"><h1>${title}</h1><h2>${esc(k.nama_kegiatan)}</h2><h3>BULAN ${esc(period.bulan)} TAHUN ${esc(period.tahun)}</h3></section>
+    <table class="payment-table"><colgroup><col class="no"><col class="nama"><col class="tanggal"><col class="jabatan"><col class="vol"><col class="sat"><col class="harga"><col class="jumlah"><col class="pajak"><col class="netto"><col class="ttd"></colgroup><thead><tr><th>NO</th><th>NAMA</th><th>HARI DAN TANGGAL<br>KEGIATAN</th><th>JABATAN / PERAN</th><th>VOL</th><th>SAT</th><th>HARGA SAT<br>RP</th><th>JUMLAH<br>RP</th><th>PPH 21</th><th>JUMLAH YANG<br>DITERIMA</th><th>TANDA<br>TANGAN</th></tr></thead><tbody>${bodyRows||'<tr><td colspan="11" class="center">Tidak ada data penerima.</td></tr>'}</tbody><tfoot><tr><td colspan="7" class="total-label">TOTAL</td><td class="money">${nonPrintMoneyV155(totalBruto)}</td><td class="money">${nonPrintMoneyV155(totalPajak)}</td><td class="money">${nonPrintMoneyV155(totalNetto)}</td><td></td></tr></tfoot></table>
+    <div class="terbilang"><span>Terbilang</span><span>:</span><em>${esc(terbilang)}</em></div>
+    <section class="signatures"><div class="sign-left">Pelaksana Kegiatan Pengadaan<div class="space"></div><div class="name-line">${esc(sign.pelaksana)}</div>${sign.jabatanPelaksana?`<small>${esc(sign.jabatanPelaksana)}</small>`:''}</div><div class="sign-right"><div class="city-date">Bogor, ${esc(nonPrintCityDateV155R2(n))}</div><div>Bendahara</div><div class="space"></div></div></section>
+    <footer class="audit"><span>ID Kegiatan: ${esc(k.id_kegiatan)} • Bidang: ${esc(bidangName(k.id_bidang))} • Versi: V${esc(version)}</span><span>Data disimpan oleh ${esc(n.generate_by||n.input_by||'-')} pada ${esc(nonPrintDateV155(n.tanggal_generate||n.tanggal_input))}</span></footer>
+    </main></body></html>`;
+  win.document.open();win.document.write(html);win.document.close();
+};
+
+nonDocTableV155=function(k){
+  const required=requiredNonDocsV155R2(k),all=(dashboard?.dokumenNonPengadaan||[]).filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan)),picked=latestRequiredNonDocsV155(all,k.id_kegiatan);
+  const owner=actualRoleV133()==='BIDANG'&&String(k.id_bidang)===String(currentUser?.id_bidang||'')&&String(k.status_perencanaan||'').toUpperCase()==='DISETUJUI'&&String(k.status_pencairan||'').toUpperCase()!=='SELESAI';
+  const canVerify=isPBJVerifierV65()||canManage(),activeVersion=toNumber(nonVersionsV155(k.id_kegiatan)[0]?.versi_pdf);
+  const rows=required.map(function(j){
+    const d=picked.find(x=>String(x.jenis_dokumen||'').toUpperCase()===j.toUpperCase()),valid=d&&String(d.status_verifikasi||'').toUpperCase()==='VALID DOKUMEN';
+    const waitingPrint=j==='Dokumen Honorarium TTD'&&!activeVersion;
+    const upload=owner&&!valid&&!waitingPrint?`<input type="file" accept="application/pdf" class="non-doc-file-v155" data-jenis="${esc(j)}" onchange="toggleNonUploadV155()">`:(waitingPrint?'<span class="small">Buat dan cetak dokumen Honorarium terlebih dahulu</span>':(valid?'<span class="small">Sudah valid</span>':'-'));
+    const verify=d&&canVerify&&!valid?`<button class="btn-mini btn-green" type="button" onclick="verifyNonDocV155('${esc(d.id_dokumen_non)}','VALID DOKUMEN')">Valid</button> <button class="btn-mini btn-orange" type="button" onclick="verifyNonDocV155('${esc(d.id_dokumen_non)}','PERBAIKAN DOKUMEN')">Perlu Perbaikan</button>`:'-';
+    return `<tr><td><b>${esc(j)}</b>${j==='Dokumen Honorarium TTD'?`<br><small>Versi cetak aktif V${activeVersion||'-'}</small>`:''}</td><td>${d?`<a href="${esc(d.url_file)}" target="_blank">${esc(d.nama_file||'Buka File')}</a>`:'<span class="muted">Belum diunggah</span>'}</td><td>${nonDocStatusLabelV155(d)}</td><td>${upload}</td><td>${d?esc(d.catatan_verifikator||'-'):'-'}</td><td>${verify}</td></tr>`;
+  }).join('');
+  return `<div id="nonUploadBarV155" class="dok-upload-bar-v96 hidden"><span id="nonUploadInfoV155"></span><button id="btnUploadNonV155" type="button" onclick="uploadNonDocsV155('${esc(k.id_kegiatan)}')">Upload File Terpilih</button></div><div class="table-wrap"><table class="dok-table-v96"><thead><tr><th>Jenis Dokumen</th><th>File</th><th>Status</th><th>Upload PDF (maks. 2 MB)</th><th>Catatan</th><th>Verifikasi</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+};
+
+nonPipelineV103=function(k,n,docs,real){
+  const required=requiredNonDocsV155R2(k),latest=latestRequiredNonDocsV155(docs,k.id_kegiatan),approved=String(k.status_perencanaan||'').toUpperCase()==='DISETUJUI';
+  const complete=latest.length===required.length&&latest.every(d=>d.url_file),repair=latest.some(d=>String(d.status_verifikasi||'').toUpperCase().includes('PERBAIKAN')),allValid=complete&&latest.every(d=>String(d.status_verifikasi||'').toUpperCase()==='VALID DOKUMEN');
+  const realFinal=!!real&&['FINAL','DISETUJUI','SELESAI','SAH'].includes(String(real.status||'').toUpperCase()),final=String(k.status_pencairan||'').toUpperCase()==='SELESAI';
+  let stages;
+  if(isHonorNonV155R2(k)){
+    const saved=!!nonVersionsV155(k.id_kegiatan).length;
+    stages=[{no:1,label:'Perencanaan Disetujui',state:approved?'done':''},{no:2,label:'Data Honorarium Disimpan',state:saved?'done':(approved?'waiting':'')},{no:3,label:'Dokumen Honorarium TTD & Dokumen Wajib',state:repair?'repair':(complete?'done':(approved?'waiting':''))},{no:4,label:'Pencatatan Realisasi',state:real?'done':(approved?'waiting':'')},{no:5,label:'Verifikasi Dokumen & Realisasi',state:(allValid&&realFinal)?'done':(repair?'repair':((complete||real)?'waiting':''))},{no:6,label:'Selesai',state:final?'done':((allValid&&realFinal)?'waiting':'')}];
+  }else{
+    stages=[{no:1,label:'Perencanaan Disetujui',state:approved?'done':''},{no:2,label:'Tanda Terima & Bukti Potong Pajak',state:repair?'repair':(complete?'done':(approved?'waiting':''))},{no:3,label:'Pencatatan Realisasi',state:real?'done':(approved?'waiting':'')},{no:4,label:'Verifikasi Dokumen & Realisasi',state:(allValid&&realFinal)?'done':(repair?'repair':((complete||real)?'waiting':''))},{no:5,label:'Selesai',state:final?'done':((allValid&&realFinal)?'waiting':'')}];
+  }
+  return `<div class="pipeline-v103">${stages.map(x=>statusPipelineNonV104(x,x.state)).join('')}</div>`;
+};
+
+renderDetailNonPengadaanV95=function(k){
+  const isHonor=isHonorNonV155R2(k),required=requiredNonDocsV155R2(k),versions=isHonor?nonVersionsV155(k.id_kegiatan):[],n=isHonor?(versions[0]||latestNonV79(k.id_kegiatan)):null;
+  const docs=(dashboard?.dokumenNonPengadaan||[]).filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan)),picked=latestRequiredNonDocsV155(docs,k.id_kegiatan),real=latestNonRealV113_(k.id_kegiatan);
+  const approved=String(k.status_perencanaan||'').toUpperCase()==='DISETUJUI',final=String(k.status_pencairan||'').toUpperCase()==='SELESAI',owner=actualRoleV133()==='BIDANG'&&String(k.id_bidang)===String(currentUser?.id_bidang||''),canVerify=isPBJVerifierV65()||canManage();
+  const complete=picked.length===required.length&&picked.every(d=>d.url_file),allValid=complete&&picked.every(d=>String(d.status_verifikasi||'').toUpperCase()==='VALID DOKUMEN'),realFinal=isRealFinalV113(real);
+  const validCount=picked.filter(d=>String(d.status_verifikasi||'').toUpperCase()==='VALID DOKUMEN').length;
+  const history=isHonor?versions.map(function(v){const old=!!v.url_pdf;return `<tr><td>V${esc(v.versi_pdf)}</td><td>${esc(nonPrintDateV155(v.tanggal_generate||v.tanggal_input))}</td><td>${esc(v.generate_by||v.input_by||'-')}</td><td>${rupiah(v.total_bruto)}</td><td>${rupiah(v.total_pajak)}</td><td>${rupiah(v.total_netto)}</td><td>${old?`<a class="btn-link-v79" href="${esc(v.url_pdf)}" target="_blank">Buka Dokumen Lama</a>`:`<button class="btn-soft" type="button" onclick="printNonProcV155('${esc(k.id_kegiatan)}','${esc(v.versi_pdf)}')">Cetak Versi Ini</button>`}</td></tr>`;}).join(''):'';
+  const ringkas=isHonor?`<div class="non-stat-grid-v96"><div class="non-stat-v96"><small>Jenis</small><b>${esc(k.jenis_non_pengadaan||'Honorarium')}</b></div><div class="non-stat-v96"><small>Nilai Perencanaan</small><b>${rupiah(k.jumlah)}</b></div><div class="non-stat-v96"><small>Total Bruto Versi Aktif</small><b>${rupiah(n?.total_bruto||0)}</b></div><div class="non-stat-v96"><small>Total Pajak</small><b>${rupiah(n?.total_pajak||0)}</b></div><div class="non-stat-v96"><small>Total Netto</small><b>${rupiah(n?.total_netto||0)}</b></div><div class="non-stat-v96"><small>Versi Aktif</small><b>${n&&toNumber(n.versi_pdf)>0?'V'+esc(n.versi_pdf):'Belum ada'}</b></div></div>`:`<div class="non-stat-grid-v96"><div class="non-stat-v96"><small>Jenis</small><b>${esc(k.jenis_non_pengadaan||'Non Pengadaan')}</b></div><div class="non-stat-v96"><small>Nilai Perencanaan</small><b>${rupiah(k.jumlah)}</b></div><div class="non-stat-v96"><small>Dokumen Diunggah</small><b>${picked.filter(d=>d.url_file).length}/${required.length}</b></div><div class="non-stat-v96"><small>Dokumen Valid</small><b>${validCount}/${required.length}</b></div><div class="non-stat-v96"><small>Nilai Realisasi</small><b>${real?rupiah(real.nilai_realisasi):'Belum dicatat'}</b></div><div class="non-stat-v96"><small>Status Realisasi</small><b>${real?esc(displayStatusText(real.status||'MENUNGGU VERIFIKASI')):'-'}</b></div></div>`;
+  let realHtml='';
+  if(!approved)realHtml='<p class="empty">Perencanaan belum disetujui Verifikator PBJ.</p>';
+  else if(final)realHtml=`<div class="selesai-banner-v96">✓ Paket sudah selesai.${real?` Nilai realisasi <b>${rupiah(real.nilai_realisasi)}</b>`:''}</div>`;
+  else if(real){
+    realHtml=`<div class="notice-v103"><b>Nilai realisasi tercatat:</b> ${rupiah(real.nilai_realisasi)}<br><span class="small">Status: ${esc(displayStatusText(real.status||'MENUNGGU VERIFIKASI'))}</span></div>`;
+    if(canVerify)realHtml+=`<div class="form-grid"><div class="field"><label>Nilai Realisasi Hasil Pemeriksaan (Rp)</label><input inputmode="numeric" id="npKoreksiNilaiV110" value="${Number(toNumber(real.nilai_realisasi)).toLocaleString('id-ID')}" data-max="${toNumber(k.jumlah)}" oninput="onRupiahInputV96(this)"></div><div class="field span-2"><label>Catatan Koreksi</label><input id="npKoreksiCatatanV110" placeholder="Wajib apabila nilai diperbaiki"></div></div><div class="realisasi-verif-actions-v112">${!realFinal?`<button class="btn-green" type="button" onclick="verifikasiRealisasiNonV112('${esc(k.id_kegiatan)}','SETUJUI')">Setujui Nilai Realisasi</button>`:''}<button class="btn-orange" type="button" onclick="verifikasiRealisasiNonV112('${esc(k.id_kegiatan)}','PERBAIKI')">Perbarui Nilai Realisasi</button></div>`;
+  }else if(owner){
+    const suggested=isHonor?(toNumber(n?.total_bruto)||toNumber(k.jumlah)):toNumber(k.jumlah);
+    realHtml=`<div class="notice-v103">Realisasi dapat dicatat sekarang tanpa menunggu dokumen diunggah atau diverifikasi.</div><div class="form-grid"><div class="field"><label>Pihak / Penerima</label><input id="npPihakV96" placeholder="Nama pihak/penerima"></div><div class="field"><label>Nilai Realisasi (Rp)</label><input inputmode="numeric" id="npNilaiV96" value="${suggested?Number(suggested).toLocaleString('id-ID'):''}" data-max="${toNumber(k.jumlah)}" oninput="onRupiahInputV96(this)"></div><div class="field span-2"><label>Keterangan</label><input id="npKetV96"></div></div><button type="button" onclick="submitCatatNonV96('${esc(k.id_kegiatan)}')">Catat Realisasi</button>`;
+  }else realHtml='<p class="small">Menunggu pencatatan realisasi oleh User Bidang.</p>';
+  const honorActions=isHonor?`${owner&&approved&&!final?`<button class="btn-green" type="button" onclick="openHonorModalV79('${esc(k.id_kegiatan)}')">Simpan Data &amp; Cetak Dokumen</button>`:''}${n&&!n.url_pdf?` <button class="btn-soft" type="button" onclick="printNonProcV155('${esc(k.id_kegiatan)}','${esc(n.versi_pdf)}')">Cetak Versi Aktif</button>`:''}${n?.url_pdf?` <a class="btn-link-v79" href="${esc(n.url_pdf)}" target="_blank">Buka Dokumen Lama</a>`:''}`:'';
+  const historySection=isHonor?`<section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Riwayat Versi Dokumen</h3><p class="panel-sub">Versi lama tetap tersimpan. Cetak mengambil data dari versi yang dipilih.</p></div></div><div class="table-wrap"><table><thead><tr><th>Versi</th><th>Tanggal</th><th>Penginput</th><th>Bruto</th><th>Pajak</th><th>Netto</th><th>Aksi</th></tr></thead><tbody>${history||'<tr><td colspan="7" class="empty">Belum ada versi data pembayaran.</td></tr>'}</tbody></table></div></section>`:'';
+  const docInfo=isHonor?'Dokumen Honorarium TTD, Tanda Terima, dan Bukti Potong Pajak. Maksimal 2 MB per file.':'Unggah Tanda Terima dan Bukti Potong Pajak. Maksimal 2 MB per file.';
+  const finalBtn=!final&&canVerify&&allValid&&realFinal?`<section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Finalisasi Paket</h3><p class="panel-sub">Seluruh dokumen wajib dan nilai realisasi telah valid.</p></div></div><button class="btn-green" type="button" onclick="selesaikanPaketNonPengadaanV116('${esc(k.id_kegiatan)}')">Selesai Paket</button></section>`:'';
+  document.getElementById('contentArea').innerHTML=`${backBarV95(k,k.jenis_non_pengadaan||'Non Pengadaan')}<section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Tahapan Pencatatan Non Pengadaan</h3></div></div>${nonPipelineV103(k,n,docs,real)}</section><section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Ringkasan Paket Non Pengadaan</h3><p class="panel-sub">${isHonor?'Data penerima Honorarium tersimpan di database dan dicetak langsung dari SIMPROV.':'Jenis ini tidak membuat dokumen atau riwayat versi dari SIMPROV.'}</p></div></div>${ringkas}${honorActions}</section>${historySection}<section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Dokumen Wajib</h3><p class="panel-sub">${docInfo}</p></div></div>${nonDocTableV155(k)}</section><section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Pencatatan Realisasi</h3></div></div>${realHtml}</section>${finalBtn}<div id="honorModalV79" class="modal hidden"></div>`;
+};
+
+selesaikanPaketNonPengadaanV116=async function(id){
+  if(!confirm('Selesaikan paket Non Pengadaan ini?'))return;
+  showLoading('Menyelesaikan paket Non Pengadaan...');
+  try{
+    const r=await apiPost({action:'selesaikanPaketNonPengadaanV116',user:currentUser,id_kegiatan:id});
+    if(!r.success)throw new Error(r.message||'Gagal menyelesaikan paket');
+    const k=kegiatanById(id);if(k)k.status_pencairan='SELESAI';
+    const n=nonVersionsV155(id)[0]||latestNonV79(id);if(n)n.status='SELESAI';
+    writeDashboardCache(dashboard);
+    if(k)renderDetailNonPengadaanV95(k);
+    alert(r.message||'Paket selesai');
+  }catch(e){alert(e.message||String(e));}finally{hideLoading();}
+};
+
+var __renderPerencanaanRowV155R2=renderPerencanaanRow;
+renderPerencanaanRow=function(k){
+  let html=__renderPerencanaanRowV155R2.apply(this,arguments);
+  if(String(k?.kategori||'').toUpperCase()!=='NON PENGADAAN')return html;
+  if(isHonorNonV155R2(k)){
+    return html.replace(/>(?:Buat Dokumen|Simpan Data &amp; Cetak Dokumen|Buka Pencatatan)</g,'>Simpan Data &amp; Cetak Dokumen<');
+  }
+  return html.replace(/>(?:Buat Dokumen|Simpan Data &amp; Cetak Dokumen)</g,'>Buka Pencatatan<');
+};
