@@ -7620,7 +7620,7 @@ submitCatatNonV96=async function(id){
       const k=(dashboard.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id));if(k)k.status_pencairan='SELESAI';
     }
     renderAll();
-  }catch(e){alert(e.message||String(e));}finally{hideLoading();}
+  }catch(e){alert(e.message||String(e));}finally{nonHonorStageBusyV157.delete(idKegiatan);hideLoading();}
 };
 
 const bulkVerifV108Base=typeof bulkVerifV108==='function'?bulkVerifV108:null;
@@ -13006,3 +13006,188 @@ async function finishNonHonorV156(idKegiatan){
   const total=nonHonorTotalV156(idKegiatan);if(!total)return alert('Minimal satu realisasi harus dicatat.');if(!confirm(`Tandai pencatatan selesai dengan total realisasi ${rupiah(total)}?`))return;
   showLoading('Menyelesaikan pencatatan...');try{const r=await apiPost({action:'finishNonHonorPackageV156',user:currentUser,id_kegiatan:idKegiatan});if(!r.success)throw new Error(r.message||'Gagal menyelesaikan pencatatan');const k=kegiatanById(idKegiatan);if(k)k.status_pencairan='SELESAI';writeDashboardCache(dashboard);if(k)renderNonHonorMultiV156(k);alert(r.message||'Pencatatan selesai');}catch(e){alert(e.message||String(e));}finally{hideLoading();}
 }
+
+/* =========================================================
+   SIMPROV v157 - Pemeriksaan PBJ Multi Realisasi Non Honorarium
+   ---------------------------------------------------------
+   Tahapan:
+   1. User Bidang mencatat realisasi dan lampiran.
+   2. User mengajukan pemeriksaan PBJ.
+   3. Verifikator PBJ dapat mengoreksi nilai, menyetujui, atau
+      langsung menyelesaikan paket.
+   4. Setelah disetujui PBJ, User Bidang juga dapat menyelesaikan.
+   5. Paket selesai hanya dapat diedit lagi setelah Verifikator PBJ
+      membuka kembali akses edit user.
+   Honorarium tetap memakai alur khusus sebelumnya.
+   ========================================================= */
+const nonHonorStageBusyV157=new Set();
+const NH_STATUS_V157={
+  EMPTY:'MENUNGGU PENCATATAN REALISASI',
+  EDITING:'PENCATATAN REALISASI',
+  REVIEW:'MENUNGGU PEMERIKSAAN PBJ',
+  READY:'SIAP DISELESAIKAN',
+  REOPEN:'DIBUKA KEMBALI',
+  DONE:'SELESAI'
+};
+function nonHonorStageV157(k){
+  const raw=String(k?.status_pencairan||'').trim().toUpperCase().replace(/_/g,' ');
+  if(raw===NH_STATUS_V157.DONE)return NH_STATUS_V157.DONE;
+  if(raw===NH_STATUS_V157.REVIEW)return NH_STATUS_V157.REVIEW;
+  if(raw===NH_STATUS_V157.READY)return NH_STATUS_V157.READY;
+  if(raw===NH_STATUS_V157.REOPEN)return NH_STATUS_V157.REOPEN;
+  if(raw===NH_STATUS_V157.EDITING)return NH_STATUS_V157.EDITING;
+  return NH_STATUS_V157.EMPTY;
+}
+function nonHonorStageLabelV157(stage){
+  return ({
+    [NH_STATUS_V157.EMPTY]:'Belum ada realisasi',
+    [NH_STATUS_V157.EDITING]:'Pencatatan berjalan',
+    [NH_STATUS_V157.REVIEW]:'Menunggu pemeriksaan Verifikator PBJ',
+    [NH_STATUS_V157.READY]:'Sudah diperiksa PBJ — siap diselesaikan',
+    [NH_STATUS_V157.REOPEN]:'Dibuka kembali untuk perbaikan',
+    [NH_STATUS_V157.DONE]:'Paket selesai'
+  })[stage]||stage;
+}
+function isNonHonorOwnerV157(k){
+  return actualRoleV133()==='BIDANG'&&String(k?.id_bidang||'')===String(currentUser?.id_bidang||'');
+}
+function isNonHonorPBJV157(){return ['ADMIN','VERIFIKATOR_PBJ'].includes(actualRoleV133());}
+function isPlanningApprovedFeV157(k){return String(k?.status_perencanaan||'').trim().toUpperCase().replace(/_/g,' ').startsWith('DISETUJUI');}
+function canOwnerEditNonHonorV157(k){
+  const stage=nonHonorStageV157(k),role=actualRoleV133();
+  const actor=role==='ADMIN'||isNonHonorOwnerV157(k);
+  return actor&&[NH_STATUS_V157.EMPTY,NH_STATUS_V157.EDITING,NH_STATUS_V157.REOPEN].includes(stage)&&isPlanningApprovedFeV157(k);
+}
+function canPBJCorrectNonHonorV157(k){
+  return isNonHonorPBJV157()&&nonHonorStageV157(k)!==NH_STATUS_V157.DONE&&isPlanningApprovedFeV157(k);
+}
+function nonHonorDocChipsV157(real,k){
+  const docs=nonHonorDocsV156(real.id_realisasi),editable=canOwnerEditNonHonorV157(k);
+  const chips=docs.map(d=>`<span class="nh-doc-chip-v156"><a href="${esc(d.url_file)}" target="_blank" title="${esc(d.nama_file||'Lampiran')}">${esc(d.nama_file||'Lampiran')}</a>${editable?`<button type="button" onclick="deleteNonHonorDocV156('${esc(d.id_dokumen_non)}','${esc(k.id_kegiatan)}')" title="Hapus lampiran">×</button>`:''}</span>`).join('');
+  return `<div class="nh-doc-list-v156">${chips||'<span class="muted">Belum ada lampiran</span>'}</div>${editable?`<label class="btn-soft nh-upload-label-v156">+ Lampiran<input type="file" accept="application/pdf" multiple hidden onchange="uploadNonHonorDocsV156('${esc(real.id_realisasi)}','${esc(k.id_kegiatan)}',this)"></label>`:''}`;
+}
+function nonHonorFlowNoticeV157(k,rows){
+  const stage=nonHonorStageV157(k),role=actualRoleV133();
+  if(stage===NH_STATUS_V157.REVIEW)return `<div class="nh-flow-notice-v157 review"><b>Menunggu pemeriksaan Verifikator PBJ</b><span>User tidak dapat mengubah data sampai Verifikator membuka akses edit atau menyetujui hasil pemeriksaan.</span></div>`;
+  if(stage===NH_STATUS_V157.READY)return `<div class="nh-flow-notice-v157 ready"><b>Hasil pencatatan sudah diperiksa Verifikator PBJ</b><span>Paket dapat diselesaikan oleh User Bidang atau Verifikator PBJ.</span></div>`;
+  if(stage===NH_STATUS_V157.REOPEN)return `<div class="nh-flow-notice-v157 reopen"><b>Akses edit dibuka kembali oleh Verifikator PBJ</b><span>Perbaiki data, kemudian ajukan ulang untuk diperiksa.</span></div>`;
+  if(stage===NH_STATUS_V157.DONE)return `<div class="nh-flow-notice-v157 done"><b>Paket sudah selesai</b><span>Perubahan hanya dapat dilakukan setelah Verifikator PBJ membuka kembali akses edit user.</span></div>`;
+  if(role==='VERIFIKATOR_PBJ'&&rows.length)return `<div class="nh-flow-notice-v157"><b>Pencatatan masih dikerjakan User Bidang</b><span>Verifikator dapat melihat dan mengoreksi nilai, tetapi persetujuan dilakukan setelah user mengajukan pemeriksaan.</span></div>`;
+  return '';
+}
+function nonHonorControlsV157(k,rows,total){
+  const stage=nonHonorStageV157(k),owner=isNonHonorOwnerV157(k),pbj=isNonHonorPBJV157(),approved=isPlanningApprovedFeV157(k);
+  if(!approved)return '';
+  const buttons=[];
+  if(canOwnerEditNonHonorV157(k)){
+    buttons.push(`<button class="btn-green" type="button" onclick="openNonHonorRealModalV156('${esc(k.id_kegiatan)}','')">+ Tambah Realisasi</button>`);
+    if(rows.length)buttons.push(`<button class="btn-soft" type="button" onclick="submitNonHonorReviewV157('${esc(k.id_kegiatan)}')">Ajukan Pemeriksaan PBJ</button>`);
+  }
+  if(owner&&stage===NH_STATUS_V157.READY){
+    buttons.push(`<button class="btn-green" type="button" onclick="finishNonHonorV156('${esc(k.id_kegiatan)}')">Selesaikan Paket</button>`);
+  }
+  if(pbj&&stage===NH_STATUS_V157.REVIEW){
+    buttons.push(`<button class="btn-green" type="button" onclick="approveNonHonorReviewV157('${esc(k.id_kegiatan)}')">Setujui Hasil Pemeriksaan</button>`);
+    buttons.push(`<button class="btn-soft" type="button" onclick="finishNonHonorV156('${esc(k.id_kegiatan)}')">Periksa &amp; Selesaikan</button>`);
+    buttons.push(`<button class="btn-warning-v157" type="button" onclick="reopenNonHonorV157('${esc(k.id_kegiatan)}')">Buka Akses Edit User</button>`);
+  }else if(pbj&&stage===NH_STATUS_V157.READY){
+    buttons.push(`<button class="btn-green" type="button" onclick="finishNonHonorV156('${esc(k.id_kegiatan)}')">Selesaikan Paket</button>`);
+    buttons.push(`<button class="btn-warning-v157" type="button" onclick="reopenNonHonorV157('${esc(k.id_kegiatan)}')">Buka Akses Edit User</button>`);
+  }else if(pbj&&stage===NH_STATUS_V157.DONE){
+    buttons.push(`<button class="btn-warning-v157" type="button" onclick="reopenNonHonorV157('${esc(k.id_kegiatan)}')">Buka Kembali untuk Diedit</button>`);
+  }
+  return buttons.length?`<div class="nh-toolbar-v156">${buttons.join('')}</div>`:'';
+}
+function renderNonHonorMultiV157(k){
+  const approved=isPlanningApprovedFeV157(k),stage=nonHonorStageV157(k);
+  const rows=nonHonorRealRowsV156(k.id_kegiatan),pagu=toNumber(k.jumlah),total=rows.reduce((s,r)=>s+toNumber(r.nilai_realisasi),0),sisa=Math.max(0,pagu-total);
+  const ownerEditable=canOwnerEditNonHonorV157(k),pbjCorrect=canPBJCorrectNonHonorV157(k);
+  const body=rows.map(function(r,i){
+    const jenis=r.jenis_realisasi||r.metode||'Realisasi',detail=[r.nomor_bukti?`No. bukti: ${esc(r.nomor_bukti)}`:'',r.keterangan?esc(r.keterangan):''].filter(Boolean).join('<br>');
+    let actions='-';
+    if(ownerEditable)actions=`<button class="btn-soft" type="button" onclick="openNonHonorRealModalV156('${esc(k.id_kegiatan)}','${esc(r.id_realisasi)}')">Edit</button><button class="btn-red" type="button" onclick="deleteNonHonorRealV156('${esc(r.id_realisasi)}','${esc(k.id_kegiatan)}')">Hapus</button>`;
+    else if(pbjCorrect)actions=`<button class="btn-soft" type="button" onclick="openNonHonorRealModalV156('${esc(k.id_kegiatan)}','${esc(r.id_realisasi)}')">Koreksi Nilai</button>`;
+    return `<tr><td class="center">${i+1}</td><td><b>${esc(jenis)}</b>${r.nama_pihak?`<br><small>${esc(r.nama_pihak)}</small>`:''}</td><td class="money-cell-v156">${rupiah(r.nilai_realisasi)}</td><td>${esc(displayDateV156(r.tanggal_realisasi||r.tanggal_input))}</td><td>${detail||'-'}</td><td>${nonHonorDocChipsV157(r,k)}</td><td class="nh-actions-v156">${actions}</td></tr>`;
+  }).join('');
+  const legacy=nonHonorLegacyDocsV156(k.id_kegiatan),legacyHtml=legacy.length?`<section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Dokumen Paket Lama</h3><p class="panel-sub">Dokumen dari alur versi sebelumnya tetap dapat dibuka dan tidak dihapus.</p></div></div><div class="nh-legacy-docs-v156">${legacy.map(d=>`<a href="${esc(d.url_file)}" target="_blank"><b>${esc(d.jenis_dokumen||'Dokumen')}</b><span>${esc(d.nama_file||'Buka file')}</span></a>`).join('')}</div></section>`:'';
+  document.getElementById('contentArea').innerHTML=`${backBarV95(k,k.jenis_non_pengadaan||'Non Pengadaan')}
+    <section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Pencatatan Non Pengadaan</h3><p class="panel-sub">Satu paket dapat memiliki beberapa realisasi dan lampiran. Total seluruh realisasi tidak boleh melebihi pagu.</p></div><span class="status-badge nh-stage-badge-v157 ${esc(stage.toLowerCase().replace(/\s+/g,'-'))}">${esc(nonHonorStageLabelV157(stage))}</span></div>
+      <div class="nh-summary-v156"><div><small>Nilai Pagu</small><b>${rupiah(pagu)}</b></div><div><small>Total Nilai Realisasi</small><b>${rupiah(total)}</b></div><div><small>Sisa Pagu</small><b>${rupiah(sisa)}</b></div><div><small>Jumlah Realisasi</small><b>${rows.length}</b></div></div>
+      ${!approved?'<div class="notice-v103">Perencanaan belum disetujui Verifikator PBJ.</div>':nonHonorFlowNoticeV157(k,rows)}${nonHonorControlsV157(k,rows,total)}
+    </section>
+    <section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Daftar Realisasi</h3><p class="panel-sub">Verifikator PBJ dapat mengoreksi nilai realisasi. Sistem tetap memvalidasi total agar tidak melampaui pagu paket.</p></div></div>
+      <div class="table-wrap"><table class="nh-table-v156"><thead><tr><th>No.</th><th>Jenis Realisasi</th><th>Nilai Realisasi</th><th>Tanggal Realisasi</th><th>Nomor Bukti / Keterangan</th><th>Dokumen</th><th>Aksi</th></tr></thead><tbody>${body||'<tr><td colspan="7" class="empty">Belum ada realisasi. User Bidang dapat menambahkan realisasi setelah perencanaan disetujui PBJ.</td></tr>'}</tbody><tfoot><tr><td colspan="2"><b>Total Nilai Realisasi</b></td><td><b>${rupiah(total)}</b></td><td colspan="4"><b>Sisa Pagu: ${rupiah(sisa)}</b></td></tr></tfoot></table></div>
+    </section>${legacyHtml}<div id="nonHonorRealModalV156" class="modal-backdrop hidden"></div>`;
+}
+renderNonHonorMultiV156=renderNonHonorMultiV157;
+
+openNonHonorRealModalV156=function(idKegiatan,idRealisasi){
+  const k=kegiatanById(idKegiatan);if(!k)return alert('Kegiatan tidak ditemukan.');
+  if(isHonorNonV155R2(k))return alert('Honorarium memakai form pencatatan khusus.');
+  const real=idRealisasi?nonHonorRealRowsV156(idKegiatan).find(r=>String(r.id_realisasi)===String(idRealisasi)):null;
+  const pbjMode=!!real&&canPBJCorrectNonHonorV157(k)&&!canOwnerEditNonHonorV157(k);
+  if(!real&&!canOwnerEditNonHonorV157(k))return alert('Penambahan realisasi hanya dapat dilakukan User Bidang saat akses edit terbuka.');
+  if(real&&!pbjMode&&!canOwnerEditNonHonorV157(k))return alert('Data sedang dikunci untuk pemeriksaan atau paket sudah selesai.');
+  const pagu=toNumber(k.jumlah),currentTotal=nonHonorTotalV156(idKegiatan),max=Math.max(0,pagu-currentTotal+toNumber(real?.nilai_realisasi));
+  const lock=pbjMode?'disabled':'';
+  const m=document.getElementById('nonHonorRealModalV156');if(!m)return;
+  m.classList.remove('hidden');
+  m.innerHTML=`<div class="modal-card modal-wide nh-modal-card-v156 fade-up"><div class="modal-head"><div><h3>${pbjMode?'Koreksi Nilai Realisasi':(real?'Edit':'Tambah')+' Realisasi'}</h3><p>${esc(k.nama_kegiatan)} • Batas nilai baris ${rupiah(max)}</p></div><button class="btn-soft" type="button" onclick="closeNonHonorRealModalV156()">Tutup</button></div>
+    ${pbjMode?'<div class="nh-flow-notice-v157 review"><b>Mode Verifikator PBJ</b><span>Hanya nilai realisasi yang dapat dikoreksi. Data transaksi dan lampiran tetap milik User Bidang.</span></div>':''}
+    <div class="form-grid"><div class="field"><label>Jenis Realisasi *</label><input id="nhJenisV156" ${lock} list="nhJenisListV156" value="${esc(real?.jenis_realisasi||'')}" placeholder="Contoh: Kwitansi, Transport, Uang Saku"><datalist id="nhJenisListV156"><option value="Kwitansi"><option value="Transport"><option value="Uang Saku"><option value="Akomodasi"><option value="Konsumsi"><option value="Hadiah/Penghargaan"><option value="Pembayaran Lainnya"></datalist></div>
+    <div class="field"><label>Pihak / Penerima</label><input id="nhPihakV156" ${lock} value="${esc(real?.nama_pihak||'')}" placeholder="Nama penerima atau pihak terkait"></div>
+    <div class="field"><label>Nilai Realisasi *</label><input id="nhNilaiV156" inputmode="numeric" data-max="${max}" value="${real?Number(toNumber(real.nilai_realisasi)).toLocaleString('id-ID'):''}" oninput="onRupiahInputV96(this);updateNonHonorModalSisaV156(${max})"></div>
+    <div class="field"><label>Tanggal Realisasi *</label><input id="nhTanggalV156" ${lock} type="date" value="${localDateInputV156(real?.tanggal_realisasi||new Date())}"></div>
+    <div class="field"><label>Nomor Bukti</label><input id="nhNomorV156" ${lock} value="${esc(real?.nomor_bukti||'')}" placeholder="Nomor kwitansi/bukti bila ada"></div>
+    <div class="field span-2"><label>Keterangan</label><textarea id="nhKetV156" ${lock} rows="3" placeholder="Keterangan transaksi">${esc(real?.keterangan||'')}</textarea></div>
+    ${real||pbjMode?'':`<div class="field span-2"><label>Lampiran PDF (boleh lebih dari satu, maks. 2 MB per file)</label><input id="nhFilesV156" type="file" accept="application/pdf" multiple><small>Lampiran juga dapat ditambahkan kemudian dari tabel realisasi.</small></div>`}</div>
+    <div class="nh-modal-total-v156"><span>Batas nilai baris ini</span><b>${rupiah(max)}</b><span>Sisa setelah disimpan</span><b id="nhModalSisaV156">${rupiah(max-toNumber(real?.nilai_realisasi))}</b></div>
+    <div class="modal-actions"><button class="btn-soft" type="button" onclick="closeNonHonorRealModalV156()">Batal</button><button id="btnSaveNonHonorV156" class="btn-green" type="button" data-pbj-mode="${pbjMode?'1':'0'}" onclick="saveNonHonorRealV156('${esc(idKegiatan)}','${esc(idRealisasi||'')}')">${pbjMode?'Simpan Koreksi Nilai':(real?'Simpan Perubahan':'Tambah Realisasi')}</button></div></div>`;
+};
+
+saveNonHonorRealV156=async function(idKegiatan,idRealisasi){
+  const btn=document.getElementById('btnSaveNonHonorV156');if(btn?.dataset.busy==='1')return;
+  const pbjMode=btn?.dataset.pbjMode==='1',jenis=(document.getElementById('nhJenisV156')?.value||'').trim(),nilai=toNumber(document.getElementById('nhNilaiV156')?.value),tanggal=document.getElementById('nhTanggalV156')?.value||'';
+  if(!jenis)return alert('Jenis realisasi wajib diisi.');if(nilai<=0)return alert('Nilai realisasi wajib diisi.');if(!tanggal)return alert('Tanggal realisasi wajib diisi.');
+  try{
+    if(btn){btn.dataset.busy='1';btn.disabled=true;btn.textContent=pbjMode?'Menyimpan koreksi...':'Menyimpan...';}showLoading(pbjMode?'Menyimpan koreksi nilai realisasi...':(idRealisasi?'Memperbarui realisasi...':'Menyimpan realisasi...'));
+    const items=idRealisasi?[]:await nonHonorFilesPayloadV156(document.getElementById('nhFilesV156'));
+    const payload={action:idRealisasi?'updateNonHonorRealizationV156':'saveNonHonorRealizationV156',user:currentUser,id_kegiatan:idKegiatan,id_realisasi:idRealisasi,jenis_realisasi:jenis,nama_pihak:document.getElementById('nhPihakV156')?.value||'',nilai_realisasi:nilai,tanggal_realisasi:tanggal,nomor_bukti:document.getElementById('nhNomorV156')?.value||'',keterangan:document.getElementById('nhKetV156')?.value||'',items};
+    const r=await apiPost(payload);if(!r.success)throw new Error(r.message||'Gagal menyimpan realisasi');
+    dashboard.realisasi=Array.isArray(dashboard.realisasi)?dashboard.realisasi:[];
+    if(idRealisasi){const i=dashboard.realisasi.findIndex(x=>String(x.id_realisasi)===String(idRealisasi));if(i>=0)dashboard.realisasi[i]=Object.assign({},dashboard.realisasi[i],r.realisasi||payload);}
+    else dashboard.realisasi.push(r.realisasi||payload);
+    dashboard.dokumenNonPengadaan=Array.isArray(dashboard.dokumenNonPengadaan)?dashboard.dokumenNonPengadaan:[];(r.dokumen||[]).forEach(d=>dashboard.dokumenNonPengadaan.push(d));
+    const k=kegiatanById(idKegiatan);if(k&&r.status_paket)k.status_pencairan=r.status_paket;writeDashboardCache(dashboard);closeNonHonorRealModalV156();if(k)renderNonHonorMultiV157(k);alert(r.message||'Realisasi berhasil disimpan');
+  }catch(e){alert(e.message||String(e));}finally{hideLoading();if(btn){btn.dataset.busy='0';btn.disabled=false;btn.textContent=pbjMode?'Simpan Koreksi Nilai':(idRealisasi?'Simpan Perubahan':'Tambah Realisasi');}}
+};
+
+async function setNonHonorStageLocalV157(idKegiatan,status,message){
+  const k=kegiatanById(idKegiatan);if(k)k.status_pencairan=status;
+  const n=(dashboard?.nonPengadaan||[]).filter(x=>String(x.id_kegiatan)===String(idKegiatan)).sort((a,b)=>toNumber(b.versi_pdf)-toNumber(a.versi_pdf))[0];if(n)n.status=status;
+  writeDashboardCache(dashboard);if(k)renderNonHonorMultiV157(k);if(message)alert(message);
+}
+async function submitNonHonorReviewV157(idKegiatan){
+  if(nonHonorStageBusyV157.has(idKegiatan))return;
+  const total=nonHonorTotalV156(idKegiatan);if(!total)return alert('Minimal satu realisasi harus dicatat.');
+  if(!confirm(`Ajukan pencatatan dengan total ${rupiah(total)} untuk diperiksa Verifikator PBJ? Data akan dikunci sementara.`))return;
+  nonHonorStageBusyV157.add(idKegiatan);showLoading('Mengajukan pemeriksaan PBJ...');try{const r=await apiPost({action:'submitNonHonorReviewV157',user:currentUser,id_kegiatan:idKegiatan});if(!r.success)throw new Error(r.message||'Gagal mengajukan pemeriksaan');await setNonHonorStageLocalV157(idKegiatan,r.status||NH_STATUS_V157.REVIEW,r.message);}catch(e){alert(e.message||String(e));}finally{nonHonorStageBusyV157.delete(idKegiatan);hideLoading();}
+}
+async function approveNonHonorReviewV157(idKegiatan){
+  if(nonHonorStageBusyV157.has(idKegiatan))return;
+  if(!confirm('Setujui hasil pemeriksaan? Setelah disetujui, paket dapat diselesaikan oleh User Bidang atau Verifikator PBJ.'))return;
+  nonHonorStageBusyV157.add(idKegiatan);showLoading('Menyetujui hasil pemeriksaan...');try{const r=await apiPost({action:'approveNonHonorReviewV157',user:currentUser,id_kegiatan:idKegiatan});if(!r.success)throw new Error(r.message||'Gagal menyetujui');await setNonHonorStageLocalV157(idKegiatan,r.status||NH_STATUS_V157.READY,r.message);}catch(e){alert(e.message||String(e));}finally{nonHonorStageBusyV157.delete(idKegiatan);hideLoading();}
+}
+async function reopenNonHonorV157(idKegiatan){
+  if(nonHonorStageBusyV157.has(idKegiatan))return;
+  if(!confirm('Buka akses edit untuk User Bidang? Paket harus diajukan kembali ke Verifikator PBJ setelah diperbaiki.'))return;
+  nonHonorStageBusyV157.add(idKegiatan);showLoading('Membuka akses edit user...');try{const r=await apiPost({action:'reopenNonHonorPackageV157',user:currentUser,id_kegiatan:idKegiatan});if(!r.success)throw new Error(r.message||'Gagal membuka akses');await setNonHonorStageLocalV157(idKegiatan,r.status||NH_STATUS_V157.REOPEN,r.message);}catch(e){alert(e.message||String(e));}finally{nonHonorStageBusyV157.delete(idKegiatan);hideLoading();}
+}
+finishNonHonorV156=async function(idKegiatan){
+  if(nonHonorStageBusyV157.has(idKegiatan))return;
+  const total=nonHonorTotalV156(idKegiatan);if(!total)return alert('Minimal satu realisasi harus dicatat.');
+  const role=actualRoleV133(),label=role==='BIDANG'?'Selesaikan paket':'Selesaikan paket sebagai Verifikator PBJ';
+  if(!confirm(`${label} dengan total realisasi ${rupiah(total)}?`))return;
+  nonHonorStageBusyV157.add(idKegiatan);showLoading('Menyelesaikan paket...');try{const r=await apiPost({action:'finishNonHonorPackageV157',user:currentUser,id_kegiatan:idKegiatan});if(!r.success)throw new Error(r.message||'Gagal menyelesaikan paket');await setNonHonorStageLocalV157(idKegiatan,r.status||NH_STATUS_V157.DONE,r.message);}catch(e){alert(e.message||String(e));}finally{nonHonorStageBusyV157.delete(idKegiatan);hideLoading();}
+};
+
