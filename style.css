@@ -3213,3 +3213,18 @@ body.modal-open-v122{overflow:hidden}
    ========================================================= */
 .paket-badge-v95.ver{ display:none !important; }
 #publicIdentity, .public-identity{ display:none !important; }
+
+/* =========================================================
+   SIMPROV v154 - Badge antrean: 0 = putih, >0 = merah (aditif)
+   Badge default (merah) tetap dipakai saat ada antrean (>0).
+   Saat 0 (tidak ada antrean), badge jadi putih/netral.
+   ========================================================= */
+.queue-badge-v147.no-queue-v154,
+#menuNav button .queue-badge-v147.no-queue-v154,
+.surat-tabs-v146 button .queue-badge-v147.no-queue-v154,
+.payment-tabs-v140 button .queue-badge-v147.no-queue-v154{
+  background:#ffffff!important;
+  color:#64748b!important;
+  border:2px solid #cbd5e1!important;
+  box-shadow:none!important;
+}
