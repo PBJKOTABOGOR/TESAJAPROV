@@ -3268,3 +3268,28 @@ body.modal-open-v122{overflow:hidden}
 .honor-return-box-v158{margin-top:14px;padding:14px;border:1px solid #efc1b7;border-radius:12px;background:#fff8f6}.honor-return-box-v158 label{display:block;margin-bottom:7px;font-weight:800;color:#8e382d}.honor-return-box-v158 textarea{width:100%;margin-bottom:9px}.honor-return-note-v158{margin-top:0}
 @media(max-width:1100px){.nh-summary-v158{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:700px){.nh-summary-v158{grid-template-columns:1fr}.nh-doc-item-v158{grid-template-columns:1fr}.nh-doc-item-v158 .nh-doc-status-v158,.nh-doc-item-v158 .nh-doc-note-v158,.nh-doc-item-v158 .nh-doc-verify-v158{grid-column:1}.nh-toolbar-v156 button{width:100%}}
+
+/* =========================================================
+   SIMPROV v159 - UI Verifikator ringkas & kartu per menu
+   ========================================================= */
+.summary-card-v159{min-height:108px;display:flex;flex-direction:column;justify-content:center}
+.summary-card-v159 span{line-height:1.25}
+.summary-card-v159 b{font-size:25px;line-height:1.15}
+.honor-review-state-v159{display:flex;align-items:flex-start;gap:13px;margin:14px 0;padding:15px 17px;border-radius:14px;border:1px solid #d9e8f3;background:#f7fbfe;color:#31536d}
+.honor-review-state-v159.waiting-user{border-color:#f2c7ad;background:#fff7f1;color:#8a431c}
+.honor-review-state-v159.info{border-color:#cfe1ef;background:#f4faff}
+.honor-review-state-v159 b{display:block;font-size:14px;margin-bottom:4px}
+.honor-review-state-v159 p{margin:0;font-size:12px;line-height:1.55}
+.honor-review-state-v159 small{display:block;margin-top:7px;font-size:12px}
+.honor-state-icon-v159{width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:grid;place-items:center;background:rgba(11,120,189,.11);font-weight:900;font-size:16px}
+.honor-review-card-v159{margin-top:14px;padding:17px;border:1px solid #d8e7f2;border-radius:16px;background:#f9fcff}
+.honor-review-head-v159{display:flex;flex-direction:column;gap:3px;margin-bottom:14px}
+.honor-review-head-v159 b{color:#123f70;font-size:15px}
+.honor-review-head-v159 span{color:#6d8092;font-size:12px;line-height:1.45}
+.honor-review-card-v159 .form-grid{margin:0 0 11px;grid-template-columns:minmax(220px,405px) minmax(260px,1fr)}
+.honor-review-card-v159 .realisasi-verif-actions-v112{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 13px}
+.honor-return-row-v159{padding-top:13px;border-top:1px solid #dce8f1}
+.honor-return-row-v159>label{display:block;margin-bottom:7px;color:#9b2c20;font-size:12px;font-weight:800}
+.honor-return-row-v159>div{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:9px;align-items:center}
+.honor-return-row-v159 input{min-width:0}
+@media(max-width:760px){.honor-review-card-v159 .form-grid{grid-template-columns:1fr}.honor-return-row-v159>div{grid-template-columns:1fr}.honor-return-row-v159 button{width:100%}}
