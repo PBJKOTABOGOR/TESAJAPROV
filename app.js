@@ -13384,3 +13384,131 @@ verifikasiRealisasiNonV112=async function(id,mode){
   const loading=mode==='SETUJUI'?'Menyetujui nilai realisasi...':mode==='PERBAIKI'?'Menyimpan perbaikan nilai...':'Mengembalikan nilai realisasi untuk perbaikan...';showLoading(loading);
   try{const r=await apiPost({action:'verifikasiRealisasiNonV112',user:currentUser,id_kegiatan:id,keputusan:mode,nilai_realisasi:nilai,catatan});if(!r.success)throw new Error(r.message||'Gagal memeriksa nilai');const real=latestNonRealV113_(id);if(real){if(mode==='KEMBALIKAN'){real.status=r.realisasi_status||'PERLU PERBAIKAN';real.catatan_verifikator=catatan;}else{real.status='FINAL';real.catatan_verifikator='';if(mode==='PERBAIKI')real.nilai_realisasi=nilai;}}const k=kegiatanById(id);if(k)k.status_pencairan=r.status||k.status_pencairan;recomputeApprovedRealisasiLocalV158();writeDashboardCache(dashboard);if(k)renderDetailNonPengadaanV95(k);alert(r.message||'Nilai realisasi diperiksa');}catch(e){alert(e.message||String(e));}finally{hideLoading();}
 };
+
+/* =========================================================
+   SIMPROV v159 - UI Verifikator ringkas & kartu per menu
+   ========================================================= */
+(function(){
+  function upperV159(v){return String(v||'').toUpperCase().trim();}
+  function roleV159(){return typeof actualRoleV133==='function'?actualRoleV133():upperV159(currentUser?.role);}
+  function planMapV159(){const out={};(dashboard?.perencanaan||[]).forEach(k=>{out[String(k.id_kegiatan||'')]=k;});return out;}
+  function rowBidangV159(row,map){return String(row?.id_bidang||map?.[String(row?.id_kegiatan||'')]?.id_bidang||'');}
+  function scopedRowsV159(rows){
+    rows=Array.isArray(rows)?rows:[];
+    const role=roleV159(),map=planMapV159();
+    if(['ADMIN','AUDITOR','PIMPINAN','BENDAHARA'].includes(role))return rows;
+    if(['VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN'].includes(role)){
+      const ids=String(currentUser?.bidang_akses||'').split(/[,;|\n]+/).map(x=>x.trim()).filter(Boolean);
+      return ids.length?rows.filter(x=>ids.includes(rowBidangV159(x,map))):rows;
+    }
+    const id=String(currentUser?.id_bidang||'');
+    return id?rows.filter(x=>rowBidangV159(x,map)===id):rows;
+  }
+  function activeDocV159(d){return upperV159(d?.status_verifikasi)!=='DIBATALKAN'&&!!d?.url_file;}
+  function validDocV159(d){return upperV159(d?.status_verifikasi)==='VALID DOKUMEN';}
+  function repairV159(v){const s=upperV159(v);return s.includes('PERBAIKAN')||s.includes('DITOLAK')||s.includes('DIKEMBALIKAN')||s.includes('DIBUKA KEMBALI');}
+  function waitingV159(v){const s=upperV159(v);return s.includes('MENUNGGU')||s.includes('DIAJUKAN')||s.includes('VERIFIKASI')||s.includes('PEMERIKSAAN');}
+  function approvedPlanV159(k){return upperV159(k?.status_perencanaan)==='DISETUJUI';}
+  function cardV159(label,value){return `<div class="summary-card summary-card-v159"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;}
+  function drawCardsV159(items){
+    const wrap=document.getElementById('summaryCards');if(!wrap)return;
+    wrap.innerHTML=items.slice(0,5).map(x=>cardV159(x[0],x[1])).join('');
+  }
+  function scopedRekapV159(){
+    const rows=Array.isArray(dashboard?.rekap)?dashboard.rekap:[],role=roleV159();
+    if(['ADMIN','AUDITOR','PIMPINAN','BENDAHARA'].includes(role))return rows;
+    if(['VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN'].includes(role)){
+      const ids=String(currentUser?.bidang_akses||'').split(/[,;|\n]+/).map(x=>x.trim()).filter(Boolean);
+      return ids.length?rows.filter(x=>ids.includes(String(x.id_bidang||''))):rows;
+    }
+    return rows.filter(x=>String(x.id_bidang||'')===String(currentUser?.id_bidang||''));
+  }
+  function globalCardsV159(){
+    const r=scopedRekapV159(),pagu=r.reduce((n,x)=>n+toNumber(x.pagu),0),planning=r.reduce((n,x)=>n+toNumber(x.total_perencanaan),0),real=r.reduce((n,x)=>n+toNumber(x.total_realisasi),0);
+    return [['Total Pagu',rupiah(pagu)],['Total Perencanaan',rupiah(planning)],['Total Realisasi',rupiah(real)],['Sisa Pagu',rupiah(pagu-real)],['Jumlah Bidang',String(r.length)]];
+  }
+  function planningCardsV159(){
+    const rows=scopedRowsV159(dashboard?.perencanaan||[]),approved=rows.filter(approvedPlanV159).length,waiting=rows.filter(x=>waitingV159(x.status_perencanaan)&&!approvedPlanV159(x)).length,repair=rows.filter(x=>repairV159(x.status_perencanaan)).length,total=rows.reduce((n,x)=>n+toNumber(x.jumlah||toNumber(x.volume)*toNumber(x.harga_satuan)),0);
+    return [['Total Paket',String(rows.length)],['Disetujui',String(approved)],['Menunggu Verifikasi',String(waiting)],['Perlu Perbaikan',String(repair)],['Total Nilai',rupiah(total)]];
+  }
+  function nonPackageStatsV159(){
+    const plans=scopedRowsV159(dashboard?.perencanaan||[]).filter(k=>(typeof isNonKategoriV81==='function'?isNonKategoriV81(k):upperV159(k.kategori)==='NON PENGADAAN')&&approvedPlanV159(k));
+    const ids=new Set(plans.map(k=>String(k.id_kegiatan||''))),docs=scopedRowsV159(dashboard?.dokumenNonPengadaan||[]).filter(d=>ids.has(String(d.id_kegiatan||''))&&activeDocV159(d));
+    const validDocs=docs.filter(validDocV159).length,repairIds=new Set(docs.filter(d=>repairV159(d.status_verifikasi)).map(d=>String(d.id_kegiatan||''))),waitingIds=new Set(docs.filter(d=>!validDocV159(d)&&!repairV159(d.status_verifikasi)).map(d=>String(d.id_kegiatan||'')));
+    let validPackages=0;plans.forEach(k=>{const id=String(k.id_kegiatan||''),s=upperV159(k.status_pencairan),packageDocs=docs.filter(d=>String(d.id_kegiatan||'')===id),allDocsValid=packageDocs.length>0&&packageDocs.every(validDocV159);if(['SIAP DISELESAIKAN','SELESAI'].includes(s)||allDocsValid)validPackages++;if(repairV159(s))repairIds.add(id);if(s.includes('MENUNGGU PEMERIKSAAN'))waitingIds.add(id);});
+    return [['Total Paket',String(plans.length)],['Paket Valid',`${validPackages}/${plans.length}`],['Menunggu Verifikasi',String(waitingIds.size)],['Dokumen Valid',`${validDocs}/${docs.length}`],['Perlu Perbaikan',String(repairIds.size)]];
+  }
+  function procurementCardsV159(directOnly){
+    let plans=scopedRowsV159(dashboard?.perencanaan||[]).filter(k=>approvedPlanV159(k)&&!(typeof isNonKategoriV81==='function'?isNonKategoriV81(k):upperV159(k.kategori)==='NON PENGADAAN'));
+    if(directOnly){
+      plans=plans.filter(k=>typeof isPipelineV94==='function'?isPipelineV94(k):upperV159(k.metode_pemilihan||k.metode).includes('PENGADAAN LANGSUNG'));
+    }else{
+      plans=plans.filter(k=>!(typeof isPipelineV94==='function'&&isPipelineV94(k)));
+    }
+    const ids=new Set(plans.map(k=>String(k.id_kegiatan||''))),docs=scopedRowsV159(dashboard?.dokumen||[]).filter(d=>ids.has(String(d.id_kegiatan||''))&&activeDocV159(d)),validDocs=docs.filter(validDocV159).length;
+    const repairIds=new Set(docs.filter(d=>repairV159(d.status_verifikasi)).map(d=>String(d.id_kegiatan||''))),waitingIds=new Set(docs.filter(d=>!validDocV159(d)&&!repairV159(d.status_verifikasi)).map(d=>String(d.id_kegiatan||'')));
+    let done=0;plans.forEach(k=>{const s=upperV159(k.status_pencairan||((typeof getPencairanStatus==='function')?getPencairanStatus(k.id_kegiatan):''));if(s==='SELESAI')done++;if(repairV159(s))repairIds.add(String(k.id_kegiatan||''));if(waitingV159(s)&&s!=='SELESAI')waitingIds.add(String(k.id_kegiatan||''));});
+    return [['Total Paket',String(plans.length)],['Paket Selesai',`${done}/${plans.length}`],['Menunggu Verifikasi',String(waitingIds.size)],['Dokumen Valid',`${validDocs}/${docs.length}`],['Perlu Perbaikan',String(repairIds.size)]];
+  }
+  function suratCardsV159(){
+    const all=(typeof suratWorkspaceV133!=='undefined'&&Array.isArray(suratWorkspaceV133?.surat))?suratWorkspaceV133.surat:[],role=roleV159();let rows=all;
+    if(role==='BIDANG')rows=all.filter(s=>String(s.asal_id_user||'')===String(currentUser?.id_user||'')||String(s.asal_bidang||'')===String(currentUser?.id_bidang||''));
+    const draft=rows.filter(x=>upperV159(x.status_surat)==='DRAFT').length,repair=rows.filter(x=>repairV159(x.status_surat)).length,done=rows.filter(x=>upperV159(x.status_surat)==='SELESAI').length,pending=Math.max(0,rows.length-draft-repair-done);
+    return [['Total Surat',String(rows.length)],['Draft',String(draft)],['Menunggu Proses',String(pending)],['Selesai',String(done)],['Perlu Perbaikan',String(repair)]];
+  }
+  function paymentCardsV159(){
+    const rows=(typeof paymentWorkspaceV138!=='undefined'&&Array.isArray(paymentWorkspaceV138?.pengajuan))?paymentWorkspaceV138.pengajuan:[],repair=rows.filter(x=>repairV159(x.status_pengajuan)).length,done=rows.filter(x=>['SELESAI','DIBAYARKAN','TERBAYAR'].includes(upperV159(x.status_pengajuan))).length,pending=rows.filter(x=>waitingV159(x.status_pengajuan)).length,total=rows.reduce((n,x)=>n+toNumber(x.nilai_pengajuan||x.nilai_realisasi),0);
+    return [['Total Pengajuan',String(rows.length)],['Menunggu Proses',String(pending)],['Selesai',String(done)],['Perlu Perbaikan',String(repair)],['Total Nilai',rupiah(total)]];
+  }
+  function accessCardsV159(){
+    const users=typeof verifierUsersV65==='function'?verifierUsersV65():[],active=users.filter(x=>upperV159(x.status)!=='NONAKTIF').length,pbj=users.filter(x=>upperV159(x.role).includes('PBJ')).length,keu=users.filter(x=>upperV159(x.role).includes('KEUANGAN')).length;
+    return [['Total Akun',String(users.length)],['Akun Aktif',String(active)],['Verifikator PBJ',String(pbj)],['Verifikator Keuangan',String(keu)],['Role Lain',String(Math.max(0,users.length-pbj-keu))]];
+  }
+  renderSummary=function(){
+    const wrap=document.getElementById('summaryCards');if(!wrap||!dashboard){if(wrap)wrap.innerHTML='';return;}
+    try{
+      const menu=String(activeMenu||'');
+      if(menu==='Perencanaan')return drawCardsV159(planningCardsV159());
+      if(menu==='Non Pengadaan')return drawCardsV159(nonPackageStatsV159());
+      if(menu==='Pengadaan Langsung')return drawCardsV159(procurementCardsV159(true));
+      if(menu==='Pencairan')return drawCardsV159(procurementCardsV159(false));
+      if(menu==='Surat')return drawCardsV159(suratCardsV159());
+      if(menu==='Manajemen Akses')return drawCardsV159(accessCardsV159());
+      if(/Antrean|Riwayat|Pembayaran/.test(menu))return drawCardsV159(paymentCardsV159());
+      if(menu==='Laporan'){
+        const p=planningCardsV159(),n=nonPackageStatsV159();return drawCardsV159([p[0],p[4],globalCardsV159()[2],n[3],n[4]]);
+      }
+      return drawCardsV159(globalCardsV159());
+    }catch(e){console.warn('SUMMARY_V159',e);return drawCardsV159(globalCardsV159());}
+  };
+
+  function removeHonorVerifierActionsV159(panel){
+    const input=panel.querySelector('#npKoreksiNilaiV110');
+    const grid=input?.closest('.form-grid');if(grid)grid.remove();
+    panel.querySelectorAll('.realisasi-verif-actions-v112,.honor-return-box-v158,.honor-review-card-v159,.honor-return-note-v158').forEach(x=>x.remove());
+  }
+  patchHonorVerificationV158=function(k){
+    const real=latestNonRealV113_(k.id_kegiatan);if(!real)return;
+    const panel=[...document.querySelectorAll('#contentArea section.panel')].find(s=>s.querySelector('h3')?.textContent.trim()==='Pencatatan Realisasi');if(!panel)return;
+    const status=upperV159(real.status),note=String(real.catatan_verifikator||'').trim(),returned=status.includes('PERBAIKAN')||upperV159(k.status_pencairan).includes('PERBAIKAN');
+    const canVerify=(isPBJVerifierV65()||canManage())&&upperV159(k.status_pencairan)!=='SELESAI';
+    panel.querySelectorAll('.honor-review-state-v159,.honor-review-card-v159,.honor-return-note-v158,.honor-return-box-v158').forEach(x=>x.remove());
+    if(returned){
+      removeHonorVerifierActionsV159(panel);
+      const state=document.createElement('div');state.className='honor-review-state-v159 waiting-user';
+      const title=canVerify?'Menunggu perbaikan dari User Bidang':'Perlu diperbaiki sebelum diajukan kembali';
+      const text=canVerify?'Nilai telah dikembalikan. Tombol pemeriksaan akan aktif kembali setelah User Bidang memperbaiki dan mengajukan ulang.':'Perbaiki data atau dokumen sesuai catatan Verifikator PBJ, lalu simpan atau unggah ulang dari menu yang tersedia.';
+      state.innerHTML=`<div class="honor-state-icon-v159">↩</div><div><b>${title}</b><p>${text}</p>${note?`<small><strong>Catatan:</strong> ${esc(note)}</small>`:''}</div>`;
+      panel.querySelector('.panel-head')?.after(state);return;
+    }
+    if(note){const n=document.createElement('div');n.className='honor-review-state-v159 info';n.innerHTML=`<div class="honor-state-icon-v159">i</div><div><b>Catatan pemeriksaan sebelumnya</b><p>${esc(note)}</p></div>`;panel.querySelector('.panel-head')?.after(n);}
+    if(!canVerify)return;
+    const input=panel.querySelector('#npKoreksiNilaiV110'),grid=input?.closest('.form-grid'),actions=panel.querySelector('.realisasi-verif-actions-v112');if(!grid&&!actions)return;
+    if(grid){const label=input?.closest('.field')?.querySelector('label');if(label)label.textContent='Nilai yang Disetujui / Dikoreksi (Rp)';const cat=panel.querySelector('#npKoreksiCatatanV110');const catLabel=cat?.closest('.field')?.querySelector('label');if(catLabel)catLabel.textContent='Catatan Koreksi Nilai';}
+    if(actions){const green=actions.querySelector('.btn-green'),orange=actions.querySelector('.btn-orange');if(green)green.textContent='Setujui Nilai';if(orange)orange.textContent='Simpan Koreksi';}
+    const box=document.createElement('div');box.className='honor-review-card-v159';box.innerHTML='<div class="honor-review-head-v159"><b>Pemeriksaan Nilai Realisasi</b><span>Pilih satu tindakan. Catatan hanya wajib saat nilai dikoreksi atau dikembalikan.</span></div>';
+    if(grid){grid.parentNode.insertBefore(box,grid);box.appendChild(grid);}else panel.appendChild(box);
+    if(actions)box.appendChild(actions);
+    const returnRow=document.createElement('div');returnRow.className='honor-return-row-v159';returnRow.innerHTML=`<label for="npKembalikanCatatanV158">Kembalikan ke User Bidang</label><div><input id="npKembalikanCatatanV158" placeholder="Tuliskan alasan, contoh: dokumen wajib belum diunggah"><button class="btn-red" type="button" onclick="verifikasiRealisasiNonV112('${esc(k.id_kegiatan)}','KEMBALIKAN')">Kembalikan</button></div>`;box.appendChild(returnRow);
+  };
+})();
