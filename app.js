@@ -10614,7 +10614,7 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
   }
   async function planningApiV141(){
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
-    try{const res=await fetch(API_URL,{method:'POST',body:JSON.stringify({action:'getPerencanaanRealtimeV141',user:currentUser}),signal:controller.signal});const txt=await res.text();if(!res.ok)throw new Error('HTTP '+res.status);return JSON.parse(txt);}finally{clearTimeout(timer);}
+    try{const res=await fetch(API_URL,{method:'POST',body:JSON.stringify({action:'getPerencanaanRealtimeV141',session_token:currentUser?.session_token||''}),signal:controller.signal});const txt=await res.text();if(!res.ok)throw new Error('HTTP '+res.status);return JSON.parse(txt);}finally{clearTimeout(timer);}
   }
   function mergePlanningPayloadV141(r,forceRender){
     if(!r?.success||!dashboard)return false;
@@ -13511,4 +13511,194 @@ verifikasiRealisasiNonV112=async function(id,mode){
     if(actions)box.appendChild(actions);
     const returnRow=document.createElement('div');returnRow.className='honor-return-row-v159';returnRow.innerHTML=`<label for="npKembalikanCatatanV158">Kembalikan ke User Bidang</label><div><input id="npKembalikanCatatanV158" placeholder="Tuliskan alasan, contoh: dokumen wajib belum diunggah"><button class="btn-red" type="button" onclick="verifikasiRealisasiNonV112('${esc(k.id_kegiatan)}','KEMBALIKAN')">Kembalikan</button></div>`;box.appendChild(returnRow);
   };
+})();
+
+/* =========================================================
+   SIMPROV v160 - Sesi server, UI sederhana, dan update lokal
+   ========================================================= */
+(function(){
+  const SESSION_META_KEY_V160='simprov_session_v160';
+  const SESSION_IDLE_MS_V160=30*60*1000;
+  const SESSION_ABSOLUTE_MS_V160=6*60*60*1000;
+  let sessionTimerV160=null,lastActivityV160=Date.now(),loginBusyV160=false;
+
+  function sessionTokenV160(){return String(currentUser?.session_token||'');}
+  function clearLocalSessionV160(){
+    try{localStorage.removeItem('siporbo_user');localStorage.removeItem('simprov_session_v148');localStorage.removeItem(SESSION_META_KEY_V160);}catch(e){}
+    currentUser=null;dashboard=null;
+    if(sessionTimerV160){clearInterval(sessionTimerV160);sessionTimerV160=null;}
+  }
+  function showLoginV160(message=''){
+    document.getElementById('publicPage')?.classList.add('hidden');
+    document.getElementById('appPage')?.classList.add('hidden');
+    document.getElementById('loginPage')?.classList.remove('hidden');
+    const msg=document.getElementById('loginMsg');if(msg){msg.textContent=message;msg.className='msg'+(message?' login-error-v148':'');}
+    const pass=document.getElementById('password');if(pass)pass.value='';
+  }
+  async function expireSessionV160(message){clearLocalSessionV160();showLoginV160(message||'Sesi berakhir. Silakan login kembali.');}
+  function writeSessionMetaV160(){
+    const now=Date.now(),old=(()=>{try{return JSON.parse(localStorage.getItem(SESSION_META_KEY_V160)||'null');}catch(e){return null;}})();
+    const meta={logged_at:Number(old?.logged_at||now),last_activity:now,absolute_expires_at:Number(old?.absolute_expires_at||now+SESSION_ABSOLUTE_MS_V160)};
+    try{localStorage.setItem(SESSION_META_KEY_V160,JSON.stringify(meta));}catch(e){}lastActivityV160=now;return meta;
+  }
+  function startSessionV160(){
+    writeSessionMetaV160();
+    if(!window.__SIMPROV_SESSION_EVENTS_V160__){
+      const touch=()=>{if(!currentUser)return;const now=Date.now();lastActivityV160=now;if(now-(window.__SIMPROV_SESSION_PERSIST_V160__||0)>10000){writeSessionMetaV160();window.__SIMPROV_SESSION_PERSIST_V160__=now;}};
+      ['pointerdown','keydown','touchstart','wheel','scroll'].forEach(ev=>document.addEventListener(ev,touch,{passive:true}));
+      window.__SIMPROV_SESSION_EVENTS_V160__=true;
+    }
+    if(sessionTimerV160)clearInterval(sessionTimerV160);
+    sessionTimerV160=setInterval(()=>{
+      if(!currentUser)return;
+      let meta=null;try{meta=JSON.parse(localStorage.getItem(SESSION_META_KEY_V160)||'null');}catch(e){}
+      const now=Date.now();if(!meta||now-Number(meta.last_activity||lastActivityV160)>=SESSION_IDLE_MS_V160||now>=Number(meta.absolute_expires_at||0))expireSessionV160('Sesi berakhir. Silakan login kembali.');
+    },15000);
+  }
+  function applyServerPatchV160(r){
+    if(!r||!dashboard)return;
+    const docs=dashboard.dokumenNonPengadaan=Array.isArray(dashboard.dokumenNonPengadaan)?dashboard.dokumenNonPengadaan:[];
+    const reals=dashboard.realisasi=Array.isArray(dashboard.realisasi)?dashboard.realisasi:[];
+    (r.dokumen_changes||[]).forEach(ch=>{const d=docs.find(x=>String(x.id_dokumen_non)===String(ch.id_dokumen_non));if(d)Object.assign(d,ch);});
+    (r.realisasi_changes||[]).forEach(ch=>{const x=reals.find(y=>String(y.id_realisasi)===String(ch.id_realisasi));if(x)Object.assign(x,ch);});
+    if(r.realisasi_change){const x=reals.find(y=>String(y.id_realisasi)===String(r.realisasi_change.id_realisasi));if(x)Object.assign(x,r.realisasi_change);}
+  }
+  const apiPostV160Base=apiPost;
+  apiPost=async function(payload){
+    const p={...(payload||{})},publicActions=new Set(['getPublicDashboard','login','loginFastV148','loginV160']);
+    if(!publicActions.has(p.action)){
+      const token=sessionTokenV160();if(!token){await expireSessionV160('Sesi login tidak ditemukan. Silakan login kembali.');throw new Error('Sesi login tidak ditemukan');}
+      p.session_token=token;delete p.user;
+    }
+    const r=await apiPostV160Base(p);
+    if(r?.auth_required||r?.code==='AUTH_EXPIRED'){await expireSessionV160(r.message||'Sesi login berakhir. Silakan login kembali.');throw new Error(r.message||'Sesi login berakhir');}
+    applyServerPatchV160(r);return r;
+  };
+
+  login=async function(){
+    if(loginBusyV160)return;
+    const username=document.getElementById('username')?.value.trim()||'',password=document.getElementById('password')?.value||'',msg=document.getElementById('loginMsg'),btn=document.getElementById('loginBtn');
+    if(!username||!password){if(msg)msg.textContent='Username dan password wajib diisi.';return;}
+    loginBusyV160=true;if(btn){btn.disabled=true;btn.textContent='Memeriksa...';}if(msg)msg.textContent='Memeriksa akun...';
+    try{
+      const r=await apiPostV160Base({action:'loginV160',username,password});
+      if(!r?.success)throw new Error(r?.message||'Username atau password salah');
+      currentUser={...(r.user||{}),session_token:r.session_token||r.user?.session_token||''};
+      localStorage.setItem('siporbo_user',JSON.stringify(currentUser));writeSessionMetaV160();startSessionV160();
+      activeMenu=actualRoleV133()==='BIDANG'?'Struktur Anggaran':'Dashboard Monitoring';
+      document.getElementById('publicPage')?.classList.add('hidden');document.getElementById('loginPage')?.classList.add('hidden');document.getElementById('appPage')?.classList.remove('hidden');
+      showLoading('Memuat dashboard...');try{await loadDashboard(false);}finally{hideLoading();}
+    }catch(e){if(msg)msg.textContent=e?.message||'Login gagal.';document.getElementById('password')?.focus();}
+    finally{loginBusyV160=false;if(btn){btn.disabled=false;btn.textContent='Login';}}
+  };
+  logout=async function(){
+    const token=sessionTokenV160();try{if(token)await apiPostV160Base({action:'logoutV160',session_token:token});}catch(e){}
+    clearLocalSessionV160();showLoginV160('Anda telah logout.');
+  };
+  window.onload=async function(){
+    [document.getElementById('username'),document.getElementById('password')].forEach(el=>{if(el&&!el.dataset.enterV160){el.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();login();}});el.dataset.enterV160='1';}});
+    let saved=null;try{saved=JSON.parse(localStorage.getItem('siporbo_user')||'null');}catch(e){}
+    if(saved?.session_token){
+      currentUser=saved;activeMenu=actualRoleV133()==='BIDANG'?'Struktur Anggaran':'Dashboard Monitoring';
+      document.getElementById('publicPage')?.classList.add('hidden');document.getElementById('loginPage')?.classList.add('hidden');document.getElementById('appPage')?.classList.remove('hidden');startSessionV160();
+      try{await loadDashboard(true);return;}catch(e){clearLocalSessionV160();showLoginV160(e?.message||'Sesi perlu diperbarui. Silakan login kembali.');return;}
+    }
+    clearLocalSessionV160();document.getElementById('appPage')?.classList.add('hidden');document.getElementById('loginPage')?.classList.add('hidden');document.getElementById('publicPage')?.classList.remove('hidden');
+    if(typeof loadPublicDashboard==='function')loadPublicDashboard(false);
+  };
+
+  function assignedBidangV160(){const raw=currentUser?.bidang_akses;if(Array.isArray(raw))return raw.map(String).filter(Boolean);return String(raw||'').split(/[,;|\n]+/).map(x=>x.trim()).filter(Boolean);}
+  function planMapV160(){const m={};(dashboard?.perencanaan||[]).forEach(k=>m[String(k.id_kegiatan||'')]=k);return m;}
+  function rowBidangV160(row,map){return String(row?.id_bidang||map[String(row?.id_kegiatan||'')]?.id_bidang||'');}
+  function scopeRowsV160(rows){
+    rows=Array.isArray(rows)?rows:[];const role=actualRoleV133(),map=planMapV160();
+    if(['ADMIN','AUDITOR','PIMPINAN','BENDAHARA'].includes(role))return rows;
+    if(['VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN'].includes(role)){const ids=assignedBidangV160();return ids.length?rows.filter(x=>ids.includes(rowBidangV160(x,map))):[];}
+    const id=String(currentUser?.id_bidang||'');return id?rows.filter(x=>rowBidangV160(x,map)===id):[];
+  }
+  function drawCardsV160(items){const wrap=document.getElementById('summaryCards');if(!wrap)return;wrap.innerHTML=items.slice(0,5).map(x=>`<div class="summary-card summary-card-v159"><span>${esc(x[0])}</span><b>${esc(x[1])}</b></div>`).join('');}
+  function nonProcCardsV160(){
+    const role=actualRoleV133(),plans=scopeRowsV160(dashboard?.perencanaan||[]).filter(k=>isPlanningApprovedFeV157(k)&&((typeof isNonKategoriV81==='function'&&isNonKategoriV81(k))||String(k.kategori||'').toUpperCase().includes('NON')||k.jenis_non_pengadaan));
+    const ids=new Set(plans.map(k=>String(k.id_kegiatan||''))),docs=scopeRowsV160(dashboard?.dokumenNonPengadaan||[]).filter(d=>ids.has(String(d.id_kegiatan||''))&&String(d.status_verifikasi||'').toUpperCase()!=='DIBATALKAN'),reals=scopeRowsV160(dashboard?.realisasi||[]).filter(r=>ids.has(String(r.id_kegiatan||''))&&String(r.status||'').toUpperCase()!=='DIBATALKAN');
+    const stage=k=>String(k.status_pencairan||'').toUpperCase(),repairIds=new Set(),waitingIds=new Set(),readyIds=new Set(),doneIds=new Set();
+    plans.forEach(k=>{const s=stage(k),id=String(k.id_kegiatan||'');if(s==='SELESAI')doneIds.add(id);else if(s==='SIAP DISELESAIKAN')readyIds.add(id);else if(s.includes('MENUNGGU PEMERIKSAAN'))waitingIds.add(id);else if(s.includes('PERBAIKAN')||s.includes('DIBUKA KEMBALI'))repairIds.add(id);});
+    docs.forEach(d=>{const s=String(d.status_verifikasi||'').toUpperCase(),id=String(d.id_kegiatan||'');if(s.includes('PERBAIKAN')||s==='DITOLAK')repairIds.add(id);});
+    if(role==='BIDANG')return [['Total Paket',String(plans.length)],['Sedang Dicatat',String(Math.max(0,plans.length-waitingIds.size-repairIds.size-readyIds.size-doneIds.size))],['Menunggu Pemeriksaan',String(waitingIds.size)],['Perlu Perbaikan',String(repairIds.size)],['Selesai',String(doneIds.size)]];
+    if(role==='VERIFIKATOR_PBJ')return [['Total Paket',String(plans.length)],['Menunggu Pemeriksaan',String(waitingIds.size)],['Perlu Perbaikan',String(repairIds.size)],['Siap Diselesaikan',String(readyIds.size)],['Selesai',String(doneIds.size)]];
+    const totalInput=reals.reduce((n,r)=>n+toNumber(r.nilai_realisasi),0),approved=reals.reduce((n,r)=>{const k=plans.find(x=>String(x.id_kegiatan)===String(r.id_kegiatan));return n+(k&&!isHonorNonV155R2(k)&&nonHonorRealApprovedFeV158(k,r)?toNumber(r.nilai_realisasi):(['FINAL','DISETUJUI','SELESAI','SAH'].includes(String(r.status||'').toUpperCase())?toNumber(r.nilai_realisasi):0));},0),pagu=plans.reduce((n,k)=>n+toNumber(k.jumlah),0);
+    return [['Total Paket',String(plans.length)],['Total Diajukan',rupiah(totalInput)],['Realisasi Disetujui',rupiah(approved)],['Sisa Pagu',rupiah(Math.max(0,pagu-approved))],['Selesai',String(doneIds.size)]];
+  }
+  const renderSummaryV160Base=renderSummary;
+  renderSummary=function(){
+    const role=actualRoleV133();
+    if(['VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN'].includes(role)&&!assignedBidangV160().length)return drawCardsV160([['Penugasan Bidang','Belum diatur'],['Total Paket','0'],['Menunggu Pemeriksaan','0'],['Perlu Perbaikan','0'],['Selesai','0']]);
+    if(String(activeMenu)==='Non Pengadaan')return drawCardsV160(nonProcCardsV160());
+    return renderSummaryV160Base.apply(this,arguments);
+  };
+
+  nonHonorPipelineV158=function(k,rows){
+    const stage=nonHonorStageV157(k),check=nonHonorReviewCheckFeV158(rows),done=stage===NH_STATUS_V157.DONE,ready=stage===NH_STATUS_V157.READY,review=stage===NH_STATUS_V157.REVIEW,reopen=stage===NH_STATUS_V157.REOPEN,hasRows=rows.length>0;
+    const stages=[
+      {no:1,label:'Pencatatan Realisasi',state:hasRows?'done':'waiting'},
+      {no:2,label:'Pemeriksaan PBJ',state:(ready||done)?'done':(review?'waiting':'')},
+      {no:3,label:'Perbaikan',state:reopen||check.repair?'repair':((ready||done)?'done':'')},
+      {no:4,label:'Siap Diselesaikan',state:(ready||done)?'done':''},
+      {no:5,label:'Selesai',state:done?'done':(ready?'waiting':'')}
+    ];return `<div class="pipeline-v103 pipeline-simple-v160">${stages.map(x=>statusPipelineNonV104(x,x.state)).join('')}</div>`;
+  };
+  function nextActionV160(k,rows){
+    const role=actualRoleV133(),stage=nonHonorStageV157(k),check=nonHonorReviewCheckFeV158(rows),repairRows=rows.filter(r=>String(r.status||'').toUpperCase().includes('PERBAIKAN')).length;
+    let title='',text='';
+    if(stage===NH_STATUS_V157.DONE){title='Paket selesai';text=role==='VERIFIKATOR_PBJ'?'Buka kembali hanya jika memang diperlukan koreksi.':'Tidak ada tindakan lanjutan.';}
+    else if(stage===NH_STATUS_V157.REOPEN){title='Perlu diperbaiki';text=role==='BIDANG'?'Ganti dokumen atau perbaiki data sesuai catatan, lalu ajukan kembali.':'Menunggu perbaikan dan pengajuan ulang dari User Bidang.';}
+    else if(stage===NH_STATUS_V157.REVIEW){title='Sedang diperiksa Verifikator PBJ';text=role==='VERIFIKATOR_PBJ'?`Periksa ${check.pending} dokumen menunggu, ${check.repair} perlu perbaikan, dan ${repairRows} nilai bermasalah.`:'Data dikunci sementara sampai pemeriksaan selesai.';}
+    else if(stage===NH_STATUS_V157.READY){title='Siap diselesaikan';text='Nilai dan dokumen sudah disetujui Verifikator PBJ.';}
+    else{title='Lengkapi pencatatan';text=role==='BIDANG'?'Tambahkan realisasi dan lampiran, kemudian ajukan pemeriksaan PBJ.':'Pencatatan masih dikerjakan User Bidang.';}
+    return `<div class="next-action-v160"><b>${esc(title)}</b><span>${esc(text)}</span></div>`;
+  }
+  nonHonorDocChipsV158=function(real,k){
+    const docs=nonHonorDocsV156(real.id_realisasi),editable=canOwnerEditNonHonorV157(k),pbj=isNonHonorPBJV157(),review=nonHonorStageV157(k)===NH_STATUS_V157.REVIEW;
+    const chips=docs.map(d=>{const st=nonHonorDocStatusFeV158(d),note=d.catatan_verifikator?`<small class="nh-doc-note-v158">${esc(d.catatan_verifikator)}</small>`:'';
+      const verify=pbj&&review?`<span class="nh-doc-verify-v158">${st.cls!=='valid'?`<button class="btn-mini btn-green" type="button" onclick="verifyNonHonorDocV158('${esc(d.id_dokumen_non)}','VALID','${esc(k.id_kegiatan)}')">Valid</button>`:''}<button class="btn-mini btn-orange" type="button" onclick="verifyNonHonorDocV158('${esc(d.id_dokumen_non)}','PERBAIKAN','${esc(k.id_kegiatan)}')">Perlu Perbaikan</button></span>`:'';
+      const replace=editable&&st.cls==='repair'?`<label class="btn-mini btn-orange replace-doc-v160">Ganti Dokumen<input type="file" accept="application/pdf" hidden onchange="replaceNonHonorDocV160('${esc(d.id_dokumen_non)}','${esc(real.id_realisasi)}','${esc(k.id_kegiatan)}',this)"></label>`:'';
+      return `<div class="nh-doc-item-v158"><span class="nh-doc-chip-v156"><a href="${esc(d.url_file)}" target="_blank">${esc(d.nama_file||'Lampiran')}</a>${editable&&st.cls!=='repair'?`<button type="button" onclick="deleteNonHonorDocV156('${esc(d.id_dokumen_non)}','${esc(k.id_kegiatan)}')" title="Hapus lampiran">×</button>`:''}</span><span class="nh-doc-status-v158 ${st.cls}">${st.label}</span>${note}${replace}${verify}</div>`;
+    }).join('');
+    return `<div class="nh-doc-list-v158">${chips||'<span class="muted">Belum ada lampiran</span>'}</div>${editable?`<label class="btn-soft nh-upload-label-v156">+ Tambah Lampiran<input type="file" accept="application/pdf" multiple hidden onchange="uploadNonHonorDocsV156('${esc(real.id_realisasi)}','${esc(k.id_kegiatan)}',this)"></label>`:''}`;
+  };
+  nonHonorControlsV158=function(k,rows){
+    const stage=nonHonorStageV157(k),owner=isNonHonorOwnerV157(k),pbj=isNonHonorPBJV157(),check=nonHonorReviewCheckFeV158(rows),buttons=[];
+    if(canOwnerEditNonHonorV157(k)){buttons.push(`<button class="btn-green" type="button" onclick="openNonHonorRealModalV156('${esc(k.id_kegiatan)}','')">+ Tambah Realisasi</button>`);if(rows.length)buttons.push(`<button class="btn-soft" type="button" onclick="submitNonHonorReviewV157('${esc(k.id_kegiatan)}')">Ajukan Pemeriksaan PBJ</button>`);}
+    if(owner&&stage===NH_STATUS_V157.READY)buttons.push(`<button class="btn-green" type="button" onclick="finishNonHonorV156('${esc(k.id_kegiatan)}')">Selesaikan Paket</button>`);
+    if(pbj&&stage===NH_STATUS_V157.REVIEW){
+      if(check.allValid){buttons.push(`<button class="btn-green" type="button" onclick="approveNonHonorReviewV157('${esc(k.id_kegiatan)}')">Setujui Paket</button>`);buttons.push(`<button class="btn-primary-v158" type="button" onclick="finishNonHonorV156('${esc(k.id_kegiatan)}')">Setujui &amp; Selesaikan</button>`);}
+      else buttons.push(`<div class="approval-blocked-v160"><b>Belum dapat disetujui</b><span>${check.missing?'Ada realisasi tanpa lampiran. ':''}${check.pending?check.pending+' dokumen belum diperiksa. ':''}${check.repair?check.repair+' dokumen perlu perbaikan.':''}</span></div>`);
+    }else if(pbj&&stage===NH_STATUS_V157.READY){buttons.push(`<button class="btn-green" type="button" onclick="finishNonHonorV156('${esc(k.id_kegiatan)}')">Selesaikan Paket</button>`);buttons.push(`<button class="btn-warning-v157" type="button" onclick="returnNonHonorV160('${esc(k.id_kegiatan)}')">Kembalikan untuk Perbaikan</button>`);}
+    else if(pbj&&stage===NH_STATUS_V157.DONE)buttons.push(`<button class="btn-warning-v157" type="button" onclick="reopenCompletedNonHonorV160('${esc(k.id_kegiatan)}')">Buka Kembali Paket</button>`);
+    return buttons.length?`<div class="nh-toolbar-v156 nh-toolbar-v160">${buttons.join('')}</div>`:'';
+  };
+  renderNonHonorMultiV158=function(k){
+    const stage=nonHonorStageV157(k),rows=nonHonorRealRowsV156(k.id_kegiatan),totals=nonHonorTotalsFeV158(k,rows),check=nonHonorReviewCheckFeV158(rows),ownerEditable=canOwnerEditNonHonorV157(k),pbjCorrect=isNonHonorPBJV157()&&stage===NH_STATUS_V157.REVIEW;
+    const body=rows.map((r,i)=>{const rs=nonHonorRealStatusFeV158(k,r),detail=[r.nomor_bukti?`No. bukti: ${esc(r.nomor_bukti)}`:'',r.keterangan?esc(r.keterangan):''].filter(Boolean).join('<br>'),note=r.catatan_verifikator?`<small class="nh-real-note-v158">${esc(r.catatan_verifikator)}</small>`:'';let actions='-';
+      if(ownerEditable)actions=`<button class="btn-soft" type="button" onclick="openNonHonorRealModalV156('${esc(k.id_kegiatan)}','${esc(r.id_realisasi)}')">Edit</button><button class="btn-red" type="button" onclick="deleteNonHonorRealV156('${esc(r.id_realisasi)}','${esc(k.id_kegiatan)}')">Hapus</button>`;else if(pbjCorrect)actions=`<button class="btn-soft" type="button" onclick="openNonHonorRealModalV156('${esc(k.id_kegiatan)}','${esc(r.id_realisasi)}')">Koreksi Nilai</button>`;
+      return `<tr><td>${i+1}</td><td><b>${esc(r.jenis_realisasi||'Realisasi')}</b>${r.nama_pihak?`<small>${esc(r.nama_pihak)}</small>`:''}</td><td class="money-cell-v156">${rupiah(r.nilai_realisasi)}</td><td><span class="nh-real-status-v158 ${rs.cls}">${rs.label}</span>${note}</td><td>${esc(displayDateV156(r.tanggal_realisasi||r.tanggal_input))}</td><td>${detail||'-'}</td><td>${nonHonorDocChipsV158(r,k)}</td><td>${actions}</td></tr>`;}).join('');
+    const legacy=nonHonorLegacyDocsV156(k.id_kegiatan),legacyHtml=legacy.length?`<section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Riwayat Dokumen</h3><p class="panel-sub">Dokumen dari versi sebelumnya tetap dapat dibuka.</p></div></div><div class="nh-legacy-docs-v156">${legacy.map(d=>`<a href="${esc(d.url_file)}" target="_blank"><b>${esc(d.jenis_dokumen||'Dokumen')}</b><span>${esc(d.nama_file||'Buka file')}</span></a>`).join('')}</div></section>`:'';
+    document.getElementById('contentArea').innerHTML=`${backBarV95(k,k.jenis_non_pengadaan||'Non Pengadaan')}<section class="panel fade-up premium-panel compact-flow-v160"><div class="panel-head"><div><h3>Tahapan Paket</h3><p class="panel-sub">Lihat tahap aktif dan tindakan berikutnya.</p></div><span class="status-badge">${esc(nonHonorStageLabelV157(stage))}</span></div>${nonHonorPipelineV158(k,rows)}${nextActionV160(k,rows)}</section>
+    <section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Ringkasan Realisasi</h3><p class="panel-sub">Realisasi disetujui baru masuk ke total resmi setelah pemeriksaan PBJ.</p></div></div><div class="nh-summary-v158 nh-summary-v160"><div><small>Pagu</small><b>${rupiah(totals.pagu)}</b></div><div><small>Diajukan User</small><b>${rupiah(totals.totalInput)}</b></div><div><small>Disetujui PBJ</small><b>${rupiah(totals.totalApproved)}</b></div><div><small>Sisa Pagu</small><b>${rupiah(totals.sisaInput)}</b></div></div>${stage===NH_STATUS_V157.REVIEW?`<div class="nh-review-summary-v158"><span>Valid <b>${check.valid}</b></span><span>Menunggu <b>${check.pending}</b></span><span>Perlu perbaikan <b>${check.repair}</b></span><span>Tanpa lampiran <b>${check.missing}</b></span></div>`:''}${nonHonorControlsV158(k,rows)}</section>
+    <section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Daftar Realisasi</h3><p class="panel-sub">Periksa nilai dan lampiran pada setiap realisasi.</p></div></div><div class="table-wrap"><table class="nh-table-v156 nh-table-v158 nh-table-v160"><thead><tr><th>No.</th><th>Realisasi</th><th>Nilai</th><th>Status</th><th>Tanggal</th><th>Bukti/Keterangan</th><th>Dokumen</th><th>Aksi</th></tr></thead><tbody>${body||'<tr><td colspan="8" class="empty">Belum ada realisasi.</td></tr>'}</tbody></table></div></section>${legacyHtml}<div id="nonHonorRealModalV156" class="modal-backdrop hidden"></div>`;
+  };
+  renderNonHonorMultiV156=renderNonHonorMultiV158;
+
+  replaceNonHonorDocV160=async function(idDokumen,idRealisasi,idKegiatan,input){
+    const file=input?.files?.[0];if(!file)return;if(file.type!=='application/pdf')return alert('Dokumen pengganti harus PDF.');if(file.size>2*1024*1024)return alert('Ukuran file maksimal 2 MB.');
+    input.disabled=true;showLoading('Mengganti dokumen...');try{const base64=await fileToBase64(file),r=await apiPost({action:'replaceNonHonorRealizationDocV160',id_dokumen_non:idDokumen,file_name:file.name,mime_type:file.type,file_base64:base64});if(!r.success)throw new Error(r.message||'Gagal mengganti dokumen');const old=(dashboard.dokumenNonPengadaan||[]).find(d=>String(d.id_dokumen_non)===String(idDokumen));if(old)old.status_verifikasi='DIBATALKAN';(r.dokumen||[]).forEach(d=>dashboard.dokumenNonPengadaan.push(d));writeDashboardCache(dashboard);const k=kegiatanById(idKegiatan);if(k)renderNonHonorMultiV158(k);alert(r.message);}catch(e){alert(e.message||String(e));}finally{hideLoading();input.disabled=false;input.value='';}
+  };
+  returnNonHonorV160=async function(idKegiatan){
+    const catatan=(prompt('Tuliskan alasan paket dikembalikan untuk perbaikan:')||'').trim();if(!catatan)return alert('Alasan wajib diisi.');showLoading('Mengembalikan paket...');try{const r=await apiPost({action:'reopenNonHonorPackageV160',id_kegiatan:idKegiatan,catatan});if(!r.success)throw new Error(r.message||'Gagal mengembalikan paket');applyNonHonorStageV158(idKegiatan,r);alert(r.message);}catch(e){alert(e.message||String(e));}finally{hideLoading();}
+  };
+  reopenCompletedNonHonorV160=async function(idKegiatan){
+    const catatan=(prompt('Alasan membuka kembali paket selesai (wajib):')||'').trim();if(!catatan)return alert('Alasan wajib diisi.');if(!confirm('Paket selesai akan dibuka kembali dan seluruh nilai/dokumen diperiksa ulang. Lanjutkan?'))return;showLoading('Membuka kembali paket...');try{const r=await apiPost({action:'reopenNonHonorPackageV160',id_kegiatan:idKegiatan,catatan});if(!r.success)throw new Error(r.message||'Gagal membuka paket');applyNonHonorStageV158(idKegiatan,r);alert(r.message);}catch(e){alert(e.message||String(e));}finally{hideLoading();}
+  };
+
+  const renderDetailNonV160Base=renderDetailNonPengadaanV95;
+  renderDetailNonPengadaanV95=function(k){const out=renderDetailNonV160Base.apply(this,arguments);if(isHonorNonV155R2(k)){document.querySelectorAll('#contentArea .panel-sub').forEach(el=>{el.textContent=el.textContent.replace('Data penerima Honorarium tersimpan di database dan dicetak langsung dari SIMPROV.','Isi data penerima, lalu cetak daftar pembayaran.').replace('Data penerima disimpan di database dan dokumen dicetak langsung dari SIMPROV tanpa membuat file Drive.','Isi data penerima, lalu cetak daftar pembayaran.');});}return out;};
 })();
