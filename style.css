@@ -3293,3 +3293,14 @@ body.modal-open-v122{overflow:hidden}
 .honor-return-row-v159>div{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:9px;align-items:center}
 .honor-return-row-v159 input{min-width:0}
 @media(max-width:760px){.honor-review-card-v159 .form-grid{grid-template-columns:1fr}.honor-return-row-v159>div{grid-template-columns:1fr}.honor-return-row-v159 button{width:100%}}
+
+/* SIMPROV v160 - penyederhanaan pemeriksaan dan tampilan responsif */
+.pipeline-simple-v160{grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px}
+.compact-flow-v160 .pipeline-v103{margin-top:12px}
+.next-action-v160{margin-top:14px;padding:14px 16px;border:1px solid #c9ddf2;border-radius:14px;background:#f4f9ff;display:flex;gap:8px;flex-direction:column;color:#244b73}
+.next-action-v160 b{font-size:15px;color:#0f477d}.next-action-v160 span{font-size:13px;line-height:1.5}
+.nh-summary-v160{grid-template-columns:repeat(4,minmax(150px,1fr))}
+.nh-toolbar-v160{align-items:center;flex-wrap:wrap}.approval-blocked-v160{display:flex;flex-direction:column;gap:3px;padding:10px 13px;border-radius:12px;background:#fff7e5;border:1px solid #f2c766;color:#744b00;max-width:560px}.approval-blocked-v160 span{font-size:12px;line-height:1.45}
+.replace-doc-v160{cursor:pointer;display:inline-flex!important;margin-top:4px}.nh-table-v160 td:nth-child(2) small{display:block;color:#68788b;margin-top:3px}.nh-table-v160 td{vertical-align:top}
+@media(max-width:900px){.pipeline-simple-v160{grid-template-columns:1fr}.nh-summary-v160{grid-template-columns:repeat(2,minmax(0,1fr))}.nh-table-v160{min-width:980px}}
+@media(max-width:520px){.nh-summary-v160{grid-template-columns:1fr}.next-action-v160{padding:12px}.nh-toolbar-v160>button,.nh-toolbar-v160>.approval-blocked-v160{width:100%}}
