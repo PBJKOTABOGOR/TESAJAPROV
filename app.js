@@ -14119,3 +14119,159 @@ verifikasiRealisasiNonV112=async function(id,mode){
     return result;
   };
 })();
+
+/* =========================================================
+   SIMPROV v163 - Konfirmasi PBJ, ID Paket, Kalkulasi Honor,
+   dan Total Realisasi per Menu
+   ========================================================= */
+(function(){
+  const V163_FINAL_STATUSES=new Set(['FINAL','DISETUJUI','SELESAI','SAH']);
+  const approvalBusyV163=new Set();
+
+  function upperV163(v){return String(v||'').trim().toUpperCase();}
+  function roleV163(){return typeof actualRoleV133==='function'?actualRoleV133():upperV163(currentUser?.role||currentUser?.id_bidang);}
+  function assignedBidangV163(){
+    const raw=currentUser?.bidang_akses;
+    if(Array.isArray(raw))return raw.map(String).map(x=>x.trim()).filter(Boolean);
+    return String(raw||'').split(/[,;|\n]+/).map(x=>x.trim()).filter(Boolean);
+  }
+  function scopedPlansV163(rows){
+    rows=Array.isArray(rows)?rows:[];
+    const role=roleV163();
+    if(['ADMIN','AUDITOR','PIMPINAN','BENDAHARA','SEKDA'].includes(role))return rows;
+    if(['VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN'].includes(role)){
+      const ids=assignedBidangV163();
+      return ids.length?rows.filter(k=>ids.includes(String(k.id_bidang||''))):[];
+    }
+    const own=String(currentUser?.id_bidang||'');
+    return own?rows.filter(k=>String(k.id_bidang||'')===own):[];
+  }
+  function approvedPlanV163(k){
+    const s=upperV163(k?.status_perencanaan);
+    return s==='DISETUJUI'||s==='DISETUJUI PBJ';
+  }
+  function menuPlansV163(menu){
+    const rows=scopedPlansV163(dashboard?.perencanaan||[]).filter(approvedPlanV163);
+    if(menu==='Pengadaan Langsung')return rows.filter(k=>typeof isProcurementV83==='function'&&isProcurementV83(k)&&typeof isPipelineV94==='function'&&isPipelineV94(k));
+    if(menu==='Pencairan')return rows.filter(k=>typeof isProcurementV83==='function'&&isProcurementV83(k)&&typeof isBLV94==='function'&&isBLV94(k));
+    if(menu==='Non Pengadaan')return rows.filter(k=>typeof isNonKategoriV81==='function'?isNonKategoriV81(k):upperV163(k.kategori).includes('NON'));
+    return [];
+  }
+  function realizationApprovedV163(k,r){
+    if(upperV163(r?.status)==='DIBATALKAN')return false;
+    const isNon=typeof isNonKategoriV81==='function'?isNonKategoriV81(k):upperV163(k?.kategori).includes('NON');
+    const isHonor=typeof isHonorNonV155R2==='function'?isHonorNonV155R2(k):upperV163(k?.jenis_non_pengadaan).includes('HONOR');
+    if(isNon&&!isHonor&&typeof nonHonorRealApprovedFeV158==='function')return nonHonorRealApprovedFeV158(k,r);
+    return V163_FINAL_STATUSES.has(upperV163(r?.status));
+  }
+  function totalRealizationMenuV163(menu){
+    const plans=menuPlansV163(menu),map={};plans.forEach(k=>map[String(k.id_kegiatan||'')]=k);
+    return (dashboard?.realisasi||[]).reduce((sum,r)=>{
+      const k=map[String(r.id_kegiatan||'')];
+      return sum+(k&&realizationApprovedV163(k,r)?toNumber(r.nilai_realisasi):0);
+    },0);
+  }
+  function cardLabelV163(card){return String(card?.querySelector('span')?.textContent||'').trim();}
+  function ensureTotalRealizationCardV163(menu){
+    const wrap=document.getElementById('summaryCards');if(!wrap)return;
+    wrap.classList.remove('summary-six-v163');
+    if(!['Pengadaan Langsung','Pencairan','Non Pengadaan'].includes(menu))return;
+    const total=totalRealizationMenuV163(menu);
+    let card=[...wrap.querySelectorAll('.summary-card')].find(x=>/^(TOTAL REALISASI|REALISASI DISETUJUI)$/i.test(cardLabelV163(x)));
+    if(card){
+      const label=card.querySelector('span'),value=card.querySelector('b');
+      if(label)label.textContent='Total Realisasi';if(value)value.textContent=rupiah(total);
+    }else{
+      card=document.createElement('div');card.className='summary-card summary-card-v159 summary-card-real-v163';
+      card.innerHTML=`<span>Total Realisasi</span><b>${esc(rupiah(total))}</b>`;wrap.appendChild(card);
+    }
+    if(wrap.children.length>=6)wrap.classList.add('summary-six-v163');
+  }
+
+  /* Kartu tetap memakai data lokal terbaru dan tidak meminta reload dashboard. */
+  const renderSummaryV163Base=renderSummary;
+  renderSummary=function(){
+    const out=renderSummaryV163Base.apply(this,arguments),menu=String(activeMenu||'');
+    const wrap=document.getElementById('summaryCards');
+    if(wrap&&menu==='Perencanaan'&&roleV163()==='BIDANG'){
+      const totalCard=[...wrap.querySelectorAll('.summary-card')].find(x=>upperV163(cardLabelV163(x))==='TOTAL NILAI');
+      const label=totalCard?.querySelector('span');if(label)label.textContent='Total Pagu';
+    }
+    ensureTotalRealizationCardV163(menu);
+    return out;
+  };
+  if(typeof recomputeApprovedRealisasiLocalV158==='function'){
+    const recomputeV163Base=recomputeApprovedRealisasiLocalV158;
+    recomputeApprovedRealisasiLocalV158=function(){const out=recomputeV163Base.apply(this,arguments);if(['Pengadaan Langsung','Pencairan','Non Pengadaan'].includes(String(activeMenu||'')))renderSummary();return out;};
+  }
+
+  /* Persetujuan perencanaan memakai dialog konfirmasi yang lebih meyakinkan. */
+  setujui=async function(id){
+    id=String(id||'');if(!id||approvalBusyV163.has(id))return;
+    const old=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===id)||{};
+    const message=`Perencanaan “${old.nama_kegiatan||id}” senilai ${rupiah(old.jumlah||0)} akan disetujui. Setelah disetujui, paket otomatis masuk ke menu proses sesuai kategorinya. Pastikan seluruh data sudah benar.`;
+    const ok=typeof confirmActionV133==='function'
+      ?await confirmActionV133({title:'Setujui Perencanaan',message,confirmText:'Ya, Setujui',danger:false})
+      :confirm(message+'\n\nLanjutkan persetujuan?');
+    if(!ok)return;
+    approvalBusyV163.add(id);showLoading('Menyetujui perencanaan...');
+    try{
+      const r=await apiPost({action:'setujuiPerencanaan',user:currentUser,id_kegiatan:id});
+      if(!r.success)throw new Error(r.message||'Gagal menyetujui perencanaan');
+      if(typeof applyPlanningRowV141==='function')applyPlanningRowV141(r.perencanaan,Object.assign({},old,{status_perencanaan:'DISETUJUI',alasan_penolakan:''}));
+      else Object.assign(old,r.perencanaan||{status_perencanaan:'DISETUJUI',alasan_penolakan:''});
+      hideLoading();
+      if(typeof renderPlanningRealtimeV141==='function')renderPlanningRealtimeV141(true);else renderAll();
+      if(typeof showFastCacheNotice==='function')showFastCacheNotice(r.message||'Perencanaan disetujui');
+      else alert(r.message||'Perencanaan disetujui.');
+      if(typeof announcePlanningChangeV141==='function')announcePlanningChangeV141();
+      if(typeof syncPlanningRealtimeV141==='function')syncPlanningRealtimeV141({silent:true});
+    }catch(e){hideLoading();alert(e.message||String(e));}
+    finally{approvalBusyV163.delete(id);hideLoading();}
+  };
+
+  /* Satu helper list dipakai oleh tiga menu. ID menjadi kolom teks klik
+     dan membuka detail paket yang sama dengan klik Nama Paket. */
+  const paketListHtmlV163Base=paketListHtmlV95;
+  paketListHtmlV95=function(list,opts){
+    const html=paketListHtmlV163Base.apply(this,arguments),holder=document.createElement('div');holder.innerHTML=html;
+    const table=holder.querySelector('table.paket-table-v95');if(!table)return html;
+    const headRow=table.querySelector('thead tr');
+    if(headRow&&!headRow.querySelector('.paket-id-head-v163')){
+      const th=document.createElement('th');th.className='paket-id-head-v163';th.textContent='ID';headRow.insertBefore(th,headRow.firstElementChild);
+    }
+    table.querySelectorAll('tbody tr').forEach(tr=>{
+      const empty=tr.querySelector('td.empty');if(empty){empty.colSpan=6;return;}
+      const open=tr.querySelector('[onclick*="bukaPaketV95"]'),onclick=open?.getAttribute('onclick')||'';
+      const match=onclick.match(/bukaPaketV95\(['\"]([^'\"]+)['\"]\)/);if(!match)return;
+      const id=match[1],td=document.createElement('td');td.className='paket-id-cell-v163';
+      td.innerHTML=`<a href="javascript:void(0)" class="paket-id-link-v163" onclick="bukaPaketV95('${esc(id)}')" title="Buka paket ${esc(id)}">${esc(id)}</a>`;
+      tr.insertBefore(td,tr.firstElementChild);
+    });
+    return holder.innerHTML;
+  };
+
+  /* Perhitungan tiap penerima langsung bergerak ketika volume, kategori,
+     atau tarif PPh diubah. Hasil tetap berada di card penerima yang sama. */
+  nonPaymentRowV155=function(k,p){
+    p=p||{};const rate=toNumber(p.tarif_honor)||toNumber(k?.harga_satuan)||0,kategori=upperV163(p.kategori_pajak||'INPUT MANUAL');
+    const opts=['INPUT MANUAL','NON ASN','ASN I-II','ASN III','ASN IV/PEJABAT'],volume=toNumber(p.volume)||1,tax=toNumber(p.tarif_pajak)||0;
+    const bruto=volume*rate,pajak=p.nilai_pajak!==undefined?toNumber(p.nilai_pajak):Math.round(bruto*tax/100),netto=p.jumlah_netto!==undefined?toNumber(p.jumlah_netto):bruto-pajak;
+    return `<div class="honor-row-v112 honor-row-v87 non-pay-row-v155 non-pay-row-v163" data-unit-rate="${rate}">
+      <div class="field"><label>Nama Penerima</label><input class="hnama" value="${esc(p.nama_penerima||'')}" placeholder="Nama lengkap" autocomplete="off"></div>
+      <div class="field"><label>NIK/NPWP (16 Digit)</label><input class="hnik" inputmode="numeric" maxlength="16" value="${esc(p.nik_npwp||'')}" placeholder="16 digit angka" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,16)"></div>
+      <div class="field"><label>Jabatan / Peran</label><input class="hperan" value="${esc(p.jabatan_peran||'')}" placeholder="Jabatan/peran"></div>
+      <div class="field"><label>Volume</label><input class="hvol" inputmode="numeric" value="${volume}" min="1" step="1" oninput="this.value=this.value.replace(/[^0-9]/g,'');syncNonPaymentRowV155(this)"></div>
+      <div class="field"><label>Satuan</label><input class="hsatuan" value="${esc(p.satuan||k?.satuan||'Orang/Kegiatan')}" readonly></div>
+      <div class="field"><label>Tarif / Nilai per Satuan</label><input class="htarif" value="${rate?Number(rate).toLocaleString('id-ID'):''}" data-value="${rate}" readonly tabindex="-1"></div>
+      <div class="field"><label>Kategori Pajak</label><select class="hkategori" onchange="syncHonorTaxV112(this)">${opts.map(o=>`<option value="${o}" ${kategori===o?'selected':''}>${o==='INPUT MANUAL'?'Input Pajak Manual':o}</option>`).join('')}</select></div>
+      <div class="field"><label>Tarif PPh 21 (%)</label><input class="hpajak" value="${tax||''}" placeholder="Masukkan persen" inputmode="decimal" ${kategori!=='INPUT MANUAL'?'readonly':''} oninput="syncNonPaymentRowV155(this)"></div>
+      <div class="non-row-calculation-v155 non-row-calculation-v163" aria-live="polite"><span><small>Bruto</small><b class="row-bruto-v155">${rupiah(bruto)}</b></span><span><small>Pajak</small><b class="row-pajak-v155">${rupiah(pajak)}</b></span><span><small>Netto</small><b class="row-netto-v155">${rupiah(netto)}</b></span></div>
+      <div class="honor-remove-wrap"><button class="btn-red" type="button" onclick="this.closest('.non-pay-row-v155').remove();syncNonPaymentTotalsV155()">Hapus</button></div>
+    </div>`;
+  };
+  if(typeof syncHonorTaxV112==='function'){
+    const syncHonorTaxV163Base=syncHonorTaxV112;
+    syncHonorTaxV112=function(sel){const out=syncHonorTaxV163Base.apply(this,arguments);syncNonPaymentRowV155(sel);return out;};
+  }
+})();
