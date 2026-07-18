@@ -3348,3 +3348,34 @@ button.plan-id-link-v161:focus-visible{
 .honor-review-actions-v162{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .honor-review-actions-v162 button{min-width:112px}
 .honor-review-help-v162{margin:9px 0 0;color:#607086;font-size:12px;line-height:1.45}
+
+/* =========================================================
+   SIMPROV v163 - ID paket, enam kartu, kalkulasi Honorarium
+   ========================================================= */
+.summary-grid.summary-six-v163{
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  gap:12px!important;
+}
+.summary-six-v163 .summary-card{min-width:0;padding:17px 15px!important}
+.summary-six-v163 .summary-card b{font-size:21px!important;overflow-wrap:anywhere}
+.paket-id-head-v163,.paket-id-cell-v163{width:150px;min-width:150px}
+.paket-id-link-v163{
+  display:inline!important;padding:0!important;margin:0!important;border:0!important;
+  border-radius:0!important;background:transparent!important;box-shadow:none!important;
+  color:#0b63a9!important;font:inherit!important;font-weight:800!important;
+  line-height:1.35!important;text-decoration:none!important;overflow-wrap:anywhere;
+}
+.paket-id-link-v163:hover{text-decoration:underline!important;color:#084d85!important;transform:none!important}
+.non-pay-row-v163 .non-row-calculation-v163{
+  grid-column:1/-2;display:grid!important;grid-template-columns:repeat(3,minmax(120px,1fr));
+  gap:9px!important;padding:0!important;background:transparent!important;
+}
+.non-row-calculation-v163 span{
+  min-height:54px;display:flex!important;flex-direction:column;justify-content:center;gap:3px!important;
+  padding:8px 11px;border:1px solid #d4e5f2;border-radius:10px;background:#eef6ff;
+}
+.non-row-calculation-v163 small{font-size:10px;color:#647b8f;font-weight:800;text-transform:uppercase;letter-spacing:.02em}
+.non-row-calculation-v163 b{font-size:13px;color:#0b4a7e}
+@media(max-width:1350px){.summary-grid.summary-six-v163{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:900px){.summary-grid.summary-six-v163{grid-template-columns:repeat(2,minmax(0,1fr))!important}.paket-id-head-v163,.paket-id-cell-v163{min-width:130px;width:130px}}
+@media(max-width:680px){.summary-grid.summary-six-v163{grid-template-columns:1fr!important}.non-pay-row-v163 .non-row-calculation-v163{grid-column:1/-1;grid-template-columns:1fr}.paket-id-head-v163,.paket-id-cell-v163{min-width:120px;width:120px}}
