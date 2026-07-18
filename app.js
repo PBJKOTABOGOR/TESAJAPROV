@@ -12793,7 +12793,7 @@ renderNonPrintWindowV155=function(win,id,version){
   const terbilang=typeof numberWordsV138==='function'?numberWordsV138(totalNetto):nonPrintMoneyV155(totalNetto);
   const bodyRows=rows.map(function(p,i){
     const no=i+1,side=i%2===0?'left':'right';
-    return `<tr><td class="center">${no}</td><td class="name">${esc(p.nama_penerima||'-')}</td><td class="center date-cell">${esc(eventDate)}</td><td class="center">${esc(p.jabatan_peran||'-')}</td><td class="center">${toNumber(p.volume)}</td><td class="center">${esc(p.satuan||'-')}</td><td class="money">${nonPrintMoneyV155(p.tarif_honor)}</td><td class="money">${nonPrintMoneyV155(p.jumlah_bruto)}</td><td class="money"><b>${nonPrintMoneyV155(p.nilai_pajak)}</b></td><td class="money"><b>${nonPrintMoneyV155(p.jumlah_netto)}</b></td><td class="recipient-sign ${side}"><span>${no}</span></td></tr>`;
+    return `<tr><td class="center">${no}</td><td class="name">${esc(p.nama_penerima||'-')}</td><td class="center date-cell">${esc(eventDate)}</td><td class="center">${esc(p.jabatan_peran||'-')}</td><td class="center">${toNumber(p.volume)}</td><td class="center">${esc(p.satuan||'-')}</td><td class="money">${nonPrintMoneyV155(p.tarif_honor)}</td><td class="money">${nonPrintMoneyV155(p.jumlah_bruto)}</td><td class="money"><b>${nonPrintMoneyV155(p.nilai_pajak)}</b></td><td class="money"><b>${nonPrintMoneyV155(p.jumlah_netto)}</b></td><td class="recipient-sign ${side}"></td></tr>`;
   }).join('');
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>${title} - ${esc(k.id_kegiatan)} V${version}</title><style>
     *{box-sizing:border-box}html,body{margin:0;padding:0;color:#111}body{font-family:Arial,sans-serif;background:#edf1f5}.toolbar{position:sticky;top:0;z-index:10;display:flex;justify-content:flex-end;gap:8px;padding:11px 18px;background:#fff;border-bottom:1px solid #d7dde5}.toolbar button{border:0;border-radius:8px;padding:10px 15px;font-weight:700;cursor:pointer}.print{background:#0b63ce;color:#fff}.close{background:#e8edf3;color:#223}.page{width:297mm;min-height:210mm;margin:14px auto;background:#fff;padding:8mm 10mm 9mm;box-shadow:0 6px 24px #0002}.system-head{display:flex;align-items:center;gap:9px;padding-bottom:5px;border-bottom:2px solid #1767aa}.system-head img{width:27px;height:27px;object-fit:contain}.system-head b{display:block;font-size:13px;color:#115b98;line-height:1}.system-head span{display:block;font-size:7.5px;font-weight:700;margin-top:2px}.system-head small{display:block;font-size:6.5px;color:#5c6670;margin-top:1px}.doc-title{text-align:center;text-transform:uppercase;margin:8mm 0 7mm}.doc-title h1{font-size:14pt;margin:0 0 4mm;font-weight:800}.doc-title h2{font-size:12pt;margin:0 0 3mm;font-weight:800}.doc-title h3{font-size:11pt;margin:0;font-weight:800}.payment-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.4pt}.payment-table th,.payment-table td{border:1px solid #111;padding:2.2mm 1.4mm;vertical-align:middle}.payment-table th{text-align:center;font-weight:700;line-height:1.18}.payment-table tbody tr{height:15mm}.payment-table .center{text-align:center}.payment-table .name{text-align:left;font-weight:600}.payment-table .money{text-align:right;white-space:nowrap}.payment-table .date-cell{line-height:1.3}.payment-table .recipient-sign{position:relative;padding:0;height:15mm}.payment-table .recipient-sign span{position:absolute;top:2.2mm;font-weight:700}.payment-table .recipient-sign.left span{left:2mm}.payment-table .recipient-sign.right span{right:2mm}.payment-table tfoot td{font-weight:800;background:#fafafa;height:9mm}.payment-table .total-label{text-align:right}.payment-table col.no{width:3%}.payment-table col.nama{width:14.5%}.payment-table col.tanggal{width:12.5%}.payment-table col.jabatan{width:11.5%}.payment-table col.vol{width:3.5%}.payment-table col.sat{width:4.5%}.payment-table col.harga{width:9%}.payment-table col.jumlah{width:9%}.payment-table col.pajak{width:8.5%}.payment-table col.netto{width:10%}.payment-table col.ttd{width:14%}.terbilang{display:grid;grid-template-columns:35mm 4mm 1fr;gap:2mm;margin:8mm 0 0 6mm;font-family:'Times New Roman',serif;font-size:10pt}.terbilang em{font-weight:700}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:42mm;margin:8mm 20mm 0;text-align:center;font-family:'Times New Roman',serif;font-size:10pt}.signatures .sign-right{display:flex;flex-direction:column;align-items:center}.signatures .city-date{margin-bottom:4mm}.signatures .space{height:24mm}.signatures .name-line{font-weight:800;text-decoration:underline}.signatures small{display:block;margin-top:1mm}.audit{margin-top:7mm;border-top:1px solid #bbc3cc;padding-top:2mm;font-size:6.8pt;color:#66717d;display:flex;justify-content:space-between;gap:8mm}.audit span:last-child{text-align:right}@media print{body{background:#fff}.toolbar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:auto;padding:5mm 7mm 6mm}.payment-table thead{display:table-header-group}.payment-table tr{break-inside:avoid}.system-head{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4 landscape;margin:5mm}}</style></head><body>
@@ -12852,7 +12852,7 @@ renderDetailNonPengadaanV95=function(k){
     if(canVerify)realHtml+=`<div class="form-grid"><div class="field"><label>Nilai Realisasi Hasil Pemeriksaan (Rp)</label><input inputmode="numeric" id="npKoreksiNilaiV110" value="${Number(toNumber(real.nilai_realisasi)).toLocaleString('id-ID')}" data-max="${toNumber(k.jumlah)}" oninput="onRupiahInputV96(this)"></div><div class="field span-2"><label>Catatan Koreksi</label><input id="npKoreksiCatatanV110" placeholder="Wajib apabila nilai diperbaiki"></div></div><div class="realisasi-verif-actions-v112">${!realFinal?`<button class="btn-green" type="button" onclick="verifikasiRealisasiNonV112('${esc(k.id_kegiatan)}','SETUJUI')">Setujui Nilai Realisasi</button>`:''}<button class="btn-orange" type="button" onclick="verifikasiRealisasiNonV112('${esc(k.id_kegiatan)}','PERBAIKI')">Perbarui Nilai Realisasi</button></div>`;
   }else if(owner){
     const suggested=isHonor?(toNumber(n?.total_bruto)||toNumber(k.jumlah)):toNumber(k.jumlah);
-    realHtml=`<div class="notice-v103">Realisasi dapat dicatat sekarang tanpa menunggu dokumen diunggah atau diverifikasi.</div><div class="form-grid"><div class="field"><label>Pihak / Penerima</label><input id="npPihakV96" placeholder="Nama pihak/penerima"></div><div class="field"><label>Nilai Realisasi (Rp)</label><input inputmode="numeric" id="npNilaiV96" value="${suggested?Number(suggested).toLocaleString('id-ID'):''}" data-max="${toNumber(k.jumlah)}" oninput="onRupiahInputV96(this)"></div><div class="field span-2"><label>Keterangan</label><input id="npKetV96"></div></div><button type="button" onclick="submitCatatNonV96('${esc(k.id_kegiatan)}')">Catat Realisasi</button>`;
+    realHtml=`<div class="notice-v103">Pastikan Dokumen Wajib sudah diunggah sebelum mencatat realisasi.</div><div class="form-grid"><div class="field"><label>Pihak / Penerima</label><input id="npPihakV96" placeholder="Nama pihak/penerima"></div><div class="field"><label>Nilai Realisasi (Rp)</label><input inputmode="numeric" id="npNilaiV96" value="${suggested?Number(suggested).toLocaleString('id-ID'):''}" data-max="${toNumber(k.jumlah)}" oninput="onRupiahInputV96(this)"></div><div class="field span-2"><label>Keterangan</label><input id="npKetV96"></div></div><button type="button" onclick="submitCatatNonV96('${esc(k.id_kegiatan)}')">Catat Realisasi</button>`;
   }else realHtml='<p class="small">Menunggu pencatatan realisasi oleh User Bidang.</p>';
   const honorActions=isHonor?`${owner&&approved&&!final?`<button class="btn-green" type="button" onclick="openHonorModalV79('${esc(k.id_kegiatan)}')">Simpan Data &amp; Cetak Dokumen</button>`:''}${n&&!n.url_pdf?` <button class="btn-soft" type="button" onclick="printNonProcV155('${esc(k.id_kegiatan)}','${esc(n.versi_pdf)}')">Cetak Versi Aktif</button>`:''}${n?.url_pdf?` <a class="btn-link-v79" href="${esc(n.url_pdf)}" target="_blank">Buka Dokumen Lama</a>`:''}`:'';
   const historySection=isHonor?`<section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Riwayat Versi Dokumen</h3><p class="panel-sub">Versi lama tetap tersimpan. Cetak mengambil data dari versi yang dipilih.</p></div></div><div class="table-wrap"><table><thead><tr><th>Versi</th><th>Tanggal</th><th>Penginput</th><th>Bruto</th><th>Pajak</th><th>Netto</th><th>Aksi</th></tr></thead><tbody>${history||'<tr><td colspan="7" class="empty">Belum ada versi data pembayaran.</td></tr>'}</tbody></table></div></section>`:'';
@@ -13899,5 +13899,223 @@ verifikasiRealisasiNonV112=async function(id,mode){
       writeDashboardCache(dashboard);renderAll();showFastCacheNotice('Data Pencatatan Non Pengadaan berhasil diperbarui.');
     }catch(err){alert('Gagal refresh data. Detail: '+String(err?.message||err).slice(0,240));}
     finally{hideLoading();}
+  };
+})();
+
+/* =========================================================
+   SIMPROV v162 - UX Detail, Honorarium, dan Validasi Dokumen
+   ---------------------------------------------------------
+   1. ID perencanaan menjadi tautan teks sederhana.
+   2. Metadata sumber harga tidak lagi disisipkan ke Keterangan.
+   3. Nomor pada kolom tanda tangan cetak dihilangkan.
+   4. Realisasi Honorarium wajib menunggu 3 dokumen terunggah.
+   5. Aksi Verifikator PBJ disederhanakan menjadi Simpan/Tolak.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  function stripPlanningMetaV162(value){
+    const parts=String(value||'').split('|').map(x=>x.trim()).filter(Boolean);
+    const isMeta=part=>/^(PENGADAAN|NON\s+PENGADAAN)$/i.test(part)||/^(PENYEDIA|SWAKELOLA)$/i.test(part)||/^STANDAR\s+BIAYA\s*:/i.test(part)||/^HARGA\s+PASAR\s*\/\s*INPUT\s+MANUAL$/i.test(part);
+    return parts.filter(part=>!isMeta(part)).join(' | ').trim();
+  }
+  window.stripPlanningMetaV162=stripPlanningMetaV162;
+
+  /* Simpan perencanaan tanpa menyisipkan metadata teknis ke kolom Keterangan.
+     Metadata sumber harga tetap dikirim melalui field khusus agar kompatibel
+     dengan Code.gs v147 dan data Standar Biaya. */
+  savePerencanaan=async function(){
+    if(!aksesPerencanaanTerbuka()){alert('Akses perencanaan bidang sedang ditutup.');return;}
+    const kategori=document.getElementById('kategoriPerencanaanV79')?.value||'PENGADAAN';
+    const sumber=document.getElementById('sumberHargaV96')?.value||'PASAR';
+    const sb=(sumber==='SB'&&typeof SB_FLAT_V96!=='undefined'&&sbPickIdxV96>=0)?SB_FLAT_V96[sbPickIdxV96]:null;
+    if(sumber==='SB'&&!sb){alert('Pilih Standar Biaya terlebih dahulu.');return;}
+    const data={
+      nama_kegiatan:document.getElementById('namaKegiatan')?.value||'',
+      rincian_kebutuhan:'',
+      keterangan:(document.getElementById('keterangan')?.value||'').trim(),
+      volume:toNumber(document.getElementById('volume')?.value),
+      satuan:document.getElementById('satuan')?.value||'',
+      harga_satuan:toNumber(document.getElementById('harga')?.value),
+      metode_pemilihan:kategori==='NON PENGADAAN'?'NON PENGADAAN':(document.getElementById('metodePemilihan')?.value||''),
+      waktu_pemilihan:document.getElementById('waktuPemilihan')?.value||'',
+      kategori,
+      jenis_non_pengadaan:kategori==='NON PENGADAAN'?(document.getElementById('jenisNonPengadaanV79')?.value||'Honorarium'):'',
+      jenis_pengadaan:document.getElementById('jenisPengadaanV96')?.value||(kategori==='NON PENGADAAN'?'NON PENGADAAN':'Barang'),
+      cara_pelaksanaan:document.getElementById('caraPelaksanaanV96')?.value||'Penyedia',
+      sumber_harga:sumber,
+      id_standar_biaya:'',
+      nama_standar_biaya:sb?.nama||''
+    };
+    if(!data.nama_kegiatan.trim()){alert('Nama kegiatan wajib diisi.');return;}
+    if(!data.waktu_pemilihan){alert(kategori==='NON PENGADAAN'?'Waktu pelaksanaan wajib diisi.':'Waktu pemilihan wajib diisi.');return;}
+    const cek=cekPaguFrontend(data.volume*data.harga_satuan,'');
+    if(!cek.ok){alert(cek.message);return;}
+    showLoading('Mengajukan perencanaan...');
+    try{
+      const r=await apiPost({action:'savePerencanaan',user:currentUser,data});
+      const msg=document.getElementById('saveMsg');if(msg)msg.innerText=r.message||'';
+      if(!r.success)throw new Error(r.message||'Gagal menyimpan perencanaan');
+      applyCreatedPlanningV140(r,data);
+    }catch(e){alert(e.message||String(e));}
+    finally{
+      hideLoading();
+      sbPickIdxV96=-1;
+      const label=document.getElementById('sbTerpilihV96');if(label)label.value='';
+    }
+  };
+
+  /* Edit record lama menampilkan hanya keterangan yang benar-benar ditulis
+     pengguna. Metadata legacy tetap dipertahankan pada kolom khusus. */
+  const openEditModalV162Base=openEditModal;
+  openEditModal=function(id,mode){
+    const result=openEditModalV162Base.apply(this,arguments);
+    setTimeout(()=>{
+      const k=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id));
+      const el=document.getElementById('editKeterangan');
+      if(el&&k)el.value=stripPlanningMetaV162(k.keterangan||'');
+    },45);
+    return result;
+  };
+
+  /* Detail perencanaan juga membersihkan metadata legacy dari Keterangan. */
+  const openPerencanaanDetailV162Base=window.openPerencanaanDetailV161;
+  window.openPerencanaanDetailV161=function(id){
+    const k=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id));
+    if(!k)return openPerencanaanDetailV162Base(id);
+    const original=k.keterangan;
+    k.keterangan=stripPlanningMetaV162(original)||'-';
+    try{return openPerencanaanDetailV162Base(id);}
+    finally{k.keterangan=original;}
+  };
+
+  /* Nomor urut tidak ditampilkan lagi pada ruang tanda tangan penerima. */
+  const renderNonPrintWindowV162Base=renderNonPrintWindowV155;
+  renderNonPrintWindowV155=function(win,id,version){
+    const result=renderNonPrintWindowV162Base.apply(this,arguments);
+    const clean=()=>{
+      try{
+        if(!win||win.closed||!win.document)return;
+        win.document.querySelectorAll('.recipient-sign span').forEach(el=>el.remove());
+        const style=win.document.createElement('style');
+        style.textContent='.payment-table .recipient-sign span{display:none!important}';
+        win.document.head?.appendChild(style);
+      }catch(e){}
+    };
+    clean();setTimeout(clean,0);
+    return result;
+  };
+
+  function activeHonorDocsV162(id){
+    const k=kegiatanById(id),all=(dashboard?.dokumenNonPengadaan||[]).filter(d=>String(d.id_kegiatan)===String(id));
+    if(!k)return [];
+    return typeof latestRequiredNonDocsV155==='function'?latestRequiredNonDocsV155(all,id):all.filter(d=>d?.url_file&&String(d.status_verifikasi||'').toUpperCase()!=='DIBATALKAN');
+  }
+  function honorDocsCompleteV162(id){
+    const required=['DOKUMEN HONORARIUM TTD','TANDA TERIMA','BUKTI POTONG PAJAK'];
+    const docs=activeHonorDocsV162(id);
+    return required.every(name=>docs.some(d=>String(d.jenis_dokumen||'').trim().toUpperCase()===name&&!!d.url_file));
+  }
+
+  /* User Bidang tetap melihat form realisasi, tetapi Simpan akan ditolak
+     sebelum tiga dokumen wajib aktif selesai diunggah. */
+  submitCatatNonV96=async function(id){
+    const k=kegiatanById(id);if(!k)return alert('Kegiatan tidak ditemukan.');
+    if(isHonorNonV155R2(k)&&!honorDocsCompleteV162(id)){
+      return alert('Dokumen wajib belum lengkap. Unggah Dokumen Honorarium TTD, Tanda Terima, dan Bukti Potong Pajak sebelum mencatat realisasi.');
+    }
+    const pihak=(document.getElementById('npPihakV96')?.value||'').trim();
+    const nilai=valRupiahV96('npNilaiV96');
+    if(!pihak)return alert('Pihak/Penerima wajib diisi.');
+    if(nilai<=0)return alert('Nilai realisasi wajib diisi.');
+    if(nilai>toNumber(k.jumlah)+0.5)return alert(`Nilai realisasi tidak boleh melebihi Nilai Perencanaan ${rupiah(k.jumlah)}.`);
+    showLoading('Menyimpan realisasi...');
+    try{
+      const r=await apiPost({action:'catatNonPengadaanV110',user:currentUser,id_kegiatan:id,nilai_realisasi:nilai,nama_pihak:pihak,keterangan:document.getElementById('npKetV96')?.value||''});
+      if(!r.success)throw new Error(r.message||'Gagal mencatat realisasi');
+      dashboard.realisasi=dashboard.realisasi||[];
+      dashboard.realisasi.push(r.realisasi||{id_realisasi:'LOCAL-'+Date.now(),id_kegiatan:id,id_bidang:k.id_bidang||'',kategori:'NON PENGADAAN',nilai_realisasi:nilai,nama_pihak:pihak,status:'MENUNGGU VERIFIKASI',tanggal_input:new Date().toISOString(),input_by:currentUser?.nama||''});
+      k.status_pencairan=r.status||k.status_pencairan;
+      writeDashboardCache(dashboard);renderDetailNonPengadaanV95(k);alert(r.message||'Realisasi berhasil disimpan.');
+    }catch(e){alert(e.message||String(e));}
+    finally{hideLoading();}
+  };
+
+  let honorReviewBusyV162=false;
+  async function submitHonorDecisionV162(id,decision,value,note){
+    if(honorReviewBusyV162)return;
+    honorReviewBusyV162=true;showLoading(decision==='KEMBALIKAN'?'Mengembalikan realisasi...':'Menyimpan pemeriksaan realisasi...');
+    try{
+      const r=await apiPost({action:'verifikasiRealisasiNonV112',user:currentUser,id_kegiatan:id,keputusan:decision,nilai_realisasi:value,catatan:note||''});
+      if(!r.success)throw new Error(r.message||'Gagal memeriksa realisasi');
+      const real=latestNonRealV113_(id),k=kegiatanById(id);
+      if(real){
+        if(decision==='KEMBALIKAN'){real.status=r.realisasi_status||'PERLU PERBAIKAN';real.catatan_verifikator=note||'';}
+        else{real.status='FINAL';real.catatan_verifikator='';if(decision==='PERBAIKI')real.nilai_realisasi=value;}
+      }
+      if(k)k.status_pencairan=r.status||k.status_pencairan;
+      if(typeof recomputeApprovedRealisasiLocalV158==='function')recomputeApprovedRealisasiLocalV158();
+      writeDashboardCache(dashboard);if(k)renderDetailNonPengadaanV95(k);alert(r.message||'Pemeriksaan realisasi tersimpan.');
+    }catch(e){alert(e.message||String(e));}
+    finally{honorReviewBusyV162=false;hideLoading();}
+  }
+  window.saveHonorReviewV162=async function(id){
+    const k=kegiatanById(id),real=latestNonRealV113_(id);if(!k||!real)return alert('Data realisasi tidak ditemukan.');
+    const nilai=valRupiahV96('npKoreksiNilaiV110'),awal=toNumber(real.nilai_realisasi);
+    if(nilai<=0)return alert('Nilai realisasi wajib diisi.');
+    if(nilai>toNumber(k.jumlah)+0.5)return alert(`Nilai realisasi tidak boleh melebihi Nilai Perencanaan ${rupiah(k.jumlah)}.`);
+    if(Math.abs(nilai-awal)>0.5){
+      const catatan=(prompt(`Nilai diubah dari ${rupiah(awal)} menjadi ${rupiah(nilai)}. Tuliskan catatan koreksi:`)||'').trim();
+      if(!catatan)return alert('Catatan koreksi wajib diisi karena nilai diubah.');
+      return submitHonorDecisionV162(id,'PERBAIKI',nilai,catatan);
+    }
+    if(!confirm(`Apakah Anda menyetujui nilai realisasi ${rupiah(nilai)}?`))return;
+    return submitHonorDecisionV162(id,'SETUJUI',nilai,'');
+  };
+  window.rejectHonorReviewV162=async function(id){
+    const alasan=(prompt('Tuliskan alasan realisasi ditolak dan dikembalikan kepada User Bidang:')||'').trim();
+    if(!alasan)return alert('Alasan penolakan wajib diisi.');
+    return submitHonorDecisionV162(id,'KEMBALIKAN',0,alasan);
+  };
+
+  /* Tampilan Verifikator PBJ cukup satu input nilai dan dua aksi utama. */
+  patchHonorVerificationV158=function(k){
+    const real=latestNonRealV113_(k.id_kegiatan);if(!real)return;
+    const panel=[...document.querySelectorAll('#contentArea section.panel')].find(s=>s.querySelector('h3')?.textContent.trim()==='Pencatatan Realisasi');if(!panel)return;
+    panel.querySelectorAll('.realisasi-verif-actions-v112,.honor-return-box-v158,.honor-review-card-v159,.honor-return-row-v159,.honor-review-state-v159,.honor-return-note-v158').forEach(x=>x.remove());
+    const status=String(real.status||'').toUpperCase(),note=String(real.catatan_verifikator||'').trim(),returned=status.includes('PERBAIKAN')||String(k.status_pencairan||'').toUpperCase().includes('PERBAIKAN');
+    const canVerify=(isPBJVerifierV65()||canManage())&&String(k.status_pencairan||'').toUpperCase()!=='SELESAI';
+    const input=panel.querySelector('#npKoreksiNilaiV110'),grid=input?.closest('.form-grid');
+    if(returned){
+      if(grid)grid.remove();
+      const state=document.createElement('div');state.className='honor-review-state-v159 waiting-user';state.innerHTML=`<div class="honor-state-icon-v159">↩</div><div><b>Menunggu perbaikan dari User Bidang</b><p>Realisasi telah ditolak dan dikembalikan. Pemeriksaan dapat dilakukan kembali setelah User Bidang memperbaiki data.</p>${note?`<small><strong>Alasan:</strong> ${esc(note)}</small>`:''}</div>`;panel.querySelector('.panel-head')?.after(state);return;
+    }
+    if(!canVerify||['FINAL','DISETUJUI','SELESAI','SAH'].includes(status)){
+      if(grid)grid.remove();return;
+    }
+    if(!grid||!input)return;
+    [...grid.querySelectorAll('.field')].forEach(field=>{if(!field.contains(input))field.remove();});
+    grid.classList.add('honor-review-grid-v162');
+    const label=input.closest('.field')?.querySelector('label');if(label)label.textContent='Nilai Realisasi (Rp)';
+    input.dataset.original=String(toNumber(real.nilai_realisasi));
+    const actions=document.createElement('div');actions.className='honor-review-actions-v162';actions.innerHTML=`<button class="btn-green" type="button" onclick="saveHonorReviewV162('${esc(k.id_kegiatan)}')">Simpan</button><button class="btn-red" type="button" onclick="rejectHonorReviewV162('${esc(k.id_kegiatan)}')">Tolak</button>`;
+    grid.insertAdjacentElement('afterend',actions);
+    const help=document.createElement('p');help.className='honor-review-help-v162';help.textContent='Ubah nilai bila perlu, lalu klik Simpan. Jika nilai berubah, sistem akan meminta catatan koreksi.';actions.insertAdjacentElement('afterend',help);
+  };
+
+  /* Perjelas catatan pada form User Bidang dan nama tombol. */
+  const renderDetailNonPengadaanV162Base=renderDetailNonPengadaanV95;
+  renderDetailNonPengadaanV95=function(k){
+    const result=renderDetailNonPengadaanV162Base.apply(this,arguments);
+    if(!isHonorNonV155R2(k))return result;
+    const real=latestNonRealV113_(k.id_kegiatan),owner=actualRoleV133()==='BIDANG'&&String(k.id_bidang)===String(currentUser?.id_bidang||'');
+    const panel=[...document.querySelectorAll('#contentArea section.panel')].find(s=>s.querySelector('h3')?.textContent.trim()==='Pencatatan Realisasi');
+    if(panel&&owner&&!real){
+      let notice=panel.querySelector('.notice-v103');
+      if(!notice){notice=document.createElement('div');notice.className='notice-v103';panel.querySelector('.panel-head')?.after(notice);}
+      notice.textContent='Pastikan Dokumen Wajib sudah diunggah sebelum mencatat realisasi.';
+      [...panel.querySelectorAll('button')].filter(b=>/Catat Realisasi/i.test(b.textContent||'')).forEach(b=>b.textContent='Simpan Realisasi');
+    }
+    return result;
   };
 })();
