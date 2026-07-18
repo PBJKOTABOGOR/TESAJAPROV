@@ -3309,3 +3309,42 @@ body.modal-open-v122{overflow:hidden}
 .plan-id-link-v161{display:inline-block;max-width:150px;border:0;background:transparent;color:#075fa8;text-decoration:underline;text-decoration-style:dotted;font:inherit;font-weight:700;text-align:left;cursor:pointer;padding:2px 0;overflow-wrap:anywhere}.plan-id-link-v161:hover{color:#003f73;text-decoration-style:solid}.plan-detail-backdrop-v161{position:fixed;inset:0;z-index:10050;background:rgba(12,29,46,.56);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px}.plan-detail-card-v161{width:min(1000px,96vw);max-height:92vh;background:#fff;border:1px solid rgba(44,119,180,.2);border-radius:20px;box-shadow:0 28px 70px rgba(5,39,70,.28);overflow:hidden}.plan-detail-head-v161{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 24px;border-bottom:1px solid #dce9f4;background:linear-gradient(135deg,#f7fbff,#fff)}.plan-detail-head-v161 small{font-weight:800;color:#2878b5;letter-spacing:.08em}.plan-detail-head-v161 h3{margin:4px 0;color:#083f73}.plan-detail-head-v161 p{margin:0;color:#60758a}.plan-detail-scroll-v161{padding:20px 24px 28px;overflow:auto;max-height:calc(92vh - 105px)}.plan-detail-scroll-v161 h4{margin:18px 0 10px;color:#0b4a82}.plan-detail-scroll-v161 h4:first-child{margin-top:0}.plan-detail-grid-v161{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.plan-detail-item-v161{min-width:0;padding:11px 13px;background:#f7fbff;border:1px solid #dbe9f5;border-radius:11px}.plan-detail-item-v161.wide{grid-column:1/-1}.plan-detail-item-v161 span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#63788d;margin-bottom:5px}.plan-detail-item-v161 b{display:block;color:#163f64;white-space:pre-wrap;overflow-wrap:anywhere}.empty-state-v161{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:36px;border:1px dashed #bcd6ea;border-radius:15px;background:#f8fcff;color:#49677f}.empty-state-v161 b{font-size:18px;color:#0b4a82}.struktur-verifikator-v161 table td{vertical-align:middle}.pipeline-one-active-v161 .pipe-step-v103:not(.done):not(.waiting):not(.repair){opacity:.52}
 @media(max-width:820px){.plan-detail-grid-v161{grid-template-columns:1fr 1fr}.plan-detail-card-v161{max-height:95vh}.plan-detail-scroll-v161{max-height:calc(95vh - 105px)}}
 @media(max-width:520px){.plan-detail-backdrop-v161{padding:8px}.plan-detail-grid-v161{grid-template-columns:1fr}.plan-detail-item-v161.wide{grid-column:auto}.plan-detail-head-v161,.plan-detail-scroll-v161{padding:16px}}
+
+/* =========================================================
+   SIMPROV v162 - Detail ID dan pemeriksaan Honorarium ringkas
+   ========================================================= */
+button.plan-id-link-v161,
+.plan-id-link-v161{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  display:inline!important;
+  width:auto!important;
+  min-width:0!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#0b5ea8!important;
+  font:inherit!important;
+  font-weight:600!important;
+  line-height:1.35!important;
+  text-align:left!important;
+  text-decoration:none!important;
+  cursor:pointer!important;
+  transform:none!important;
+}
+button.plan-id-link-v161:hover,
+button.plan-id-link-v161:focus-visible{
+  color:#073f75!important;
+  text-decoration:underline!important;
+  outline:none!important;
+  box-shadow:none!important;
+  transform:none!important;
+}
+.honor-review-grid-v162{grid-template-columns:minmax(240px,420px)!important;margin-bottom:10px!important}
+.honor-review-actions-v162{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.honor-review-actions-v162 button{min-width:112px}
+.honor-review-help-v162{margin:9px 0 0;color:#607086;font-size:12px;line-height:1.45}
