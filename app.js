@@ -197,14 +197,14 @@ function badge(text){
   return `<span class="badge ${cls}">${esc(label)}</span>`;
 }
 async function apiPost(payload){
-  const readOnlyActions = new Set(["login","getDashboard","forceDriveAuth"]);
+  const readOnlyActions = new Set(["login","getDashboard","getNonProcRefreshV161","forceDriveAuth"]);
   const isReadOnly = readOnlyActions.has(payload?.action);
   const maxTry = isReadOnly ? 2 : 1;
   let lastErr = null;
 
   for(let attempt=1; attempt<=maxTry; attempt++){
     const controller = new AbortController();
-    const timeoutMs = isReadOnly ? 18000 : 45000;
+    const timeoutMs = payload?.action === "getDashboard" ? 40000 : (isReadOnly ? 24000 : 45000);
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try{
       const res = await fetch(API_URL, {
@@ -13701,4 +13701,203 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   const renderDetailNonV160Base=renderDetailNonPengadaanV95;
   renderDetailNonPengadaanV95=function(k){const out=renderDetailNonV160Base.apply(this,arguments);if(isHonorNonV155R2(k)){document.querySelectorAll('#contentArea .panel-sub').forEach(el=>{el.textContent=el.textContent.replace('Data penerima Honorarium tersimpan di database dan dicetak langsung dari SIMPROV.','Isi data penerima, lalu cetak daftar pembayaran.').replace('Data penerima disimpan di database dan dokumen dicetak langsung dari SIMPROV tanpa membuat file Drive.','Isi data penerima, lalu cetak daftar pembayaran.');});}return out;};
+})();
+
+/* =========================================================
+   SIMPROV v161 - Koreksi 5 Temuan Uji Lapangan
+   ---------------------------------------------------------
+   1. Struktur Anggaran Verifikator mengikuti bidang penugasan.
+   2. ID Perencanaan membuka detail paket lengkap.
+   3. Refresh Non Pengadaan memakai endpoint ringan.
+   4. Form Honorarium mengabaikan baris kosong dan menjaga pagu.
+   5. Pipeline/status Honorarium mengikuti tahap aktual.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  function roleV161(){
+    try{return typeof actualRoleV133==='function'?actualRoleV133():String(currentUser?.role||'').toUpperCase();}
+    catch(e){return String(currentUser?.role||'').toUpperCase();}
+  }
+  function isVerifierStructureV161(){return ['VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN'].includes(roleV161());}
+
+  const renderStrukturV161Base=renderStruktur;
+  renderStruktur=function(){
+    if(!isVerifierStructureV161())return renderStrukturV161Base.apply(this,arguments);
+    const rows=Array.isArray(dashboard?.rekap)?dashboard.rekap:[];
+    const body=rows.map(r=>{
+      const over=toNumber(r.sisa_pagu)<0;
+      return `<tr>
+        <td><b>${esc(r.nama_bidang||'-')}</b><br><small class="muted">${esc(r.id_bidang||'-')}</small></td>
+        <td>${rupiah(r.pagu||0)}</td>
+        <td>${rupiah(r.total_perencanaan||0)}</td>
+        <td>${rupiah(r.total_realisasi||0)}</td>
+        <td class="${over?'text-danger':''}">${rupiah(r.sisa_pagu||0)}</td>
+        <td>${esc(r.jumlah_kegiatan||0)}</td>
+        <td>${esc(r.dokumen_upload||0)} upload / ${esc(r.dokumen_valid||0)} valid</td>
+        <td>${badge(r.status_akses||'-')}</td>
+        <td>${over?badge('MELEBIHI PAGU'):badge(r.status_progress||'-')}</td>
+      </tr>`;
+    }).join('');
+    const empty=`<div class="empty-state-v161"><b>Bidang penugasan belum tersedia</b><span>Admin perlu mengatur bidang yang dapat diverifikasi pada menu Manajemen Akses.</span></div>`;
+    document.getElementById('contentArea').innerHTML=`<section class="panel fade-up premium-panel struktur-verifikator-v161">
+      <div class="panel-title-row"><div><h3>Ringkasan Bidang Penugasan</h3><p class="panel-sub">Data anggaran dan progres hanya untuk bidang yang diberikan kepada ${esc(roleLabel())}.</p></div><button class="btn-refresh" onclick="refreshData()" type="button">Refresh Data</button></div>
+      ${rows.length?`<div class="table-wrap"><table><thead><tr><th>Bidang</th><th>Pagu</th><th>Perencanaan</th><th>Realisasi</th><th>Sisa Pagu</th><th>Kegiatan</th><th>Dokumen</th><th>Akses</th><th>Progress</th></tr></thead><tbody>${body}</tbody></table></div>`:empty}
+    </section>`;
+  };
+
+  function detailValueV161(value,formatter){
+    if(value===undefined||value===null||String(value).trim()==='')return '-';
+    return formatter?formatter(value):String(value);
+  }
+  function sourcePriceLabelV161(k){
+    const raw=String(k?.sumber_harga||'').trim().toUpperCase().replace(/_/g,' ');
+    if(raw.includes('STANDAR')||k?.id_standar_biaya)return 'Standar Biaya';
+    if(raw.includes('PASAR'))return 'Harga Pasar / Input Manual';
+    return raw?raw.replace(/\b\w/g,c=>c.toUpperCase()):'-';
+  }
+  function detailRowV161(label,value,wide=false){
+    return `<div class="plan-detail-item-v161 ${wide?'wide':''}"><span>${esc(label)}</span><b>${esc(detailValueV161(value))}</b></div>`;
+  }
+  function humanizePlanKeyV161(key){return String(key||'').replace(/^_+/,'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
+  function extraPlanFieldsV161(k){
+    const known=new Set(['id_kegiatan','id_bidang','nama_kegiatan','kategori','jenis_non_pengadaan','status_perencanaan','status_pencairan','sumber_harga','jenis_pengadaan','cara_pelaksanaan','metode_pemilihan','waktu_pemilihan','satuan','volume','harga_satuan','jumlah','sifat_standar','nilai_standar','sumber_standar','id_standar_biaya','nama_standar_biaya','rincian_kebutuhan','keterangan','alasan_penolakan','alasan_perubahan','riwayat_perubahan','input_by','tanggal_input']);
+    return Object.keys(k||{}).filter(key=>!known.has(key)&&key!=='_row'&&k[key]!==null&&k[key]!==undefined&&String(k[key]).trim()!=='').map(key=>detailRowV161(humanizePlanKeyV161(key),k[key])).join('');
+  }
+  window.closePerencanaanDetailV161=function(){document.getElementById('perencanaanDetailV161')?.remove();};
+  window.openPerencanaanDetailV161=function(id){
+    const k=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id));
+    if(!k){alert('Detail perencanaan tidak ditemukan.');return;}
+    window.closePerencanaanDetailV161();
+    const jumlah=toNumber(k.jumlah)||(toNumber(k.volume)*toNumber(k.harga_satuan));
+    const modal=document.createElement('div');modal.id='perencanaanDetailV161';modal.className='plan-detail-backdrop-v161';
+    modal.onclick=ev=>{if(ev.target===modal)closePerencanaanDetailV161();};
+    modal.innerHTML=`<div class="plan-detail-card-v161 fade-up" role="dialog" aria-modal="true" aria-labelledby="planDetailTitleV161">
+      <div class="plan-detail-head-v161"><div><small>DETAIL PERENCANAAN</small><h3 id="planDetailTitleV161">${esc(k.nama_kegiatan||'-')}</h3><p>${esc(k.id_kegiatan||'-')} • ${esc(bidangName(k.id_bidang))}</p></div><button class="btn-soft" type="button" onclick="closePerencanaanDetailV161()">Tutup</button></div>
+      <div class="plan-detail-scroll-v161">
+        <h4>Identitas Paket</h4><div class="plan-detail-grid-v161">
+          ${detailRowV161('ID Kegiatan',k.id_kegiatan)}${detailRowV161('Bidang',bidangName(k.id_bidang))}${detailRowV161('Kategori',k.kategori||'-')}${detailRowV161('Jenis Non Pengadaan',k.jenis_non_pengadaan||'-')}${detailRowV161('Status Perencanaan',displayStatusText(k.status_perencanaan||'-'))}${detailRowV161('Status Paket',paketStatusV95(k))}
+        </div>
+        <h4>Dasar dan Cara Pelaksanaan</h4><div class="plan-detail-grid-v161">
+          ${detailRowV161('Sumber Harga',sourcePriceLabelV161(k))}${detailRowV161('Jenis Pengadaan',k.jenis_pengadaan||k.jenis_non_pengadaan||'-')}${detailRowV161('Cara Pelaksanaan',k.cara_pelaksanaan||'-')}${detailRowV161('Metode Pemilihan',k.metode_pemilihan||'-')}${detailRowV161('Waktu Pemilihan',k.waktu_pemilihan?formatTanggalID(k.waktu_pemilihan):'-')}${detailRowV161('Satuan',k.satuan||'-')}
+        </div>
+        <h4>Nilai Perencanaan</h4><div class="plan-detail-grid-v161">
+          ${detailRowV161('Volume',k.volume||0)}${detailRowV161('Harga Satuan',rupiah(k.harga_satuan||0))}${detailRowV161('Total',rupiah(jumlah))}${detailRowV161('Sifat Standar',k.sifat_standar||'-')}${detailRowV161('Nilai Standar',k.nilai_standar?rupiah(k.nilai_standar):'-')}${detailRowV161('Sumber Standar',k.sumber_standar||'-')}
+          ${detailRowV161('ID Standar Biaya',k.id_standar_biaya||'-')}${detailRowV161('Nama Standar Biaya',k.nama_standar_biaya||'-',true)}
+        </div>
+        <h4>Uraian dan Riwayat</h4><div class="plan-detail-grid-v161">
+          ${detailRowV161('Rincian Kebutuhan',k.rincian_kebutuhan||'-',true)}${detailRowV161('Keterangan',k.keterangan||'-',true)}${detailRowV161('Alasan Perbaikan',k.alasan_penolakan||'-',true)}${detailRowV161('Alasan Perubahan',k.alasan_perubahan||'-',true)}${detailRowV161('Riwayat Perubahan',k.riwayat_perubahan||'-',true)}${detailRowV161('Diinput Oleh',k.input_by||'-')}${detailRowV161('Tanggal Input',k.tanggal_input?formatTanggalJam(k.tanggal_input):'-')}
+        </div>
+        ${extraPlanFieldsV161(k)?`<h4>Data Tambahan</h4><div class="plan-detail-grid-v161">${extraPlanFieldsV161(k)}</div>`:''}
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+  };
+
+  const renderPerencanaanRowV161Base=renderPerencanaanRow;
+  renderPerencanaanRow=function(k){
+    let html=renderPerencanaanRowV161Base.apply(this,arguments);
+    const id=String(k?.id_kegiatan||'');if(!id)return html;
+    const needle=`<td>${esc(id)}</td>`;
+    const cell=`<td><button type="button" class="plan-id-link-v161" title="Lihat detail lengkap paket" onclick="openPerencanaanDetailV161('${esc(id)}')">${esc(id)}</button></td>`;
+    if(html.includes(needle))return html.replace(needle,cell);
+    return html.replace(/<td>([\s\S]*?)<\/td>/,cell);
+  };
+
+  function isCompletelyBlankPaymentRowV161(row){
+    const nama=(row.querySelector('.hnama')?.value||'').trim();
+    const nik=(row.querySelector('.hnik')?.value||'').replace(/\D/g,'');
+    const peran=(row.querySelector('.hperan')?.value||'').trim();
+    return !nama&&!nik&&!peran;
+  }
+  syncNonPaymentTotalsV155=function(){
+    const rows=[...document.querySelectorAll('#honorRowsV79 .non-pay-row-v155')].filter(r=>!isCompletelyBlankPaymentRowV161(r));let bruto=0,pajak=0;
+    rows.forEach(row=>{const v=toNumber(row.querySelector('.hvol')?.value),rate=toNumber(row.dataset.unitRate),tax=Math.max(0,Math.min(100,toNumber(row.querySelector('.hpajak')?.value)));bruto+=v*rate;pajak+=Math.round(v*rate*tax/100);});
+    const el=document.getElementById('nonModalTotalsV155');if(el)el.innerHTML=`Total Bruto <b>${rupiah(bruto)}</b> &nbsp; Total Pajak <b>${rupiah(pajak)}</b> &nbsp; Total Netto <b>${rupiah(bruto-pajak)}</b>`;
+  };
+  collectNonPaymentRowsV155=function(k){
+    const all=[...document.querySelectorAll('#honorRowsV79 .non-pay-row-v155')],rows=all.filter(r=>!isCompletelyBlankPaymentRowV161(r));
+    if(!rows.length)throw new Error('Minimal satu penerima wajib diisi.');
+    let total=0;
+    const penerima=rows.map((r,i)=>{
+      const no=i+1,nama=(r.querySelector('.hnama')?.value||'').trim(),nik=(r.querySelector('.hnik')?.value||'').replace(/\D/g,''),peran=(r.querySelector('.hperan')?.value||'').trim(),volume=toNumber(r.querySelector('.hvol')?.value),rate=toNumber(r.dataset.unitRate),tax=toNumber(r.querySelector('.hpajak')?.value);
+      if(!nama)throw new Error(`Nama penerima ke-${no} wajib diisi.`);
+      if(!/^\d{16}$/.test(nik))throw new Error(`NIK/NPWP penerima ke-${no} wajib tepat 16 digit.`);
+      if(!peran)throw new Error(`Jabatan/peran penerima ke-${no} wajib diisi.`);
+      if(volume<=0)throw new Error(`Volume penerima ke-${no} wajib lebih dari 0.`);
+      if(rate<=0)throw new Error(`Tarif penerima ke-${no} belum tersedia.`);
+      if(tax<0||tax>100)throw new Error(`Tarif pajak penerima ke-${no} harus 0–100%.`);
+      total+=volume*rate;
+      if(toNumber(k.jumlah)>0&&total>toNumber(k.jumlah)+0.5)throw new Error(`Total bruto ${rupiah(total)} melebihi Nilai Perencanaan ${rupiah(k.jumlah)}.`);
+      return {nama_penerima:nama,nik_npwp:nik,jabatan_peran:peran,volume,satuan:r.querySelector('.hsatuan')?.value||k.satuan||'Orang/Kegiatan',tarif_honor:rate,kategori_pajak:r.querySelector('.hkategori')?.value||'INPUT MANUAL',jenis_pajak:'PPh 21',tarif_pajak:tax};
+    });
+    return penerima;
+  };
+  const openHonorModalV161Base=openHonorModalV79;
+  openHonorModalV79=function(id){
+    const result=openHonorModalV161Base.apply(this,arguments);
+    setTimeout(()=>{
+      const rows=[...document.querySelectorAll('#honorRowsV79 .non-pay-row-v155')];
+      rows.slice(1).filter(isCompletelyBlankPaymentRowV161).forEach(r=>r.remove());
+      const title=document.querySelector('#honorModalV79 .modal-head h3');if(title)title.textContent='Data Pembayaran Honorarium';
+      syncNonPaymentTotalsV155();
+    },0);
+    return result;
+  };
+
+  function activeHonorDocsV161(k,docs,n){
+    const version=toNumber(n?.versi_pdf||n?.versi_dokumen||0);
+    const latest={};
+    (docs||[]).filter(d=>d?.url_file&&String(d.status_verifikasi||'').toUpperCase()!=='DIBATALKAN').forEach(d=>{
+      const key=String(d.jenis_dokumen||'').trim().toUpperCase();
+      if(!['DOKUMEN HONORARIUM TTD','TANDA TERIMA','BUKTI POTONG PAJAK'].includes(key))return;
+      if(key==='DOKUMEN HONORARIUM TTD'&&version>0&&toNumber(d.versi_dokumen)!==version)return;
+      if(!latest[key]||toNumber(d._row)>toNumber(latest[key]._row))latest[key]=d;
+    });
+    return ['DOKUMEN HONORARIUM TTD','TANDA TERIMA','BUKTI POTONG PAJAK'].map(x=>latest[x]).filter(Boolean);
+  }
+  nonPipelineV103=function(k,n,docs,real){
+    const up=v=>String(v||'').trim().toUpperCase(),approved=up(k?.status_perencanaan).startsWith('DISETUJUI'),final=up(k?.status_pencairan)==='SELESAI';
+    const saved=!!n,required=activeHonorDocsV161(k,docs,n),uploaded=required.length===3,hasRepair=required.some(d=>up(d.status_verifikasi).includes('PERBAIKAN')||up(d.status_verifikasi)==='DITOLAK'),allValid=uploaded&&required.every(d=>up(d.status_verifikasi)==='VALID DOKUMEN');
+    const realObj=Array.isArray(real)?real.find(r=>up(r.status)!=='DIBATALKAN'):real,hasReal=!!realObj&&up(realObj.status)!=='DIBATALKAN',realRepair=hasReal&&up(realObj.status).includes('PERBAIKAN'),realApproved=hasReal&&['FINAL','DISETUJUI','SELESAI','SAH'].includes(up(realObj.status));
+    let current=1,state='waiting';
+    if(final){current=7;state='done';}
+    else if(!approved){current=1;}
+    else if(!saved){current=2;}
+    else if(!uploaded||hasRepair){current=3;state=hasRepair?'repair':'waiting';}
+    else if(!hasReal){current=4;}
+    else if(!allValid||!realApproved||realRepair){current=5;state=(hasRepair||realRepair)?'repair':'waiting';}
+    else{current=6;}
+    const labels=['Perencanaan Disetujui','Data Honorarium Disimpan','Dokumen Honorarium TTD & Dokumen Wajib','Pencatatan Realisasi','Verifikasi Dokumen & Realisasi','Selesai'];
+    const stages=labels.map((label,i)=>{const no=i+1;let cls='';if(final||no<current)cls='done';else if(no===current)cls=state;return {no,label,state:cls};});
+    return `<div class="pipeline-v103 pipeline-one-active-v161">${stages.map(x=>statusPipelineNonV104(x,x.state)).join('')}</div>`;
+  };
+
+  const paketStatusV161Base=paketStatusV95;
+  paketStatusV95=function(k){
+    const status=String(k?.status_pencairan||'').trim().toUpperCase().replace(/_/g,' '),approved=String(k?.status_perencanaan||'').toUpperCase().startsWith('DISETUJUI');
+    if(approved&&String(k?.kategori||'').toUpperCase()==='NON PENGADAAN'&&['','MENUNGGU PERSETUJUAN PBJ','DIAJUKAN'].includes(status)){
+      return String(k?.jenis_non_pengadaan||'').toUpperCase().includes('HONOR')?'MENUNGGU DATA HONORARIUM':'MENUNGGU PENCATATAN REALISASI';
+    }
+    return paketStatusV161Base.apply(this,arguments);
+  };
+
+  const refreshDataV161Base=refreshData;
+  refreshData=async function(){
+    if(activeMenu!=='Pencatatan Non Pengadaan')return refreshDataV161Base.apply(this,arguments);
+    showLoading('Memperbarui Pencatatan Non Pengadaan...');
+    try{
+      const r=await apiPost({action:'getNonProcRefreshV161'});if(!r?.success)throw new Error(r?.message||'Gagal memperbarui data');
+      dashboard=dashboard||{};
+      dashboard.perencanaan=(Array.isArray(r.perencanaan)?r.perencanaan:[]).map(k=>({...k,jumlah:toNumber(k.jumlah)||(toNumber(k.volume)*toNumber(k.harga_satuan)),metode_pemilihan:k.metode_pemilihan||metodePemilihanByNilai(toNumber(k.jumlah)||(toNumber(k.volume)*toNumber(k.harga_satuan)))}));
+      dashboard.pencairan=Array.isArray(r.pencairan)?r.pencairan:(dashboard.pencairan||[]);
+      dashboard.realisasi=Array.isArray(r.realisasi)?r.realisasi:[];
+      dashboard.nonPengadaan=Array.isArray(r.nonPengadaan)?r.nonPengadaan:[];
+      dashboard.honorPenerima=Array.isArray(r.honorPenerima)?r.honorPenerima:[];
+      dashboard.dokumenNonPengadaan=Array.isArray(r.dokumenNonPengadaan)?r.dokumenNonPengadaan:[];
+      if(Array.isArray(r.bidangs)){dashboard.bidangs=r.bidangs;dashboard.bidangMap={};r.bidangs.forEach(b=>dashboard.bidangMap[String(b.id_bidang)]=b.nama_bidang);}
+      writeDashboardCache(dashboard);renderAll();showFastCacheNotice('Data Pencatatan Non Pengadaan berhasil diperbarui.');
+    }catch(err){alert('Gagal refresh data. Detail: '+String(err?.message||err).slice(0,240));}
+    finally{hideLoading();}
+  };
 })();
