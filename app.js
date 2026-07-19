@@ -15509,3 +15509,274 @@ verifikasiRealisasiNonV112=async function(id,mode){
   window.updateBidangHeaderV1646=updateBidangHeaderV1646;
   window.__SIMPROV_PATCH_VERSION_V1646__=PATCH_VERSION_V1646;
 })();
+
+
+/* =========================================================
+   SIMPROV v164.8 - Alur Pembayaran Ketua Harian
+   ---------------------------------------------------------
+   - Persetujuan struktural dilakukan manual dan diunggah.
+   - Role PIMPINAN digunakan khusus untuk Ketua Harian.
+   - Alur sistem: Bidang -> Ketua Harian -> Verifikator
+     Keuangan -> Bendahara -> Selesai.
+   - Data lama tetap dapat dibuka.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V1648='164.8';
+  const STRUCTURAL_DOC_V1648='Lembar Persetujuan Struktural';
+
+  function upperV1648(v){return String(v||'').trim().toUpperCase();}
+  function uniqueV1648(list){return [...new Set((list||[]).filter(Boolean))];}
+  function paymentNeedsStructuralV1648(p){
+    const status=upperV1648(p?.status_pengajuan||'DRAFT');
+    return String(p?.wajib_persetujuan_struktural||'')==='1'||['DRAFT','PERBAIKAN BIDANG'].includes(status);
+  }
+  function paymentDocTypesV1648(){
+    const base=Array.isArray(PAYMENT_DOC_TYPES_V138)?PAYMENT_DOC_TYPES_V138:[];
+    return uniqueV1648([STRUCTURAL_DOC_V1648,...base]);
+  }
+
+  const paymentRequiredDocsBaseV1648=paymentRequiredDocsV138;
+  paymentRequiredDocsV138=function(p){
+    const docs=uniqueV1648(paymentRequiredDocsBaseV1648(p));
+    if(paymentNeedsStructuralV1648(p)&&!docs.some(x=>paymentDocKeyV138(x)===paymentDocKeyV138(STRUCTURAL_DOC_V1648)))docs.unshift(STRUCTURAL_DOC_V1648);
+    return docs;
+  };
+
+  paymentUploadRowsV138=function(p){
+    const docs=paymentDocsV138(p.id_pengajuan);
+    return paymentDocTypesV1648().map(j=>{
+      const list=docs.filter(d=>paymentDocKeyV138(d.jenis_dokumen)===paymentDocKeyV138(j));
+      const required=paymentRequiredDocsV138(p).some(x=>paymentDocKeyV138(x)===paymentDocKeyV138(j));
+      const note=j===STRUCTURAL_DOC_V1648?'<small class="panel-sub">PDF yang sudah ditandatangani pejabat struktural sesuai bidang.</small>':'';
+      return `<tr><td>${esc(j)} ${required?'<b class="required-v138">*</b>':''}${note}</td><td>${list.length?list.map(d=>`<a href="${esc(d.url_file)}" target="_blank" rel="noopener">${esc(d.nama_file||'Buka Dokumen Asli')}</a>`).join('<br>'):'Belum diunggah'}</td><td><input type="file" class="payment-file-v138" data-jenis="${esc(j)}" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"></td></tr>`;
+    }).join('');
+  };
+
+  paymentOriginalDocsV138=function(p){
+    const docs=paymentDocsV138(p.id_pengajuan);
+    return `<div class="payment-doc-grid-v138">${paymentDocTypesV1648().map(j=>{
+      const list=docs.filter(d=>paymentDocKeyV138(d.jenis_dokumen)===paymentDocKeyV138(j));
+      const required=paymentRequiredDocsV138(p).some(x=>paymentDocKeyV138(x)===paymentDocKeyV138(j));
+      return `<article><div><b>${esc(j)}</b>${required?'<small class="required-v138">Wajib</small>':'<small>Opsional</small>'}</div>${list.length?list.map(d=>`<a class="btn-soft" href="${esc(d.url_file)}" target="_blank" rel="noopener">Buka Dokumen Asli</a>`).join(''):'<span class="muted">Belum diunggah</span>'}</article>`;
+    }).join('')}</div>`;
+  };
+
+  paymentStatusLabelV138=function(status){
+    const s=upperV1648(status||'DRAFT');
+    const labels={
+      'DRAFT':'DRAFT',
+      'PERBAIKAN BIDANG':'PERLU PERBAIKAN',
+      'MENUNGGU PERSETUJUAN PIMPINAN':'MENUNGGU PERSETUJUAN KETUA HARIAN',
+      'MENUNGGU PERINTAH KETUA HARIAN':'MENUNGGU PERSETUJUAN KETUA HARIAN',
+      'MENUNGGU VERIFIKASI KEUANGAN':'MENUNGGU VERIFIKASI KEUANGAN',
+      'MENUNGGU PEMBAYARAN BENDAHARA':'MENUNGGU PEMBAYARAN BENDAHARA',
+      'SELESAI':'SELESAI'
+    };
+    return labels[s]||s.replace(/_/g,' ');
+  };
+
+  paymentTimelineV138=function(p){
+    const status=upperV1648(p?.status_pengajuan||'DRAFT');let step=1;
+    if(['MENUNGGU PERSETUJUAN PIMPINAN','MENUNGGU PERINTAH KETUA HARIAN'].includes(status))step=2;
+    else if(status==='MENUNGGU VERIFIKASI KEUANGAN')step=3;
+    else if(status==='MENUNGGU PEMBAYARAN BENDAHARA')step=4;
+    else if(status==='SELESAI')step=5;
+    else if(status.includes('PERBAIKAN'))step=1;
+    const labels=['Bidang','Ketua Harian','Verifikator Keuangan','Bendahara','Selesai'];
+    return `<div class="payment-timeline-v138 payment-timeline-v146">${labels.map((x,i)=>`<div class="${i+1<step?'done':i+1===step?'active':''}"><span>${i+1}</span><b>${x}</b></div>`).join('')}</div>`;
+  };
+
+  function validateStoredPaymentV1648(p){
+    if(!p)return 'Pengajuan tidak ditemukan.';
+    const missing=paymentRequiredDocsV138(p).filter(j=>!paymentDocV138(p,j));
+    if(missing.length)return 'Dokumen wajib belum lengkap:\n- '+missing.join('\n- ');
+    const rincian=parseJsonV138(p.rincian_json),rekening=parseJsonV138(p.rekening_json),amount=toNumber(p.jumlah_pengajuan),rt=paymentTotalRincianV138(rincian),at=paymentTotalRincianV138(rekening);
+    if(!rincian.length)return 'Minimal satu rincian penggunaan anggaran wajib diisi.';
+    if(!rekening.length)return 'Minimal satu rekening penerima wajib diisi.';
+    if(Math.abs(rt-amount)>0.5)return 'Total rincian belanja harus sama dengan jumlah pengajuan.';
+    if(Math.abs(at-amount)>0.5)return 'Total rekening tujuan harus sama dengan jumlah pengajuan.';
+    return '';
+  }
+
+  async function savePaymentFormBeforeSubmitV1648(id){
+    const data=collectPaymentFormV138();
+    const act=(paymentWorkspaceV138.kegiatan||[]).find(k=>String(k.id_kegiatan)===String(data.id_kegiatan));
+    const budget=toNumber(act?.jumlah||0),rincianTotal=paymentTotalRincianV138(data.rincian),rekeningTotal=paymentTotalRincianV138(data.rekening);
+    if(!data.id_kegiatan)throw new Error('Pilih kegiatan terlebih dahulu.');
+    if(!data.rincian.length)throw new Error('Isi minimal satu rincian penggunaan anggaran.');
+    if(budget>0&&rincianTotal>budget)throw new Error(`Jumlah pengajuan ${rupiah(rincianTotal)} melebihi pagu kegiatan ${rupiah(budget)}.`);
+    if(!data.rekening.length||Math.abs(rekeningTotal-rincianTotal)>0.5)throw new Error('Total rekening tujuan harus sama dengan jumlah pengajuan.');
+    const save=await apiPost({action:'savePaymentDraftV138',user:currentUser,data});
+    if(!save.success)throw new Error(save.message||'Gagal menyimpan pengajuan');
+    const savedId=save.id_pengajuan||id;paymentEditIdV138=savedId;
+    if(save.pengajuan){
+      const other=(paymentWorkspaceV138.pengajuan||[]).filter(x=>String(x.id_pengajuan)!==String(savedId));
+      paymentWorkspaceV138.pengajuan=[...other,save.pengajuan];
+    }
+    return savedId;
+  }
+
+  async function sendPaymentToKetuaHarianV1648(id){
+    const r=await apiPost({action:'submitPaymentV138',user:currentUser,id_pengajuan:id});
+    if(!r.success)throw new Error(r.message||'Gagal mengajukan pembayaran');
+    const p=paymentByIdV138(id);
+    if(p){
+      p.status_pengajuan='MENUNGGU PERSETUJUAN PIMPINAN';
+      p.tahap_aktif='PIMPINAN';
+      p.wajib_persetujuan_struktural='1';
+      p.tte_bidang_oleh=r.tte_bidang_oleh||currentUser?.nama||'';
+      p.tte_bidang_waktu=r.tte_bidang_waktu||new Date().toISOString();
+      p.updated_at=new Date().toISOString();
+    }
+    paymentTabV138='DAFTAR';paymentEditIdV138='';renderPaymentWorkspaceV138();
+    showFastCacheNotice(r.message||'Pengajuan dikirim kepada Ketua Harian.');
+    setTimeout(()=>loadPaymentWorkspaceV138(true),150);
+  }
+
+  window.submitPaymentFromListV145=async function(id){
+    const p=paymentByIdV138(id),err=validateStoredPaymentV1648(p);if(err)return alert(err);
+    const ok=await confirmActionV133({title:'Ajukan kepada Ketua Harian',message:'Pastikan Lembar Persetujuan Struktural dan dokumen wajib sudah lengkap. Nota Dinas Bidang dan SPTJM akan ditandatangani elektronik.',confirmText:'Ya, Ajukan'});if(!ok)return;
+    showLoading('Mengajukan kepada Ketua Harian...');
+    try{await sendPaymentToKetuaHarianV1648(id);}catch(e){alert(e.message||String(e));}finally{hideLoading();}
+  };
+
+  window.submitPaymentFormV145=async function(id){
+    const p=paymentByIdV138(id),missing=paymentRequiredDocsV138(p).filter(j=>!paymentDocV138(p,j));
+    if(missing.length)return alert('Dokumen wajib belum lengkap:\n- '+missing.join('\n- '));
+    const ok=await confirmActionV133({title:'Simpan dan Ajukan kepada Ketua Harian',message:'Perubahan terakhir akan disimpan. Pastikan Lembar Persetujuan Struktural sudah diunggah.',confirmText:'Ya, Simpan & Ajukan'});if(!ok)return;
+    showLoading('Menyimpan dan mengajukan kepada Ketua Harian...');
+    try{const savedId=await savePaymentFormBeforeSubmitV1648(id);await sendPaymentToKetuaHarianV1648(savedId);}catch(e){alert(e.message||String(e));}finally{hideLoading();}
+  };
+
+  submitPaymentV138=async function(id){
+    if(document.getElementById('payActivityV138'))return window.submitPaymentFormV145(id);
+    return window.submitPaymentFromListV145(id);
+  };
+
+  window.approvePaymentSimpleV146=async function(id,decision){
+    let note='';
+    if(decision==='KEMBALIKAN'){note=prompt('Alasan pengembalian kepada Bidang:')||'';if(!note.trim())return;}
+    const ok=await confirmActionV133({title:decision==='SETUJUI'?'Setujui Pengajuan Pembayaran':'Kembalikan Pengajuan',message:decision==='SETUJUI'?'Pengajuan akan disetujui oleh Ketua Harian dan diteruskan kepada Verifikator Keuangan.':'Pengajuan dikembalikan kepada Bidang untuk diperbaiki.',confirmText:decision==='SETUJUI'?'Ya, Setujui & Teruskan':'Ya, Kembalikan',danger:decision==='KEMBALIKAN'});if(!ok)return;
+    showLoading(decision==='SETUJUI'?'Menyetujui pengajuan...':'Mengembalikan pengajuan...');
+    try{
+      const r=await apiPost({action:'approvePaymentV138',user:currentUser,id_pengajuan:id,keputusan:decision,catatan:note});
+      if(!r.success)throw new Error(r.message||'Gagal memproses persetujuan');
+      await loadPaymentWorkspaceV138(true);renderPaymentWorkspaceV138();showFastCacheNotice(r.message||'Pengajuan berhasil diproses.');
+    }catch(e){alert(e.message||String(e));}finally{hideLoading();}
+  };
+
+  paymentActionButtonsV138=function(p){
+    const role=actualRoleV133(),s=upperV1648(p.status_pengajuan),out=[];
+    if((role==='BIDANG'||role==='ADMIN')&&['DRAFT','PERBAIKAN BIDANG'].includes(s))out.push(`<button onclick="openPaymentFormV138('${esc(p.id_pengajuan)}')">Edit & Lengkapi</button>`,`<button class="btn-green" onclick="submitPaymentFromListV145('${esc(p.id_pengajuan)}')">TTE & Ajukan ke Ketua Harian</button>`,`<button class="btn-danger" onclick="deletePaymentV138('${esc(p.id_pengajuan)}')">Hapus Pengajuan</button>`);
+    if((role==='PIMPINAN'||role==='ADMIN')&&['MENUNGGU PERSETUJUAN PIMPINAN','MENUNGGU PERINTAH KETUA HARIAN'].includes(s))out.push(`<button class="btn-danger" onclick="approvePaymentSimpleV146('${esc(p.id_pengajuan)}','KEMBALIKAN')">Kembalikan</button>`,`<button class="btn-green" onclick="approvePaymentSimpleV146('${esc(p.id_pengajuan)}','SETUJUI')">Setujui & Teruskan</button>`);
+    if((role==='VERIFIKATOR_KEUANGAN'||role==='ADMIN')&&s==='MENUNGGU VERIFIKASI KEUANGAN')out.push(`<button class="btn-danger" onclick="verifyPaymentV138('${esc(p.id_pengajuan)}','KEMBALIKAN')">Kembalikan</button>`,`<button class="btn-green" onclick="verifyPaymentV138('${esc(p.id_pengajuan)}','VALID')">Valid & Teruskan ke Bendahara</button>`);
+    if((role==='BENDAHARA'||role==='ADMIN')&&s==='MENUNGGU PEMBAYARAN BENDAHARA')out.push(`<button class="btn-green" onclick="completePaymentModalV138('${esc(p.id_pengajuan)}')">Catat Pembayaran</button>`);
+    return `<div class="action-group payment-actions-v138">${out.join('')}</div>`;
+  };
+
+  const paymentListBaseV1648=paymentListV138;
+  paymentListV138=function(){
+    let html=paymentListBaseV1648.apply(this,arguments);
+    return String(html)
+      .replace(/Pimpinan\/Ketua Harian/g,'Ketua Harian')
+      .replace(/Antrean Persetujuan Pimpinan/g,'Antrean Persetujuan Ketua Harian')
+      .replace(/persetujuan Pimpinan\/Ketua Harian/g,'persetujuan Ketua Harian');
+  };
+
+  const paymentFormBaseV1648=paymentFormV138;
+  paymentFormV138=function(){
+    let html=paymentFormBaseV1648.apply(this,arguments);
+    html=String(html).replace('<h3>Dokumen Pendukung</h3>','<h3>Dokumen Pendukung</h3><p class="panel-sub"><b>Lembar Persetujuan Struktural wajib diunggah.</b> Gunakan PDF yang sudah ditandatangani pejabat sesuai jalur bidang.</p>');
+    return html;
+  };
+
+  const printPaymentDocBaseV1648=printPaymentDocV138;
+  printPaymentDocV138=function(id,type){
+    if(String(type||'').toUpperCase()!=='VERIFIKASI')return printPaymentDocBaseV1648.apply(this,arguments);
+    const p=paymentByIdV138(id);if(!p)return alert('Pengajuan tidak ditemukan.');
+    const bidang=(paymentWorkspaceV138.bidang||[]).find(b=>String(b.id_bidang)===String(p.id_bidang));
+    const bidangNameText=bidang?.nama_bidang||p.id_bidang||'-',amount=toNumber(p.jumlah_pengajuan),terbilang=p.terbilang||numberWordsV138(amount);
+    const required=[
+      ['Nota Dinas Permohonan Pembayaran dari Kepala Bidang/Bagian',true],
+      [STRUCTURAL_DOC_V1648,!!paymentDocV138(p,STRUCTURAL_DOC_V1648),'Sudah ditandatangani pejabat struktural'],
+      ['Invoice Tagihan',!!paymentDocV138(p,'Invoice Tagihan')],
+      ['Kuitansi / Tanda Terima Pembayaran (bermaterai jika memenuhi syarat)',String(p.reimbursement)!=='1'||!!paymentDocV138(p,'Kuitansi/Tanda Terima Pembayaran'),String(p.reimbursement)==='1'?'Wajib untuk reimbursement':'Tidak dipersyaratkan'],
+      ['Daftar Hadir / Absensi',!!paymentDocV138(p,'Daftar Hadir/Absensi')],
+      ['Fotokopi NPWP & KTP Penerima',!!paymentDocV138(p,'Fotokopi NPWP & KTP Penerima')],
+      ['Rekening Bank Penerima',!!paymentDocV138(p,'Rekening Bank Penerima')],
+      ['LPJ Kegiatan/Foto Dokumentasi',!!paymentDocV138(p,'LPJ Kegiatan/Foto Dokumentasi')],
+      ['Surat Pernyataan Tanggungjawab Mutlak',true],
+      ['Dokumen Pendukung Lain (jika ada)',!!paymentDocV138(p,'Dokumen Pendukung Lain')]
+    ];
+    const body=`<h1 class="doc-title">LEMBAR VERIFIKASI PERMOHONAN PEMBAYARAN</h1><h3 class="center">PB KOTA BOGOR PEKAN OLAHRAGA PROVINSI JAWA BARAT XV 2026</h3><h4>I. IDENTITAS PEMOHON</h4><ul><li>Nama Bidang/Bagian: ${esc(bidangNameText)}</li><li>Nama Kegiatan/Uraian: ${esc(p.nama_kegiatan||'-')}</li><li>Nomor Pengajuan Surat: ${esc(p.nomor_nd_bidang||'-')}</li><li>Tanggal Pengajuan: ${esc(formatDate(p.tanggal_nd_bidang)||'-')}</li><li>Jumlah Anggaran yang Diajukan: ${rupiah(amount)}<br>(Terbilang: ${esc(terbilang)})</li></ul><h4>II. CHECKLIST KELENGKAPAN DOKUMEN (Diperiksa oleh Verifikator Keuangan)</h4><table class="check-table"><thead><tr><th>No.</th><th>Jenis Dokumen Kelengkapan</th><th>Ada</th><th>Tidak Ada</th><th>Catatan</th></tr></thead><tbody>${required.map((x,i)=>`<tr><td class="center">${i+1}</td><td>${esc(x[0])}</td><td class="center">${x[1]?'✓':''}</td><td class="center">${x[1]?'':'✓'}</td><td>${esc(x[2]||(x[1]?'Lengkap':'-'))}</td></tr>`).join('')}</tbody></table><h4>III. HASIL VERIFIKASI DAN REKOMENDASI</h4><p>☒ BERKAS LENGKAP DAN SAH</p><p>☐ DITUNDA / DIKEMBALIKAN</p><p>Alasan Pengembalian: ${esc(p.catatan_verifikasi||'-')}</p><div class="sign-two"><div>PB PORPROV JAWA BARAT XV TAHUN 2026<br>${paymentSignatureV138(p.verifikator_nama,p.verifikator_jabatan||'VERIFIKATOR KEUANGAN',!!p.verifikator_nama)}</div><div>SETUJU DIBAYAR<br>${paymentSignatureV138(p.pimpinan_penyetuju||'[NAMA LENGKAP]','KETUA HARIAN',!!p.pimpinan_penyetuju)}</div></div>`;
+    const w=window.open('about:blank','_blank');if(!w)return alert('Popup diblokir browser. Izinkan popup untuk mencetak dokumen.');
+    w.document.open();w.document.write(paymentPrintShellV138('Lembar Verifikasi Permohonan Pembayaran',body));w.document.close();
+  };
+
+  function updateKetuaHarianHeaderV1648(){
+    if(!currentUser||actualRoleV133()!=='PIMPINAN')return;
+    const info=document.getElementById('userInfo');if(!info)return;
+    info.textContent=`${currentUser.nama||currentUser.username||'Ketua Harian'} - Ketua Harian`;
+    info.title='Akun Ketua Harian';
+  }
+
+  if(typeof renderAll==='function'){
+    const renderAllBaseV1648=renderAll;
+    renderAll=function(){const result=renderAllBaseV1648.apply(this,arguments);updateKetuaHarianHeaderV1648();return result;};
+  }
+  if(typeof loadDashboard==='function'){
+    const loadDashboardBaseV1648=loadDashboard;
+    loadDashboard=async function(){const result=await loadDashboardBaseV1648.apply(this,arguments);updateKetuaHarianHeaderV1648();return result;};
+  }
+  if(typeof renderPaymentWorkspaceV138==='function'){
+    const renderPaymentBaseV1648=renderPaymentWorkspaceV138;
+    renderPaymentWorkspaceV138=function(){
+      const result=renderPaymentBaseV1648.apply(this,arguments);
+      requestAnimationFrame(()=>{
+        document.querySelectorAll('.payment-sop-note-v138').forEach(el=>el.innerHTML='<b>Alur di Sistem:</b> Bidang mengunggah persetujuan struktural → Ketua Harian menyetujui → Verifikator Keuangan memeriksa → Bendahara membayar.');
+      });
+      return result;
+    };
+  }
+
+  window.__SIMPROV_PATCH_VERSION_V1648__=PATCH_VERSION_V1648;
+})();
+
+/* SIMPROV v164.8.1 - Nota Dinas langsung kepada Ketua Harian */
+(function(){
+  'use strict';
+  const printPaymentDocBaseV16481=printPaymentDocV138;
+  printPaymentDocV138=function(id,type){
+    if(String(type||'').toUpperCase()!=='ND_BIDANG')return printPaymentDocBaseV16481.apply(this,arguments);
+    const p=paymentByIdV138(id);if(!p)return alert('Pengajuan tidak ditemukan.');
+    const bidang=(paymentWorkspaceV138.bidang||[]).find(b=>String(b.id_bidang)===String(p.id_bidang));
+    const bidangNameText=bidang?.nama_bidang||p.id_bidang||'-';
+    const rincian=parseJsonV138(p.rincian_json),amount=toNumber(p.jumlah_pengajuan),terbilang=p.terbilang||numberWordsV138(amount),lampCount=paymentDocsV138(id).length+2;
+    const body=`<h1 class="doc-title">NOTA DINAS PERMOHONAN PEMBAYARAN</h1><table class="meta"><tr><td>Kepada Yth</td><td>:</td><td>Ketua Harian PB Porprov</td></tr><tr><td>Dari</td><td>:</td><td>${esc(p.jabatan_pengaju||'Kepala Bidang/Bagian')}</td></tr><tr><td>Nomor</td><td>:</td><td>${esc(p.nomor_nd_bidang||'-')}</td></tr><tr><td>Tanggal</td><td>:</td><td>${esc(formatDate(p.tanggal_nd_bidang)||'-')}</td></tr><tr><td>Sifat</td><td>:</td><td>${esc(p.sifat||'Penting')}</td></tr><tr><td>Lampiran</td><td>:</td><td>${lampCount} Lembar</td></tr><tr><td>Perihal</td><td>:</td><td>Permohonan Pembayaran Kegiatan ${esc(p.nama_kegiatan||'-')}</td></tr></table><div class="body"><p>Dengan hormat,</p><p>Bersama ini kami mengajukan pembayaran kegiatan ${esc(p.nama_kegiatan||'-')} pada Bidang/Bagian ${esc(bidangNameText)} sebesar <b>${rupiah(amount)}</b> (${esc(terbilang)}).</p><table class="meta"><tr><td>Hari / Tanggal</td><td>:</td><td>${esc(p.hari_tanggal_kegiatan||'-')}</td></tr><tr><td>Tempat</td><td>:</td><td>${esc(p.tempat_kegiatan||'-')}</td></tr></table><p>Rincian penggunaan anggaran:</p><table class="simple-table"><thead><tr><th>No.</th><th>Rincian Belanja</th><th>Jumlah</th></tr></thead><tbody>${rincian.map((x,i)=>`<tr><td class="center">${i+1}</td><td>${esc(x.uraian||'-')}</td><td>${rupiah(x.jumlah)}</td></tr>`).join('')}<tr><th colspan="2">Total</th><th>${rupiah(amount)}</th></tr></tbody></table><p>Dokumen yang dilampirkan:</p><ol class="doc-links"><li>${paymentAttachmentLinkV138(p,'Lembar Persetujuan Struktural','Lembar Persetujuan Struktural')}</li><li>${paymentAttachmentLinkV138(p,'Invoice Tagihan','Invoice Tagihan')}</li><li>${paymentAttachmentLinkV138(p,'Kuitansi/Tanda Terima Pembayaran','Kuitansi/Tanda Terima Pembayaran')}</li><li>${paymentAttachmentLinkV138(p,'Daftar Hadir/Absensi','Daftar Hadir/Absensi')}</li><li>${paymentAttachmentLinkV138(p,'Fotokopi NPWP & KTP Penerima','Fotokopi NPWP & KTP Penerima')}</li><li>${paymentAttachmentLinkV138(p,'Rekening Bank Penerima','Rekening Bank Penerima')}</li><li>${paymentAttachmentLinkV138(p,'LPJ Kegiatan/Foto Dokumentasi','LPJ Kegiatan/Foto Dokumentasi')}</li><li>Surat Pernyataan Tanggung Jawab Mutlak</li></ol><p>Demikian permohonan ini disampaikan untuk mendapat persetujuan.</p></div><div class="sign-right">Bogor, ${esc(formatDate(p.tanggal_nd_bidang)||'........ 2026')}<br>PB PORPROV JAWA BARAT XV TAHUN 2026<br>${paymentSignatureV138(p.nama_pengaju,p.jabatan_pengaju,true)}</div>`;
+    const w=window.open('about:blank','_blank');if(!w)return alert('Popup diblokir browser. Izinkan popup untuk mencetak dokumen.');
+    w.document.open();w.document.write(paymentPrintShellV138('Nota Dinas Permohonan Pembayaran',body));w.document.close();
+  };
+})();
+
+/* SIMPROV v164.8.2 - Teks pembayaran ringkas */
+(function(){
+  'use strict';
+  if(typeof renderPaymentWorkspaceV138!=='function')return;
+  const renderPaymentTextBaseV16482=renderPaymentWorkspaceV138;
+  renderPaymentWorkspaceV138=function(){
+    const result=renderPaymentTextBaseV16482.apply(this,arguments);
+    requestAnimationFrame(()=>{
+      const head=document.querySelector('.payment-head-v138 .panel-sub');
+      if(head)head.textContent='Nota Dinas Bidang, SPTJM, persetujuan struktural, verifikasi keuangan, dan bukti pembayaran tercatat di SIMPROV.';
+      document.querySelectorAll('#contentArea h3,#contentArea p,#contentArea small,#contentArea span').forEach(el=>{
+        if(el.children.length)return;
+        const text=String(el.textContent||'');
+        if(text.includes('Pimpinan/Ketua Harian'))el.textContent=text.replace(/Pimpinan\/Ketua Harian/g,'Ketua Harian');
+        if(text.includes('persetujuan Pimpinan'))el.textContent=text.replace(/persetujuan Pimpinan/g,'persetujuan Ketua Harian');
+      });
+    });
+    return result;
+  };
+})();
