@@ -16258,3 +16258,43 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V16411__=PATCH_VERSION_V16411;
 })();
+
+/* =========================================================
+   SIMPROV v164.12 - Tombol Buat Pengajuan hanya setelah kegiatan dipilih
+   ========================================================= */
+(function(){
+  const PATCH_VERSION_V16412='164.12';
+
+  function syncPaymentCreateButtonV16412(){
+    const activity=document.getElementById('payActivityV138');
+    const button=document.getElementById('paySaveButtonV139');
+    if(!activity||!button)return;
+
+    const isEditing=!!String(typeof paymentEditIdV138!=='undefined'?paymentEditIdV138:'').trim()
+      || /perubahan/i.test(String(button.textContent||''));
+    const hasActivity=!!String(activity.value||'').trim();
+    const shouldShow=isEditing||hasActivity;
+
+    button.hidden=!shouldShow;
+    button.style.display=shouldShow?'':'none';
+    if(shouldShow)button.disabled=false;
+
+    const group=button.closest('.action-group');
+    if(group&&!isEditing)group.style.display=shouldShow?'':'none';
+  }
+
+  if(typeof renderPaymentWorkspaceV138==='function'){
+    const renderPaymentWorkspaceBaseV16412=renderPaymentWorkspaceV138;
+    renderPaymentWorkspaceV138=function(){
+      const result=renderPaymentWorkspaceBaseV16412.apply(this,arguments);
+      setTimeout(syncPaymentCreateButtonV16412,0);
+      return result;
+    };
+  }
+
+  document.addEventListener('change',function(event){
+    if(event?.target?.id==='payActivityV138')setTimeout(syncPaymentCreateButtonV16412,0);
+  });
+
+  window.__SIMPROV_PATCH_VERSION_V16412__=PATCH_VERSION_V16412;
+})();
