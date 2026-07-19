@@ -15312,3 +15312,116 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V1644__=PATCH_VERSION_V1644;
 })();
+
+/* =========================================================
+   SIMPROV v164.5 - Fix Refresh Antrean Pimpinan & Reset Layout Card
+   ---------------------------------------------------------
+   Baseline: SIMPROV v164.4.
+   - Refresh Pimpinan selalu mengirim user aktif dan tidak tertahan
+     flag request background lama.
+   - Layout dua baris hanya berlaku pada menu Perencanaan untuk
+     BIDANG/VERIFIKATOR_PBJ. Menu lain dikembalikan ke grid horizontal.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V1645='164.5';
+  let pimpinanRefreshPromiseV1645=null;
+
+  function upperV1645(value){return String(value||'').trim().toUpperCase();}
+  function roleV1645(){return typeof actualRoleV133==='function'?actualRoleV133():upperV1645(currentUser?.role);}
+  function isPlanningTwoRowV1645(){
+    return String(activeMenu||'')==='Perencanaan'&&['BIDANG','VERIFIKATOR_PBJ'].includes(roleV1645());
+  }
+
+  function normalizeSummaryLayoutV1645(){
+    const wrap=document.getElementById('summaryCards');
+    if(!wrap)return;
+    if(isPlanningTwoRowV1645())return;
+
+    /* Class v164.4 sebelumnya tetap menempel saat pindah menu dan membuat
+       seluruh kartu tersusun vertikal. Hapus hanya class khusus Perencanaan. */
+    wrap.classList.remove('summary-planning-groups-v1644');
+
+    /* Pengaman untuk state lama/cached DOM: jika wrapper dua baris masih ada,
+       keluarkan kembali seluruh card ke grid utama tanpa mengubah isi card. */
+    const groups=[...wrap.querySelectorAll(':scope > .summary-group-v1644')];
+    if(groups.length){
+      const fragment=document.createDocumentFragment();
+      groups.forEach(group=>{
+        [...group.children].forEach(card=>fragment.appendChild(card));
+        group.remove();
+      });
+      wrap.appendChild(fragment);
+    }
+
+    wrap.querySelectorAll('.summary-group-v1644,.summary-status-v1644,.summary-budget-v1644').forEach(el=>{
+      el.classList.remove('summary-group-v1644','summary-status-v1644','summary-budget-v1644');
+    });
+  }
+
+  if(typeof renderSummary==='function'){
+    const renderSummaryBaseV1645=renderSummary;
+    renderSummary=function(){
+      const result=renderSummaryBaseV1645.apply(this,arguments);
+      normalizeSummaryLayoutV1645();
+      return result;
+    };
+  }
+
+  if(typeof setMenu==='function'){
+    const setMenuBaseV1645=setMenu;
+    setMenu=function(){
+      const result=setMenuBaseV1645.apply(this,arguments);
+      requestAnimationFrame(normalizeSummaryLayoutV1645);
+      return result;
+    };
+  }
+
+  async function fetchPimpinanWorkspaceV1645(){
+    if(pimpinanRefreshPromiseV1645)return pimpinanRefreshPromiseV1645;
+    pimpinanRefreshPromiseV1645=(async()=>{
+      const response=await apiPost({action:'getPaymentWorkspaceV138',user:currentUser});
+      if(!response?.success)throw new Error(response?.message||'Gagal memperbarui data pengajuan pembayaran.');
+
+      paymentWorkspaceV138={...response,loaded:true,loading:false};
+      if(dashboard){
+        dashboard.pengajuanPembayaranV138=[...(response.pengajuan||[])];
+      }
+
+      if(typeof renderMenu==='function')renderMenu();
+      if(typeof renderSummary==='function')renderSummary();
+      if(roleV1645()==='PIMPINAN'&&['Antrean Persetujuan Pengajuan','Riwayat Persetujuan Pengajuan'].includes(String(activeMenu||''))){
+        if(typeof renderPimpinanPaymentPageV1644==='function'){
+          renderPimpinanPaymentPageV1644(activeMenu);
+        }else if(typeof renderContent==='function'){
+          renderContent();
+        }
+      }
+      return true;
+    })().finally(()=>{pimpinanRefreshPromiseV1645=null;});
+    return pimpinanRefreshPromiseV1645;
+  }
+
+  window.refreshPimpinanPaymentsV1644=async function(){
+    const buttons=[...document.querySelectorAll('.pimpinan-payment-refresh-v1644')];
+    buttons.forEach(btn=>{
+      btn.disabled=true;
+      if(!btn.dataset.oldText)btn.dataset.oldText=btn.textContent||'Refresh';
+      btn.textContent='Memperbarui...';
+    });
+    try{
+      await fetchPimpinanWorkspaceV1645();
+      if(typeof showFastCacheNotice==='function')showFastCacheNotice('Data antrean sudah diperbarui.');
+    }catch(error){
+      alert(error?.message||String(error));
+    }finally{
+      document.querySelectorAll('.pimpinan-payment-refresh-v1644').forEach(btn=>{
+        btn.disabled=false;
+        btn.textContent=btn.dataset.oldText||'Refresh';
+      });
+    }
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V1645__=PATCH_VERSION_V1645;
+})();
