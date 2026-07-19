@@ -1,4 +1,4 @@
-const API_URL = ""https://script.google.com/macros/s/AKfycbxzXUNJ-HrMnh5WCEotHq7gZIfkEVvS8V9vdEvdttJWn-EslQiD8QthZZ4AzZzr3Lte/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxzXUNJ-HrMnh5WCEotHq7gZIfkEVvS8V9vdEvdttJWn-EslQiD8QthZZ4AzZzr3Lte/exec";
 
 let currentUser = null;
 let dashboard = null;
@@ -14394,21 +14394,22 @@ verifikasiRealisasiNonV112=async function(id,mode){
 (function(){
   const PATCH_VERSION_V165='165.0';
 
-  /* Role lama/variasi penulisan tetap dikenali. Prefix ID akun menjadi
-     fallback aman untuk akun yang dibuat dari Manajemen Akses. */
+  /* Role server tetap menjadi sumber utama. Prefix ID hanya dipakai sebagai
+     fallback untuk cache akun lama yang belum memuat role hasil sesi v165.1. */
   const actualRoleBaseV165=typeof actualRoleV133==='function'?actualRoleV133:null;
   function roleTokenV165(value){return String(value||'').trim().toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'');}
   actualRoleV133=function(user=currentUser){
-    const role=roleTokenV165(user?.role||user?.jenis_role||user?.tipe_akun||user?.role_akses);
+    const base=actualRoleBaseV165?actualRoleBaseV165(user):'BIDANG';
+    if(base&&base!=='BIDANG')return base;
+    const explicit=[user?.role,user?.jenis_role,user?.tipe_akun,user?.role_akses,user?.nama_role].map(roleTokenV165).filter(Boolean).join('_');
     const id=roleTokenV165(user?.id_user);
-    const combined=role+'_'+id;
-    if(/VERIF.*KEUANGAN|KEUANGAN.*VERIF|(^|_)KEU(_|$)|USR_KEU_/.test(combined))return 'VERIFIKATOR_KEUANGAN';
-    if(/VERIF.*PBJ|PBJ.*VERIF|(^|_)PBJ(_|$)|USR_PBJ_/.test(combined))return 'VERIFIKATOR_PBJ';
-    if(/BENDAHARA|USR_BEN_/.test(combined))return 'BENDAHARA';
-    if(/PIMPINAN|SEKDA|KETUA_UMUM|KETUA_HARIAN|USR_PIM_/.test(combined))return 'PIMPINAN';
-    if(/SUPER_ADMIN|SUPERADMIN|(^|_)ADMIN(_|$)/.test(combined))return 'ADMIN';
-    if(/AUDITOR/.test(combined))return 'AUDITOR';
-    return actualRoleBaseV165?actualRoleBaseV165(user):'BIDANG';
+    if(/VERIFIKATOR_KEUANGAN|VERIF_KEUANGAN|VERIFIKASI_KEUANGAN/.test(explicit)||/^USR_KEU(_|$)/.test(id)||/^KEU(_|$)/.test(id))return 'VERIFIKATOR_KEUANGAN';
+    if(/VERIFIKATOR_PBJ|VERIF_PBJ/.test(explicit)||/^USR_PBJ(_|$)/.test(id)||/^PBJ(_|$)/.test(id))return 'VERIFIKATOR_PBJ';
+    if(/BENDAHARA/.test(explicit)||/^USR_BEN(_|$)/.test(id)||/^BEN(_|$)/.test(id))return 'BENDAHARA';
+    if(/PIMPINAN|SEKDA|KETUA_UMUM|KETUA_HARIAN/.test(explicit)||/^USR_PIM(_|$)/.test(id))return 'PIMPINAN';
+    if(/SUPER_ADMIN|SUPERADMIN|(^|_)ADMIN(_|$)/.test(explicit)||/^USR_ADM(_|$)/.test(id))return 'ADMIN';
+    if(/AUDITOR/.test(explicit)||/^USR_AUD(_|$)/.test(id))return 'AUDITOR';
+    return base||'BIDANG';
   };
 
   window.paymentSourceTabV165=window.paymentSourceTabV165||'PENGADAAN_LANGSUNG';
