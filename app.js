@@ -14275,3 +14275,114 @@ verifikasiRealisasiNonV112=async function(id,mode){
     syncHonorTaxV112=function(sel){const out=syncHonorTaxV163Base.apply(this,arguments);syncNonPaymentRowV155(sel);return out;};
   }
 })();
+
+/* =========================================================
+   SIMPROV v164 - Realtime Card Surat & Navigasi Paket Pembayaran
+   ---------------------------------------------------------
+   1. Card ringkasan Surat mengikuti state workspace terbaru.
+   2. Pengajuan Pembayaran menampilkan ID Paket berupa teks klik.
+   3. Tombol Lihat Paket membuka paket sumber tanpa reload penuh.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V164='164.0';
+
+  function syncSuratSummaryV164(){
+    if(String(activeMenu||'')!=='Surat')return;
+    try{
+      if(typeof renderSummary==='function')renderSummary();
+    }catch(e){console.warn('SURAT_SUMMARY_V164',e);}
+  }
+
+  /* renderSurat dipanggil setelah simpan, disposisi, hapus, perpindahan tab,
+     dan sinkronisasi workspace. Card di luar contentArea harus ikut dirender. */
+  if(typeof renderSuratV133==='function'){
+    const renderSuratBaseV164=renderSuratV133;
+    renderSuratV133=function(){
+      const result=renderSuratBaseV164.apply(this,arguments);
+      requestAnimationFrame(syncSuratSummaryV164);
+      return result;
+    };
+  }
+
+  /* Saat respons terbaru selesai diterima, perbarui card langsung dari state
+     yang sama. Tidak ada pemanggilan getDashboard atau reload halaman. */
+  if(typeof loadSuratWorkspaceV133==='function'){
+    const loadSuratBaseV164=loadSuratWorkspaceV133;
+    loadSuratWorkspaceV133=async function(){
+      const result=await loadSuratBaseV164.apply(this,arguments);
+      syncSuratSummaryV164();
+      return result;
+    };
+  }
+
+  function paymentActivityV164(id){
+    id=String(id||'');
+    if(typeof paymentActivityV138==='function'){
+      const activity=paymentActivityV138(id);if(activity)return activity;
+    }
+    return (paymentWorkspaceV138?.kegiatan||[]).find(k=>String(k.id_kegiatan||'')===id)
+      ||(dashboard?.perencanaan||[]).find(k=>String(k.id_kegiatan||'')===id)
+      ||null;
+  }
+
+  function packageMenuV164(k){
+    const category=String(k?.kategori||'').toUpperCase();
+    if((typeof isNonKategoriV81==='function'&&isNonKategoriV81(k))||category.includes('NON PENGADAAN'))return 'Non Pengadaan';
+    if(typeof isPipelineV94==='function'&&isPipelineV94(k))return 'Pengadaan Langsung';
+    return 'Pencairan';
+  }
+
+  window.openPaymentPackageV164=function(id,event){
+    if(event){event.preventDefault?.();event.stopPropagation?.();}
+    id=String(id||'').trim();
+    if(!id)return alert('ID paket tidak tersedia.');
+    const activity=paymentActivityV164(id);
+    if(!activity)return alert('Paket sumber pengajuan tidak ditemukan pada data yang dapat Anda akses.');
+
+    paketAktifV95=id;
+    paketSearchV95='';
+    activeMenu=packageMenuV164(activity);
+    if(typeof renderMenu==='function')renderMenu();
+    if(typeof renderSummary==='function')renderSummary();
+    if(typeof renderContent==='function')renderContent();
+    if(typeof updateIdentityHeaderV77==='function')updateIdentityHeaderV77();
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+
+  /* Transform hasil renderer aktif supaya seluruh tombol/status/riwayat dari
+     patch lama tetap dipertahankan. Hanya menambahkan navigasi paket. */
+  if(typeof paymentCardV138==='function'){
+    const paymentCardBaseV164=paymentCardV138;
+    paymentCardV138=function(p){
+      const html=paymentCardBaseV164.apply(this,arguments);
+      if(!p?.id_kegiatan)return html;
+      try{
+        const holder=document.createElement('div');holder.innerHTML=html;
+        const card=holder.querySelector('.payment-card-v138');if(!card)return html;
+        const summaryInfo=card.querySelector('summary > div');
+        const title=summaryInfo?.querySelector(':scope > b');
+        if(summaryInfo&&title&&!summaryInfo.querySelector('.payment-package-id-v164')){
+          const line=document.createElement('div');line.className='payment-title-line-v164';
+          summaryInfo.insertBefore(line,title);line.appendChild(title);
+          const idLink=document.createElement('button');idLink.type='button';idLink.className='payment-package-id-v164';
+          idLink.textContent='ID Paket: '+String(p.id_kegiatan);
+          idLink.title='Buka paket '+String(p.id_kegiatan);
+          idLink.setAttribute('onclick',`openPaymentPackageV164('${esc(p.id_kegiatan)}',event)`);
+          line.appendChild(idLink);
+        }
+        const body=card.querySelector('.payment-card-body-v138');
+        const meta=body?.querySelector('.payment-meta-v138');
+        if(body&&!body.querySelector('.payment-view-package-v164')){
+          const actions=document.createElement('div');actions.className='payment-package-actions-v164';
+          actions.innerHTML=`<button type="button" class="btn-soft payment-view-package-v164" onclick="openPaymentPackageV164('${esc(p.id_kegiatan)}',event)">Lihat Paket</button>`;
+          if(meta)meta.insertAdjacentElement('afterend',actions);else body.insertBefore(actions,body.firstChild);
+        }
+        return holder.innerHTML;
+      }catch(e){console.warn('PAYMENT_CARD_V164',e);return html;}
+    };
+  }
+
+  window.__SIMPROV_PATCH_VERSION_V164__=PATCH_VERSION_V164;
+})();
