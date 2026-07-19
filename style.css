@@ -3516,3 +3516,23 @@ button.plan-id-link-v161:focus-visible{
 .real-summary-v1643 b{font-size:15px;color:#0e456f}
 .real-form-v1643{margin:14px 0}
 @media(max-width:760px){.real-summary-v1643{grid-template-columns:1fr}.stage-real-v1643{grid-column:1/-1}}
+
+/* =========================================================
+   SIMPROV v164.4 - Pimpinan, TTE, badge realtime, dan card 2 baris
+   ========================================================= */
+.payment-source-tabs-v1644 button{background:#f8fcff!important;color:#123e67!important;border:1px solid #bad6e8!important}
+.payment-source-tabs-v1644 button b,.payment-source-tabs-v1644 button small{color:inherit!important}
+.payment-source-tabs-v1644 button.active{background:linear-gradient(135deg,#e8f5ff,#f5fbff)!important;color:#0b4f83!important;border-color:#2b91ca!important;box-shadow:0 5px 14px rgba(17,95,146,.14)!important}
+.payment-source-tabs-v1644 button em{background:#fff!important;color:#17577f!important;border:1px solid #b9d6e9!important}
+.payment-source-tabs-v1644 button.active em{background:#237eb5!important;color:#fff!important;border-color:#237eb5!important}
+.pimpinan-payment-panel-v1644 .payment-list-v138{margin-top:10px}
+.tte-box-v1644{text-align:center!important;min-width:94px}
+.tte-box-v1644 .tte-time-v139{display:block!important;text-align:center!important;margin-top:3px!important}
+.payment-signature-v1644{width:100%;text-align:center!important}
+.summary-planning-groups-v1644{display:flex!important;flex-direction:column!important;gap:12px!important}
+.summary-group-v1644{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;width:100%}
+.summary-group-v1644 .summary-card{min-width:0}
+.summary-status-v1644{padding-bottom:2px}
+.summary-budget-v1644{padding-top:12px;border-top:1px dashed rgba(21,87,127,.22)}
+@media(max-width:1000px){.summary-group-v1644{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.summary-group-v1644{grid-template-columns:1fr}.payment-source-tabs-v1644{grid-template-columns:1fr!important}}
