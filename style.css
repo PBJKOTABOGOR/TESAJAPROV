@@ -3571,3 +3571,83 @@ button.plan-id-link-v161:focus-visible{
     grid-template-columns:1fr!important;
   }
 }
+
+/* SIMPROV v164.13 */
+.proc-bulk-toolbar-v16413{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;padding:12px 14px;border:1px solid #cfe1ef;border-radius:12px;background:#f6fbff}
+.proc-bulk-toolbar-v16413 label{display:flex;align-items:center;gap:8px;font-weight:700;color:#163f63}
+.proc-bulk-toolbar-v16413 input[type="checkbox"]{width:18px;height:18px;accent-color:#159447}
+.proc-bulk-toolbar-v16413 small{color:#63778b}
+.proc-bulk-summary-v16413{padding:6px 10px;border-radius:999px;background:#e8f4ff;color:#14517d;font-size:12px}
+.proc-bulk-cell-v16413,.proc-bulk-head-v16413{width:64px;text-align:center!important}
+.proc-bulk-choice-v16413{display:inline-grid;place-items:center;width:30px;height:30px;border:1px solid #b9d5e8;border-radius:8px;background:#fff;cursor:pointer}
+.proc-bulk-choice-v16413 input{position:absolute;opacity:0;pointer-events:none}
+.proc-bulk-choice-v16413 span{font-size:16px;color:#8aa0b3;font-weight:900}
+.proc-bulk-choice-v16413:has(input:checked){background:#e3f8eb;border-color:#3ab269}
+.proc-bulk-choice-v16413:has(input:checked) span{color:#158444}
+@media(max-width:760px){.proc-bulk-toolbar-v16413{align-items:stretch}.proc-bulk-toolbar-v16413 .btn-green{width:100%}}
+
+/* SIMPROV v164.14 - pencarian ringan dan filter bidang */
+.fast-payment-filter-v16414,
+.fast-generated-filter-v16414 .toolbar{
+  display:grid;
+  grid-template-columns:minmax(260px,1fr) minmax(190px,280px) auto;
+  gap:12px;
+  align-items:end;
+  margin:12px 0 14px;
+  padding:12px;
+  border:1px solid #d5e5f3;
+  border-radius:14px;
+  background:#f8fbfe;
+}
+.fast-search-field-v16414,
+.fast-filter-field-v16414{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+}
+.fast-search-field-v16414>span,
+.fast-filter-field-v16414>span{
+  color:#4d6279;
+  font-size:12px;
+  font-weight:800;
+}
+.fast-search-field-v16414 input,
+.fast-filter-field-v16414 select,
+.fast-package-field-wrap-v16414 select{
+  width:100%;
+  min-height:40px;
+  padding:9px 12px;
+  border:1px solid #cbddec;
+  border-radius:10px;
+  background:#fff;
+  color:#153b65;
+  outline:none;
+}
+.fast-search-field-v16414 input:focus,
+.fast-filter-field-v16414 select:focus,
+.fast-package-field-wrap-v16414 select:focus{
+  border-color:#2387c7;
+  box-shadow:0 0 0 3px rgba(35,135,199,.12);
+}
+.fast-result-v16414{
+  align-self:center;
+  white-space:nowrap;
+  color:#60758d;
+  font-size:12px;
+  font-weight:700;
+}
+.fast-result-v16414 span{color:#0e548d;font-size:15px}
+.fast-package-field-wrap-v16414{min-width:210px}
+.fast-package-field-wrap-v16414 .fast-filter-field-v16414>span{display:none}
+.paket-toolbar-v95{gap:10px;align-items:center;flex-wrap:wrap}
+.paket-toolbar-v95>input{min-width:260px;flex:1}
+.payment-card-v138[style*="display: none"],
+.paket-row-v95[style*="display: none"],
+.non-card-v83[style*="display: none"]{display:none!important}
+@media(max-width:800px){
+  .fast-payment-filter-v16414,
+  .fast-generated-filter-v16414 .toolbar{grid-template-columns:1fr}
+  .fast-package-field-wrap-v16414{width:100%;min-width:0}
+  .paket-toolbar-v95>input{width:100%;min-width:0}
+}
