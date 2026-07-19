@@ -15427,10 +15427,10 @@ verifikasiRealisasiNonV112=async function(id,mode){
 })();
 
 /* =========================================================
-   SIMPROV v164.6 - Header Bidang mengikuti Manajemen Akses
+   SIMPROV v164.7 - Urutan Header Pimpinan dan Bidang
    ---------------------------------------------------------
    - Untuk role BIDANG, identitas header memakai:
-     Nama Bidang - Nama Pimpinan Bidang.
+     Nama Pimpinan Bidang - Nama Bidang.
    - Nama pimpinan dibaca dari data bidang yang sama dengan
      pengaturan "Nama Pimpinan Setiap Bidang" milik Admin.
    - Role lain tidak diubah.
@@ -15438,7 +15438,7 @@ verifikasiRealisasiNonV112=async function(id,mode){
 (function(){
   'use strict';
 
-  const PATCH_VERSION_V1646='164.6';
+  const PATCH_VERSION_V1646='164.7';
 
   function currentRoleV1646(){
     if(typeof actualRoleV133==='function')return actualRoleV133();
@@ -15482,8 +15482,8 @@ verifikasiRealisasiNonV112=async function(id,mode){
       '-'
     ).trim();
 
-    info.textContent=`${namaBidang||'-'} - ${namaPimpinan||'-'}`;
-    info.title='Nama bidang dan nama pimpinan bidang sesuai Manajemen Akses';
+    info.textContent=`${namaPimpinan||'-'} - ${namaBidang||'-'}`;
+    info.title='Nama pimpinan bidang dan nama bidang sesuai Manajemen Akses';
   }
 
   if(typeof renderAll==='function'){
