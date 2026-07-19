@@ -15425,3 +15425,87 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V1645__=PATCH_VERSION_V1645;
 })();
+
+/* =========================================================
+   SIMPROV v164.6 - Header Bidang mengikuti Manajemen Akses
+   ---------------------------------------------------------
+   - Untuk role BIDANG, identitas header memakai:
+     Nama Bidang - Nama Pimpinan Bidang.
+   - Nama pimpinan dibaca dari data bidang yang sama dengan
+     pengaturan "Nama Pimpinan Setiap Bidang" milik Admin.
+   - Role lain tidak diubah.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V1646='164.6';
+
+  function currentRoleV1646(){
+    if(typeof actualRoleV133==='function')return actualRoleV133();
+    return String(currentUser?.role||'').trim().toUpperCase();
+  }
+
+  function currentBidangRecordV1646(){
+    const id=String(currentUser?.id_bidang||'').trim();
+    const rows=Array.isArray(dashboard?.bidangs)
+      ? dashboard.bidangs
+      : (Array.isArray(dashboard?.bidang)?dashboard.bidang:[]);
+    if(id){
+      const found=rows.find(row=>String(row?.id_bidang||'').trim()===id);
+      if(found)return found;
+    }
+    const currentName=String(currentUser?.nama_bidang||currentUser?.bidang||'').trim().toLowerCase();
+    if(currentName){
+      const found=rows.find(row=>String(row?.nama_bidang||'').trim().toLowerCase()===currentName);
+      if(found)return found;
+    }
+    return null;
+  }
+
+  function updateBidangHeaderV1646(){
+    if(!currentUser||currentRoleV1646()!=='BIDANG')return;
+    const info=document.getElementById('userInfo');
+    if(!info)return;
+
+    const bidang=currentBidangRecordV1646();
+    const namaBidang=String(
+      bidang?.nama_bidang||
+      currentUser?.nama_bidang||
+      currentUser?.bidang||
+      currentUser?.nama||
+      currentUser?.id_bidang||
+      '-'
+    ).trim();
+    const namaPimpinan=String(
+      bidang?.nama_pimpinan_bidang||
+      currentUser?.nama_pimpinan_bidang||
+      '-'
+    ).trim();
+
+    info.textContent=`${namaBidang||'-'} - ${namaPimpinan||'-'}`;
+    info.title='Nama bidang dan nama pimpinan bidang sesuai Manajemen Akses';
+  }
+
+  if(typeof renderAll==='function'){
+    const renderAllBaseV1646=renderAll;
+    renderAll=function(){
+      const result=renderAllBaseV1646.apply(this,arguments);
+      updateBidangHeaderV1646();
+      return result;
+    };
+  }
+
+  /* Pengaman ketika data dashboard selesai dimuat secara asinkron tetapi
+     render utama tidak dipanggil ulang oleh patch lama. */
+  if(typeof loadDashboard==='function'){
+    const loadDashboardBaseV1646=loadDashboard;
+    loadDashboard=async function(){
+      const result=await loadDashboardBaseV1646.apply(this,arguments);
+      updateBidangHeaderV1646();
+      return result;
+    };
+  }
+
+  window.updateBidangHeaderV1646=updateBidangHeaderV1646;
+  window.__SIMPROV_PATCH_VERSION_V1646__=PATCH_VERSION_V1646;
+})();
