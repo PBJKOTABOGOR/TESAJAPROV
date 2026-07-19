@@ -3379,3 +3379,46 @@ button.plan-id-link-v161:focus-visible{
 @media(max-width:1350px){.summary-grid.summary-six-v163{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 @media(max-width:900px){.summary-grid.summary-six-v163{grid-template-columns:repeat(2,minmax(0,1fr))!important}.paket-id-head-v163,.paket-id-cell-v163{min-width:130px;width:130px}}
 @media(max-width:680px){.summary-grid.summary-six-v163{grid-template-columns:1fr!important}.non-pay-row-v163 .non-row-calculation-v163{grid-column:1/-1;grid-template-columns:1fr}.paket-id-head-v163,.paket-id-cell-v163{min-width:120px;width:120px}}
+
+/* =========================================================
+   SIMPROV v164 - ID paket & tombol lihat paket pembayaran
+   ========================================================= */
+.payment-title-line-v164{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px 12px;
+  min-width:0;
+}
+.payment-title-line-v164>b{min-width:0}
+.payment-package-id-v164{
+  appearance:none;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  padding:0!important;
+  margin:0!important;
+  color:#1767a5!important;
+  font:inherit;
+  font-size:.82rem;
+  font-weight:700;
+  line-height:1.35;
+  text-decoration:none;
+  cursor:pointer;
+}
+.payment-package-id-v164:hover,
+.payment-package-id-v164:focus-visible{
+  color:#0b4776!important;
+  text-decoration:underline;
+  outline:none;
+}
+.payment-package-actions-v164{
+  display:flex;
+  justify-content:flex-end;
+  margin:12px 0 4px;
+}
+.payment-view-package-v164{white-space:nowrap}
+@media(max-width:700px){
+  .payment-title-line-v164{align-items:flex-start;flex-direction:column;gap:4px}
+  .payment-package-actions-v164{justify-content:flex-start}
+}
