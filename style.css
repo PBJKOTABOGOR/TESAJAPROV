@@ -3503,3 +3503,16 @@ button.plan-id-link-v161:focus-visible{
 @media(max-width:700px){
   .payment-source-tabs-v1641,.payment-source-tabs-v1642{grid-template-columns:1fr!important}
 }
+
+/* SIMPROV v164.3 - Tahap Realisasi Pengadaan Langsung */
+.payment-auto-open-v1643{scroll-margin-top:18px;box-shadow:0 12px 30px rgba(17,91,143,.14)}
+.stage-real-v1643{border-color:#8ec8ee;background:linear-gradient(135deg,#f4fbff,#eef8ff)}
+.stage-real-v1643.waiting{border-color:#f1c462;background:linear-gradient(135deg,#fffdf5,#fff8df)}
+.stage-real-v1643.done{border-color:#83d39c;background:linear-gradient(135deg,#f2fff6,#eafbef)}
+.stage-real-v1643.locked{opacity:.72;background:#f7f9fb}
+.real-summary-v1643{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.real-summary-v1643>div{border:1px solid #d6e5f0;border-radius:12px;padding:11px 13px;background:#f8fbfd;display:flex;flex-direction:column;gap:4px}
+.real-summary-v1643 span{font-size:11px;color:#64788a;text-transform:uppercase;font-weight:700;letter-spacing:.03em}
+.real-summary-v1643 b{font-size:15px;color:#0e456f}
+.real-form-v1643{margin:14px 0}
+@media(max-width:760px){.real-summary-v1643{grid-template-columns:1fr}.stage-real-v1643{grid-column:1/-1}}
