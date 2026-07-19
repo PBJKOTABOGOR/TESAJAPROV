@@ -3536,3 +3536,38 @@ button.plan-id-link-v161:focus-visible{
 .summary-budget-v1644{padding-top:12px;border-top:1px dashed rgba(21,87,127,.22)}
 @media(max-width:1000px){.summary-group-v1644{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.summary-group-v1644{grid-template-columns:1fr}.payment-source-tabs-v1644{grid-template-columns:1fr!important}}
+
+/* =========================================================
+   SIMPROV v164.5 - Layout kartu horizontal selain Perencanaan
+   ========================================================= */
+#summaryCards.summary-grid:not(.summary-planning-groups-v1644){
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:14px!important;
+  width:100%;
+}
+#summaryCards.summary-grid:not(.summary-planning-groups-v1644).summary-six-v163{
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+}
+#summaryCards.summary-grid:not(.summary-planning-groups-v1644)>.summary-card{
+  width:auto!important;
+  min-width:0!important;
+}
+@media(max-width:1350px){
+  #summaryCards.summary-grid:not(.summary-planning-groups-v1644),
+  #summaryCards.summary-grid:not(.summary-planning-groups-v1644).summary-six-v163{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  }
+}
+@media(max-width:900px){
+  #summaryCards.summary-grid:not(.summary-planning-groups-v1644),
+  #summaryCards.summary-grid:not(.summary-planning-groups-v1644).summary-six-v163{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+}
+@media(max-width:620px){
+  #summaryCards.summary-grid:not(.summary-planning-groups-v1644),
+  #summaryCards.summary-grid:not(.summary-planning-groups-v1644).summary-six-v163{
+    grid-template-columns:1fr!important;
+  }
+}
