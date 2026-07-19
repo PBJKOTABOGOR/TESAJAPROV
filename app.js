@@ -10140,7 +10140,7 @@ async function approvePaymentV138(id,keputusan,extra={}){const ok=await confirmA
 function issueSP2ModalV138(id){const p=paymentByIdV138(id),today=new Date().toISOString().slice(0,10),kh=paymentWorkspaceV138.identity?.ketua_harian||currentUser?.nama||'';paymentModalV138('Surat Perintah Pemindahbukuan',`<div class="form-grid"><div class="field"><label>Nomor SP2 *</label><input id="paySp2NoV138" placeholder=".../PB-PORPROV/SP2/.../2026"></div><div class="field"><label>Tanggal Perintah *</label><input id="paySp2DateV138" type="date" value="${today}"></div><div class="field"><label>Nama Rekening Sumber *</label><input id="paySourceNameV138" placeholder="Nama rekening PB Porprov"></div><div class="field"><label>Nomor Rekening Sumber *</label><input id="paySourceNoV138" placeholder="Nomor rekening"></div><div class="field span-2"><label>Nama Ketua Harian</label><input id="payKhNameV138" value="${esc(kh)}"></div></div><div class="modal-actions"><button class="btn-soft" onclick="document.getElementById('paymentActionModalV138').remove()">Batal</button><button class="btn-green" onclick="issueSP2V138('${esc(id)}')">Terbitkan SP2</button></div>`);}
 async function issueSP2V138(id){const data={nomor_sp2:document.getElementById('paySp2NoV138').value.trim(),tanggal_perintah:document.getElementById('paySp2DateV138').value,nama_rekening_sumber:document.getElementById('paySourceNameV138').value.trim(),nomor_rekening_sumber:document.getElementById('paySourceNoV138').value.trim(),ketua_harian_nama:document.getElementById('payKhNameV138').value.trim()};if(!data.nomor_sp2||!data.tanggal_perintah||!data.nama_rekening_sumber||!data.nomor_rekening_sumber)return alert('Lengkapi seluruh data SP2.');const ok=await confirmActionV133({title:'Terbitkan Surat Perintah Pemindahbukuan',message:'Ketua Harian akan memerintahkan Bendahara Umum melakukan pembayaran sesuai rincian rekening tujuan.',confirmText:'Ya, Terbitkan'});if(!ok)return;showLoading('Menerbitkan SP2...');try{const r=await apiPost({action:'issuePaymentOrderV138',user:currentUser,id_pengajuan:id,...data});if(!r.success)throw new Error(r.message||'Gagal menerbitkan SP2');document.getElementById('paymentActionModalV138')?.remove();await loadPaymentWorkspaceV138(true);renderPaymentWorkspaceV138();alert(r.message);}catch(e){alert(e.message||String(e));}finally{hideLoading();}}
 function completePaymentModalV138(id){const today=new Date().toISOString().slice(0,10);paymentModalV138('Catat Pembayaran Bendahara',`<div class="form-grid"><div class="field"><label>Tanggal Pembayaran *</label><input id="payPaidDateV138" type="date" value="${today}"></div><div class="field"><label>Bukti Pembayaran * (maks. 2 MB)</label><input id="payPaidFileV138" type="file" accept=".pdf,.jpg,.jpeg,.png"></div><div class="field span-2"><label>Catatan Pembayaran</label><textarea id="payPaidNoteV138" rows="3"></textarea></div></div><div class="modal-actions"><button class="btn-soft" onclick="document.getElementById('paymentActionModalV138').remove()">Batal</button><button class="btn-green" onclick="completePaymentV138('${esc(id)}')">Simpan Pembayaran</button></div>`);}
-async function completePaymentV138(id){const file=document.getElementById('payPaidFileV138')?.files?.[0];if(!file)return alert('Bukti pembayaran wajib dipilih.');if(file.size>MAX_UPLOAD_BYTES_V133)return alert('Bukti pembayaran maksimal 2 MB.');const ok=await confirmActionV133({title:'Selesaikan Pembayaran',message:'Bukti pembayaran akan disimpan dan paket dikunci sebagai SELESAI.',confirmText:'Ya, Selesaikan'});if(!ok)return;showLoading('Mengunggah bukti dan menyelesaikan pembayaran...');try{const r=await apiPost({action:'completePaymentV138',user:currentUser,id_pengajuan:id,tanggal_bayar:document.getElementById('payPaidDateV138').value,catatan:document.getElementById('payPaidNoteV138').value.trim(),file_name:file.name,mime_type:file.type,file_base64:await fileToBase64(file)});if(!r.success)throw new Error(r.message||'Gagal menyelesaikan pembayaran');document.getElementById('paymentActionModalV138')?.remove();await loadPaymentWorkspaceV138(true);await loadDashboard(false);suratTabV133='PEMBAYARAN';renderAll();renderPaymentWorkspaceV138();alert(r.message);}catch(e){alert(e.message||String(e));}finally{hideLoading();}}
+async function completePaymentV138(id){const file=document.getElementById('payPaidFileV138')?.files?.[0];if(!file)return alert('Bukti pembayaran wajib dipilih.');if(file.size>MAX_UPLOAD_BYTES_V133)return alert('Bukti pembayaran maksimal 2 MB.');const ok=await confirmActionV133({title:'Selesaikan Pembayaran',message:'Bukti pembayaran akan disimpan dan status paket akan diperbarui sesuai tahap berikutnya.',confirmText:'Ya, Selesaikan'});if(!ok)return;showLoading('Mengunggah bukti dan menyelesaikan pembayaran...');try{const r=await apiPost({action:'completePaymentV138',user:currentUser,id_pengajuan:id,tanggal_bayar:document.getElementById('payPaidDateV138').value,catatan:document.getElementById('payPaidNoteV138').value.trim(),file_name:file.name,mime_type:file.type,file_base64:await fileToBase64(file)});if(!r.success)throw new Error(r.message||'Gagal menyelesaikan pembayaran');document.getElementById('paymentActionModalV138')?.remove();await loadPaymentWorkspaceV138(true);await loadDashboard(false);suratTabV133='PEMBAYARAN';renderAll();renderPaymentWorkspaceV138();alert(r.message);}catch(e){alert(e.message||String(e));}finally{hideLoading();}}
 async function deletePaymentV138(id){const ok=await confirmActionV133({title:'Hapus Draft Pengajuan',message:'Draft dan seluruh dokumen pendukung yang sudah diunggah akan dihapus permanen.',confirmText:'Ya, Hapus',danger:true});if(!ok)return;showLoading('Menghapus draft...');try{const r=await apiPost({action:'deletePaymentDraftV138',user:currentUser,id_pengajuan:id});if(!r.success)throw new Error(r.message||'Gagal menghapus');paymentEditIdV138='';paymentTabV138='DAFTAR';await loadPaymentWorkspaceV138(true);renderPaymentWorkspaceV138();alert(r.message);}catch(e){alert(e.message||String(e));}finally{hideLoading();}}
 
 function renderPaymentWorkspaceV138(){
@@ -14569,6 +14569,10 @@ verifikasiRealisasiNonV112=async function(id,mode){
       setCompleteProgressV1641(100,'Bukti pembayaran tersimpan. Pembayaran selesai.');
       const payment=typeof paymentByIdV138==='function'?paymentByIdV138(id):null;
       if(payment){Object.assign(payment,{status_pengajuan:'SELESAI',tahap_aktif:'SELESAI',tanggal_bayar:document.getElementById('payPaidDateV138')?.value||new Date().toISOString().slice(0,10),catatan_bayar:document.getElementById('payPaidNoteV138')?.value.trim()||'',bukti_bayar_nama:file.name,bukti_bayar_url:r.url_file||payment.bukti_bayar_url||'',updated_at:new Date().toISOString()});}
+      if(r.status_paket&&payment?.id_kegiatan){
+        const activity=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(payment.id_kegiatan));
+        if(activity)activity.status_pencairan=r.status_paket;
+      }
       document.getElementById('paymentActionModalV138')?.remove();
       paymentTabV138='DAFTAR';
       if(typeof renderPaymentWorkspaceV138==='function')renderPaymentWorkspaceV138();
@@ -14820,4 +14824,221 @@ verifikasiRealisasiNonV112=async function(id,mode){
   };
 
   window.__SIMPROV_PATCH_VERSION_V1642__=PATCH_VERSION_V1642;
+})();
+
+/* =========================================================
+   SIMPROV v164.3 - Tahap Realisasi Pengadaan Langsung
+   ---------------------------------------------------------
+   1. Klik Tahap Pembayaran langsung membuka kartu pengajuan terkait.
+   2. Pengadaan Langsung memiliki Tahap 8: Input Nilai Realisasi.
+   3. Nilai HPS tidak pernah dipakai sebagai nilai realisasi.
+   4. Update state lokal tanpa reload dashboard penuh.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V1643='164.3';
+  const PAYMENT_DONE_V1643=['SELESAI','DIBAYARKAN','TERBAYAR'];
+  let paymentAutoOpenActivityV1643='';
+  let realisasiPLBusyV1643=false;
+
+  function upperV1643(value){return String(value||'').trim().toUpperCase();}
+  function paymentRowsForActivityV1643(id){
+    id=String(id||'');
+    const workspace=Array.isArray(paymentWorkspaceV138?.pengajuan)?paymentWorkspaceV138.pengajuan:[];
+    const summary=Array.isArray(dashboard?.pengajuanPembayaranV138)?dashboard.pengajuanPembayaranV138:[];
+    const merged=[...workspace,...summary].filter((row,index,all)=>String(row?.id_kegiatan||'')===id&&all.findIndex(x=>String(x?.id_pengajuan||'')===String(row?.id_pengajuan||''))===index);
+    return merged.sort((a,b)=>(Date.parse(b?.updated_at||b?.created_at||'')||0)-(Date.parse(a?.updated_at||a?.created_at||'')||0));
+  }
+  function latestPaymentV1643(id){return paymentRowsForActivityV1643(id)[0]||null;}
+  function paymentDonePLV1643(id){const p=latestPaymentV1643(id);return !!p&&PAYMENT_DONE_V1643.includes(upperV1643(p.status_pengajuan));}
+  function paymentAmountPLV1643(id){return toNumber(latestPaymentV1643(id)?.jumlah_pengajuan||0);}
+  function latestRealPLV1643(id){
+    const rows=(dashboard?.realisasi||[]).filter(r=>String(r.id_kegiatan||'')===String(id)&&upperV1643(r.kategori)!=='NON PENGADAAN'&&!['DIBATALKAN','BATAL'].includes(upperV1643(r.status)));
+    return rows.length?rows[rows.length-1]:null;
+  }
+  function realApprovedPLV1643(real){return !!real&&['FINAL','DISETUJUI','SELESAI','SAH'].includes(upperV1643(real.status));}
+  function normalizePrematurePLV1643(){
+    (dashboard?.perencanaan||[]).forEach(k=>{
+      let pipeline=false;try{pipeline=typeof isPipelineV94==='function'&&isPipelineV94(k);}catch(e){}
+      if(!pipeline||upperV1643(k.status_pencairan)!=='SELESAI'||!paymentDonePLV1643(k.id_kegiatan)||realApprovedPLV1643(latestRealPLV1643(k.id_kegiatan)))return;
+      k.status_pencairan='MENUNGGU INPUT REALISASI';
+    });
+  }
+  function ownerPLV1643(k){return !canManage()&&!isReviewer()&&String(k?.id_bidang||'')===String(currentUser?.id_bidang||'');}
+  function verifierPLV1643(){return !!((typeof isPBJVerifierV65==='function'&&isPBJVerifierV65())||canManage());}
+
+  /* Tahap 7 tetap membuka workspace pembayaran, tetapi kartu paket terkait
+     langsung diekspansi agar pengguna tidak perlu mencarinya lagi. */
+  if(typeof openTahapPLV123==='function'){
+    const openTahapBaseV1643=openTahapPLV123;
+    openTahapPLV123=function(id,no){
+      if(Number(no)===7){
+        paymentAutoOpenActivityV1643=String(id||'');
+        window.paymentAutoOpenActivityV1643=paymentAutoOpenActivityV1643;
+        try{window.paymentSourceTabV1641='PENGADAAN_LANGSUNG';}catch(e){}
+      }
+      return openTahapBaseV1643.apply(this,arguments);
+    };
+  }
+
+  if(typeof paymentCardV138==='function'){
+    const paymentCardBaseV1643=paymentCardV138;
+    paymentCardV138=function(p){
+      const html=paymentCardBaseV1643.apply(this,arguments);
+      if(!paymentAutoOpenActivityV1643||String(p?.id_kegiatan||'')!==String(paymentAutoOpenActivityV1643))return html;
+      try{
+        const holder=document.createElement('div');holder.innerHTML=html;
+        const card=holder.querySelector('.payment-card-v138');
+        if(card){card.setAttribute('open','');card.dataset.paymentActivityV1643=String(p.id_kegiatan||'');card.classList.add('payment-auto-open-v1643');}
+        return holder.innerHTML;
+      }catch(e){return html;}
+    };
+  }
+
+  function focusAutoOpenedPaymentV1643(){
+    if(!paymentAutoOpenActivityV1643)return;
+    const card=[...document.querySelectorAll('.payment-card-v138')].find(el=>String(el.dataset.paymentActivityV1643||'')===String(paymentAutoOpenActivityV1643));
+    if(!card)return;
+    card.open=true;
+    requestAnimationFrame(()=>card.scrollIntoView({behavior:'smooth',block:'start'}));
+    paymentAutoOpenActivityV1643='';window.paymentAutoOpenActivityV1643='';
+  }
+  if(typeof renderPaymentWorkspaceV138==='function'){
+    const renderPaymentBaseV1643=renderPaymentWorkspaceV138;
+    renderPaymentWorkspaceV138=function(){const result=renderPaymentBaseV1643.apply(this,arguments);requestAnimationFrame(focusAutoOpenedPaymentV1643);return result;};
+  }
+
+  function stage8CardV1643(k,paymentDone,real){
+    const approved=realApprovedPLV1643(real),pending=!!real&&!approved,unlocked=paymentDone||approved;
+    const cls=approved?'done':pending?'waiting':unlocked?'open':'locked';
+    const status=approved?'Selesai':pending?'Menunggu Verifikasi':unlocked?'Siap Diisi':'Belum Dibuka';
+    const description=approved?`Nilai realisasi ${rupiah(real.nilai_realisasi)} telah disetujui.`:pending?`Nilai ${rupiah(real.nilai_realisasi)} menunggu pemeriksaan PBJ.`:unlocked?'Pembayaran selesai. Isi nilai realisasi sebenarnya.':'Dibuka setelah pembayaran selesai.';
+    return `<article class="stage-card-v123 stage-real-v1643 ${cls}"><div class="stage-card-head-v123"><span>8</span><small>${esc(status)}</small></div><h4>Input Nilai Realisasi</h4><p>${description}</p><button type="button" class="btn-soft" ${unlocked?`onclick="openRealisasiTahapPLV1643('${esc(k.id_kegiatan)}')"`:'disabled'}>${unlocked?(approved?'Lihat Tahap':'Kelola Tahap'):'Belum Dibuka'}</button></article>`;
+  }
+
+  function patchDetailPLV1643(k){
+    const paymentDone=paymentDonePLV1643(k.id_kegiatan),real=latestRealPLV1643(k.id_kegiatan),approved=realApprovedPLV1643(real);
+    const grid=document.querySelector('#contentArea .stage-grid-v123');
+    if(!grid)return;
+
+    const stageCards=[...grid.querySelectorAll('.stage-card-v123')];
+    const paymentCard=stageCards.find(card=>String(card.querySelector('.stage-card-head-v123 span')?.textContent||'').trim()==='7');
+    if(paymentCard){
+      paymentCard.classList.remove('done','waiting','open','locked','repair');
+      paymentCard.classList.add(paymentDone?'done':'open');
+      const status=paymentCard.querySelector('.stage-card-head-v123 small');if(status)status.textContent=paymentDone?'Selesai':'Dalam Proses';
+      const info=paymentCard.querySelector('p');if(info)info.textContent=paymentDone?'Pembayaran dan bukti pembayaran telah dicatat.':'Kelola pengajuan hingga pembayaran selesai.';
+    }
+    grid.querySelector('.stage-real-v1643')?.remove();
+    grid.insertAdjacentHTML('beforeend',stage8CardV1643(k,paymentDone,real));
+
+    const states=typeof tahapStatePLV123==='function'?tahapStatePLV123(k):[];
+    const docDone=states.slice(0,6).filter(x=>x.valid).length;
+    const completed=docDone+(paymentDone?1:0)+(approved?1:0),pct=Math.round(completed/8*100);
+    const h3=document.querySelector('#contentArea .progress-head-v123 h3');
+    const desc=document.querySelector('#contentArea .progress-head-v123 p');
+    const circle=document.querySelector('#contentArea .progress-circle-v123');
+    const circleText=circle?.querySelector('b');
+    const line=document.querySelector('#contentArea .progress-line-v123 i');
+    if(h3)h3.textContent=approved?'Paket Selesai':paymentDone?'Tahap 8 — Input Nilai Realisasi':'Tahap 7 — Pembayaran';
+    if(desc)desc.textContent=`${completed} dari 8 tahapan selesai.`;
+    if(circle)circle.style.setProperty('--p',pct);
+    if(circleText)circleText.textContent=pct+'%';
+    if(line)line.style.width=pct+'%';
+
+    document.querySelectorAll('#contentArea .summary-pl-v123 span').forEach(label=>{if(upperV1643(label.textContent)==='NILAI REALISASI / KONTRAK')label.textContent='Nilai Realisasi';});
+    const sub=document.querySelector('#contentArea .stage-grid-v123')?.closest('section')?.querySelector('.panel-sub');
+    if(sub)sub.textContent='Tahap 1–6 memuat dokumen pengadaan, Tahap 7 memuat proses pembayaran, dan Tahap 8 mencatat nilai realisasi sebenarnya.';
+  }
+
+  if(typeof renderSummary==='function'){
+    const renderSummaryBaseV1643=renderSummary;
+    renderSummary=function(){normalizePrematurePLV1643();return renderSummaryBaseV1643.apply(this,arguments);};
+  }
+  if(typeof renderPengadaanLangsungV95==='function'){
+    const renderPLListBaseV1643=renderPengadaanLangsungV95;
+    renderPengadaanLangsungV95=function(){normalizePrematurePLV1643();return renderPLListBaseV1643.apply(this,arguments);};
+  }
+
+  if(typeof renderDetailPengadaanLangsungV123==='function'){
+    const renderDetailBaseV1643=renderDetailPengadaanLangsungV123;
+    renderDetailPengadaanLangsungV123=function(k){
+      const paymentDone=paymentDonePLV1643(k?.id_kegiatan),real=latestRealPLV1643(k?.id_kegiatan),premature=upperV1643(k?.status_pencairan)==='SELESAI'&&paymentDone&&!realApprovedPLV1643(real);
+      const view=premature?Object.assign({},k,{status_pencairan:'MENUNGGU INPUT REALISASI'}):k;
+      const result=renderDetailBaseV1643(view);
+      patchDetailPLV1643(k);
+      return result;
+    };
+    renderDetailPengadaanLangsungV95=function(k){return renderDetailPengadaanLangsungV123(k);};
+  }
+
+  function realisasiStageBodyV1643(k){
+    const payment=latestPaymentV1643(k.id_kegiatan),paymentDone=paymentDonePLV1643(k.id_kegiatan),real=latestRealPLV1643(k.id_kegiatan),approved=realApprovedPLV1643(real);
+    const pagu=toNumber(k.jumlah),paid=toNumber(payment?.jumlah_pengajuan||0),hps=toNumber((typeof processPLV123==='function'?processPLV123(k.id_kegiatan):{}).nilai_hps||0);
+    const summary=`<div class="real-summary-v1643"><div><span>Pagu Perencanaan</span><b>${rupiah(pagu)}</b></div><div><span>Nilai HPS</span><b>${rupiah(hps)}</b></div><div><span>Nilai Pembayaran</span><b>${rupiah(paid)}</b></div></div>`;
+    if(!paymentDone)return `${summary}<div class="notice-v103">Tahap Input Nilai Realisasi dibuka setelah Bendahara menyelesaikan pembayaran.</div>`;
+    if(ownerPLV1643(k)){
+      if(!real)return `${summary}<div class="notice-v103">Masukkan nilai realisasi sebenarnya. Nilai HPS hanya perkiraan dan tidak otomatis menjadi realisasi.</div><div class="form-grid real-form-v1643"><div class="field"><label>Nilai Realisasi (Rp) *</label><input id="plRealNilaiV1643" inputmode="numeric" data-max="${pagu}" oninput="onRupiahInputV96(this)" placeholder="Maks. ${rupiah(pagu)}"></div><div class="field"><label>Tanggal Realisasi *</label><input id="plRealTanggalV1643" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>Nomor Bukti</label><input id="plRealBuktiV1643" placeholder="Nomor kuitansi/invoice/bukti bayar"></div><div class="field span-2"><label>Keterangan</label><input id="plRealKetV1643" placeholder="Keterangan tambahan (opsional)"></div></div><button class="btn-green" type="button" onclick="simpanRealisasiPLV1643('${esc(k.id_kegiatan)}')">Simpan Nilai Realisasi</button>`;
+      if(approved)return `${summary}<div class="selesai-banner-v96">Nilai realisasi <b>${rupiah(real.nilai_realisasi)}</b> telah disetujui dan masuk ke Total Realisasi.</div>`;
+      return `${summary}<div class="notice-v103"><b>Nilai realisasi tercatat: ${rupiah(real.nilai_realisasi)}</b><br>Menunggu pemeriksaan Verifikator PBJ.</div>`;
+    }
+    if(verifierPLV1643()){
+      if(!real)return `${summary}<p class="small">Menunggu User Bidang mengisi nilai realisasi.</p>`;
+      if(approved)return `${summary}<div class="selesai-banner-v96">Nilai realisasi <b>${rupiah(real.nilai_realisasi)}</b> telah disetujui. Paket selesai.</div>`;
+      return `${summary}<div class="notice-v103"><b>Nilai yang dicatat User Bidang: ${rupiah(real.nilai_realisasi)}</b></div><div class="form-grid real-form-v1643"><div class="field"><label>Nilai Realisasi Hasil Pemeriksaan (Rp)</label><input id="plRealReviewV1643" inputmode="numeric" data-original="${toNumber(real.nilai_realisasi)}" data-max="${pagu}" value="${Number(toNumber(real.nilai_realisasi)).toLocaleString('id-ID')}" oninput="onRupiahInputV96(this)"></div><div class="field span-2"><label>Catatan Koreksi</label><input id="plRealReviewNoteV1643" placeholder="Wajib apabila nilai diubah"></div></div><button class="btn-green" type="button" onclick="simpanPemeriksaanRealisasiPLV1643('${esc(k.id_kegiatan)}')">Simpan Pemeriksaan</button>`;
+    }
+    return `${summary}<p class="small">Nilai realisasi dicatat User Bidang dan diperiksa Verifikator PBJ.</p>`;
+  }
+
+  window.openRealisasiTahapPLV1643=function(id){
+    const k=kegiatanById(id);if(!k)return alert('Paket tidak ditemukan.');
+    modalShellPLV123('Tahap 8 — Input Nilai Realisasi',k.nama_kegiatan,realisasiStageBodyV1643(k));
+  };
+
+  window.simpanRealisasiPLV1643=async function(id){
+    if(realisasiPLBusyV1643)return;
+    const k=kegiatanById(id);if(!k)return alert('Paket tidak ditemukan.');
+    const nilai=valRupiahV96('plRealNilaiV1643'),pagu=toNumber(k.jumlah),tanggal=document.getElementById('plRealTanggalV1643')?.value||'';
+    if(nilai<=0)return alert('Nilai realisasi wajib diisi.');
+    if(pagu>0&&nilai>pagu)return alert(`Nilai realisasi tidak boleh melebihi Pagu Perencanaan ${rupiah(pagu)}.`);
+    if(!tanggal)return alert('Tanggal realisasi wajib diisi.');
+    if(!confirm(`Simpan nilai realisasi ${rupiah(nilai)}?`))return;
+    realisasiPLBusyV1643=true;showLoading('Menyimpan nilai realisasi...');
+    try{
+      const r=await apiPost({action:'catatRealisasiPengadaanLangsungV1643',user:currentUser,id_kegiatan:id,nilai_realisasi:nilai,tanggal_realisasi:tanggal,nomor_bukti:document.getElementById('plRealBuktiV1643')?.value.trim()||'',keterangan:document.getElementById('plRealKetV1643')?.value.trim()||''});
+      if(!r?.success)throw new Error(r?.message||'Gagal menyimpan nilai realisasi.');
+      dashboard.realisasi=Array.isArray(dashboard.realisasi)?dashboard.realisasi:[];
+      dashboard.realisasi.push(r.realisasi||{id_realisasi:'LOCAL-'+Date.now(),id_kegiatan:id,id_bidang:k.id_bidang,kategori:'PENGADAAN',nilai_realisasi:nilai,tanggal_realisasi:tanggal,status:'MENUNGGU VERIFIKASI'});
+      k.status_pencairan=r.status||'MENUNGGU VERIFIKASI REALISASI';
+      writeDashboardCache(dashboard);closeModalPLV123();renderDetailPengadaanLangsungV123(k);if(typeof renderSummary==='function')renderSummary();
+      alert(r.message||'Nilai realisasi berhasil disimpan.');
+    }catch(e){alert(e.message||String(e));}
+    finally{hideLoading();realisasiPLBusyV1643=false;}
+  };
+
+  window.simpanPemeriksaanRealisasiPLV1643=async function(id){
+    if(realisasiPLBusyV1643)return;
+    const k=kegiatanById(id),real=latestRealPLV1643(id);if(!k||!real)return alert('Nilai realisasi belum tersedia.');
+    const nilai=valRupiahV96('plRealReviewV1643'),awal=toNumber(real.nilai_realisasi),pagu=toNumber(k.jumlah),changed=Math.abs(nilai-awal)>0.5;
+    let note=(document.getElementById('plRealReviewNoteV1643')?.value||'').trim();
+    if(nilai<=0)return alert('Nilai realisasi wajib diisi.');
+    if(pagu>0&&nilai>pagu)return alert(`Nilai realisasi tidak boleh melebihi Pagu Perencanaan ${rupiah(pagu)}.`);
+    if(changed&&!note)return alert('Catatan koreksi wajib diisi karena nilai realisasi diubah.');
+    const decision=changed?'PERBAIKI':'SETUJUI';
+    if(!confirm(changed?`Simpan koreksi nilai realisasi menjadi ${rupiah(nilai)}?`:`Setujui nilai realisasi ${rupiah(nilai)}?`))return;
+    realisasiPLBusyV1643=true;showLoading('Menyimpan pemeriksaan realisasi...');
+    try{
+      const r=await apiPost({action:'verifikasiRealisasiPengadaanV119',user:currentUser,id_kegiatan:id,keputusan:decision,nilai_realisasi:nilai,catatan:note});
+      if(!r?.success)throw new Error(r?.message||'Gagal memeriksa nilai realisasi.');
+      real.status='FINAL';if(changed)real.nilai_realisasi=nilai;real.keterangan=changed?note:real.keterangan;
+      k.status_pencairan=r.status||'SELESAI';
+      if(typeof recomputeApprovedRealisasiLocalV158==='function')recomputeApprovedRealisasiLocalV158();
+      writeDashboardCache(dashboard);closeModalPLV123();renderDetailPengadaanLangsungV123(k);if(typeof renderSummary==='function')renderSummary();if(typeof renderMenu==='function')renderMenu();
+      alert(r.message||'Nilai realisasi berhasil disetujui.');
+    }catch(e){alert(e.message||String(e));}
+    finally{hideLoading();realisasiPLBusyV1643=false;}
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V1643__=PATCH_VERSION_V1643;
 })();
