@@ -16298,3 +16298,440 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V16412__=PATCH_VERSION_V16412;
 })();
+
+/* =========================================================
+   SIMPROV v164.13 - Validasi Dokumen Terpilih & Kesiapan Pembayaran
+   ========================================================= */
+(function(){
+  'use strict';
+  const PATCH_VERSION_V16413='164.13';
+  const PAYMENT_READY_DOCS_V16413=[
+    'Hasil Survey Harga',
+    'Spesifikasi Teknis dan HPS',
+    'Kuitansi / Nota / Invoice',
+    'Berita Acara Pemeriksaan Barang/Pekerjaan',
+    'Berita Acara Serah Terima',
+    'Faktur Pembelian'
+  ];
+
+  function roleV16413(){
+    return String(typeof actualRoleV133==='function'?actualRoleV133():(currentUser?.role||'')).trim().toUpperCase();
+  }
+  function isPbjVerifierV16413(){return roleV16413()==='VERIFIKATOR_PBJ';}
+  function docKeyV16413(value){
+    if(typeof dokKeyV94==='function')return dokKeyV94(value);
+    return String(value||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+  }
+  function selectedProcChecksV16413(id){
+    return [...document.querySelectorAll('.proc-bulk-check-v16413')]
+      .filter(input=>String(input.dataset.groupId||'')===String(id)&&input.checked&&!input.disabled);
+  }
+  function allProcChecksV16413(id){
+    return [...document.querySelectorAll('.proc-bulk-check-v16413')]
+      .filter(input=>String(input.dataset.groupId||'')===String(id)&&!input.disabled);
+  }
+
+  window.toggleProcChecksV16413=function(id,checked){
+    allProcChecksV16413(id).forEach(input=>{input.checked=!!checked;});
+    const count=document.getElementById('procBulkCountV16413_'+String(id).replace(/[^A-Za-z0-9_-]/g,'_'));
+    if(count)count.textContent=String(selectedProcChecksV16413(id).length);
+  };
+
+  document.addEventListener('change',function(event){
+    const input=event?.target;
+    if(!input?.classList?.contains('proc-bulk-check-v16413'))return;
+    const id=String(input.dataset.groupId||'');
+    const count=document.getElementById('procBulkCountV16413_'+id.replace(/[^A-Za-z0-9_-]/g,'_'));
+    if(count)count.textContent=String(selectedProcChecksV16413(id).length);
+  });
+
+  window.bulkValidateProcDocsV16413=async function(id,button){
+    if(!isPbjVerifierV16413()&&roleV16413()!=='ADMIN')return alert('Aksi ini hanya tersedia untuk Verifikator PBJ.');
+    const selected=selectedProcChecksV16413(id);
+    if(!selected.length)return alert('Centang dokumen yang akan dinyatakan valid.');
+    const ids=selected.map(input=>String(input.value||'')).filter(Boolean);
+    const names=selected.map(input=>String(input.dataset.docName||'Dokumen')).filter(Boolean);
+    const preview=names.slice(0,6).map(name=>'• '+name).join('\n')+(names.length>6?`\n• dan ${names.length-6} dokumen lainnya`: '');
+    const message=`${ids.length} dokumen yang dipilih akan dinyatakan VALID. Dokumen yang tidak dipilih tetap pada status sekarang.\n\n${preview}\n\nPastikan seluruh file sudah diperiksa.`;
+    const ok=typeof confirmActionV133==='function'
+      ?await confirmActionV133({title:'Validasi Dokumen Terpilih',message,confirmText:'Ya, Validasi'})
+      :confirm(message);
+    if(!ok)return;
+
+    if(button){button.disabled=true;button.dataset.busy='1';button.textContent='Memvalidasi...';}
+    showLoading('Memvalidasi dokumen terpilih...');
+    try{
+      const result=await apiPost({action:'bulkValidateDokumenV16413',user:currentUser,id_kegiatan:id,ids});
+      if(!result?.success)throw new Error(result?.message||'Validasi dokumen gagal');
+      dashboard.dokumen=dashboard.dokumen||[];
+      (result.dokumen||[]).forEach(update=>{
+        const local=dashboard.dokumen.find(doc=>String(doc.id_dokumen)===String(update.id_dokumen));
+        if(local)Object.assign(local,update);else dashboard.dokumen.push(update);
+      });
+      const kegiatan=typeof kegiatanById==='function'?kegiatanById(id):(dashboard.perencanaan||[]).find(k=>String(k.id_kegiatan)===String(id));
+      if(kegiatan&&result.status_paket)kegiatan.status_pencairan=result.status_paket;
+      if(typeof writeDashboardCache==='function')writeDashboardCache(dashboard);
+      if(typeof renderContent==='function')renderContent();
+      if(typeof renderSummary==='function')renderSummary();
+      if(typeof showFastCacheNotice==='function')showFastCacheNotice(result.message||`${ids.length} dokumen berhasil divalidasi.`);
+      else alert(result.message||`${ids.length} dokumen berhasil divalidasi.`);
+    }catch(error){alert(error.message||String(error));}
+    finally{
+      hideLoading();
+      if(button){button.disabled=false;button.dataset.busy='0';button.textContent='Validasi Dokumen Terpilih';}
+    }
+  };
+
+  /* Tambahkan pilihan massal pada tabel dokumen aktif. Tombol Perbaikan
+     satuan tetap tersedia; dokumen yang tidak dicentang tidak berubah. */
+  if(typeof dokumenTableV95==='function'){
+    const dokumenTableBaseV16413=dokumenTableV95;
+    dokumenTableV95=function(k,jenisList,ctx){
+      const html=dokumenTableBaseV16413.apply(this,arguments);
+      if((ctx||'PGD')!=='PGD')return html;
+      try{
+        const holder=document.createElement('div');holder.innerHTML=html;
+        const role=roleV16413();
+
+        /* Verifikator PBJ hanya memeriksa dokumen; tombol pembuatan HPS
+           tetap tersedia untuk User Bidang dan Admin. */
+        if(role==='VERIFIKATOR_PBJ'){
+          holder.querySelectorAll('button').forEach(btn=>{
+            if(/^BUAT DI SISTEM$/i.test(String(btn.textContent||'').trim()))btn.remove();
+          });
+          holder.querySelectorAll('.document-helper-actions-v149').forEach(box=>{
+            box.querySelectorAll('.document-helper-separator-v149').forEach(separator=>separator.remove());
+            if(!box.querySelector('button,a'))box.textContent='-';
+          });
+        }
+
+        if(!['VERIFIKATOR_PBJ','ADMIN'].includes(role))return holder.innerHTML;
+        const table=holder.querySelector('table');
+        if(!table)return holder.innerHTML;
+        const docs=(dashboard?.dokumen||[])
+          .filter(doc=>String(doc.id_kegiatan)===String(k?.id_kegiatan))
+          .sort((a,b)=>Number(a._row||0)-Number(b._row||0));
+        const latest={};docs.forEach(doc=>{latest[docKeyV16413(doc.jenis_dokumen)]=doc;});
+        const rows=[...table.querySelectorAll('tbody tr')];
+        let selectable=0;
+        rows.forEach(row=>{
+          const cells=row.querySelectorAll('td');
+          if(!cells.length)return;
+          const label=String(cells[0].childNodes[0]?.textContent||cells[0].textContent||'').replace(/\s+/g,' ').trim();
+          const doc=latest[docKeyV16413(label)];
+          const waiting=!!doc&&typeof canVerifyDocumentNowV64==='function'&&canVerifyDocumentNowV64(doc);
+          const selectCell=document.createElement('td');
+          selectCell.className='proc-bulk-cell-v16413';
+          if(waiting&&doc.id_dokumen){
+            selectable++;
+            selectCell.innerHTML=`<label class="proc-bulk-choice-v16413" title="Pilih ${esc(label)}"><input class="proc-bulk-check-v16413" type="checkbox" data-group-id="${esc(k.id_kegiatan)}" data-doc-name="${esc(label)}" value="${esc(doc.id_dokumen)}"><span>✓</span></label>`;
+          }else selectCell.innerHTML='<span class="muted">-</span>';
+          row.insertBefore(selectCell,row.firstChild);
+        });
+        const headerRow=table.querySelector('thead tr');
+        if(headerRow){
+          const th=document.createElement('th');th.className='proc-bulk-head-v16413';th.textContent='Pilih';
+          headerRow.insertBefore(th,headerRow.firstChild);
+        }
+        if(selectable){
+          const safeId=String(k.id_kegiatan).replace(/[^A-Za-z0-9_-]/g,'_');
+          const toolbar=document.createElement('div');toolbar.className='proc-bulk-toolbar-v16413';
+          toolbar.innerHTML=`<label><input type="checkbox" onchange="toggleProcChecksV16413('${esc(k.id_kegiatan)}',this.checked)"> Pilih semua yang menunggu</label><div class="proc-bulk-summary-v16413"><b id="procBulkCountV16413_${safeId}">0</b> dipilih</div><button class="btn-green" type="button" onclick="bulkValidateProcDocsV16413('${esc(k.id_kegiatan)}',this)">Validasi Dokumen Terpilih</button><small>Dokumen yang tidak dipilih tidak berubah.</small>`;
+          const wrap=table.closest('.table-wrap')||table.parentElement;
+          wrap.insertAdjacentElement('beforebegin',toolbar);
+        }
+        table.classList.add('proc-bulk-table-v16413');
+        return holder.innerHTML;
+      }catch(error){console.warn('Patch dokumen v164.13 gagal diterapkan',error);return html;}
+    };
+  }
+
+  function isBelanjaLangsungV16413(activity){
+    return String(activity?.metode_pemilihan||activity?.metode||'').trim().toUpperCase()==='BELANJA LANGSUNG';
+  }
+  function uploadedDocsV16413(id){
+    const map={};
+    (dashboard?.dokumen||[]).filter(doc=>String(doc.id_kegiatan)===String(id)).forEach(doc=>{
+      if(doc.url_file||doc.nama_file)map[docKeyV16413(doc.jenis_dokumen)]=doc;
+    });
+    return map;
+  }
+  function syncPaymentEligibilityLocalV16413(){
+    if(!paymentWorkspaceV138?.kegiatan||!dashboard?.dokumen)return;
+    paymentWorkspaceV138.kegiatan.forEach(activity=>{
+      if(!isBelanjaLangsungV16413(activity))return;
+      if(String(activity.status_perencanaan||'').toUpperCase()!=='DISETUJUI')return;
+      const map=uploadedDocsV16413(activity.id_kegiatan);
+      const missing=PAYMENT_READY_DOCS_V16413.filter(name=>!map[docKeyV16413(name)]);
+      activity.payment_ready=!missing.length;
+      activity.payment_valid_process=PAYMENT_READY_DOCS_V16413.length-missing.length;
+      activity.payment_required_process=PAYMENT_READY_DOCS_V16413.length;
+      activity.payment_reason=missing.length
+        ?`Unggah dokumen wajib sampai Faktur Pembelian (${activity.payment_valid_process}/${PAYMENT_READY_DOCS_V16413.length} sudah diunggah).`
+        :'Dokumen sampai Faktur Pembelian sudah lengkap.';
+    });
+  }
+
+  if(typeof paymentFormV138==='function'){
+    const paymentFormBaseV16413=paymentFormV138;
+    paymentFormV138=function(){syncPaymentEligibilityLocalV16413();return paymentFormBaseV16413.apply(this,arguments);};
+  }
+  if(typeof renderPaymentWorkspaceV138==='function'){
+    const renderPaymentWorkspaceBaseV16413=renderPaymentWorkspaceV138;
+    renderPaymentWorkspaceV138=function(){syncPaymentEligibilityLocalV16413();return renderPaymentWorkspaceBaseV16413.apply(this,arguments);};
+  }
+
+  window.__SIMPROV_PATCH_VERSION_V16413__=PATCH_VERSION_V16413;
+})();
+
+/* =========================================================
+   SIMPROV v164.14 - Pencarian Ringan dan Filter Bidang
+   ---------------------------------------------------------
+   1. Pencarian daftar bekerja lokal tanpa render setiap huruf.
+   2. Pencarian Perencanaan memakai jeda singkat agar input lancar.
+   3. Filter Bidang untuk Verifikator PBJ pada tiga menu paket.
+   4. Search dan Filter Bidang pada pembayaran serta riwayat.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16414='164.14';
+  const searchStateV16414=window.searchStateV16414||{};
+  const bidangStateV16414=window.bidangStateV16414||{};
+  window.searchStateV16414=searchStateV16414;
+  window.bidangStateV16414=bidangStateV16414;
+
+  let planSearchTimerV16414=null;
+  let enhanceFrameV16414=0;
+  let observerBusyV16414=false;
+
+  function normV16414(value){
+    return String(value==null?'':value).toLowerCase().replace(/\s+/g,' ').trim();
+  }
+  function roleV16414(){
+    return String(typeof actualRoleV133==='function'?actualRoleV133():(currentUser?.role||'')).trim().toUpperCase();
+  }
+  function menuKeyV16414(){return String(activeMenu||'').trim()||'DEFAULT';}
+  function isPlanningV16414(){return menuKeyV16414()==='Perencanaan';}
+  function isPbjPackageMenuV16414(){
+    return ['Pengadaan Langsung','Pencairan','Pencatatan Pengadaan','Non Pengadaan','Pencatatan Non Pengadaan'].includes(menuKeyV16414());
+  }
+  function isPaymentPageV16414(){
+    return ['Surat','Antrean Persetujuan Pengajuan','Riwayat Persetujuan Pengajuan','Antrean Verifikasi','Riwayat Verifikasi','Antrean Pembayaran Bendahara','Riwayat Pembayaran Bendahara'].includes(menuKeyV16414());
+  }
+  function fieldNameV16414(id){
+    try{return String(typeof bidangName==='function'?bidangName(id):id||'').trim();}catch(e){return String(id||'').trim();}
+  }
+  function assignedIdsV16414(){
+    const raw=currentUser?.bidang_akses;
+    const list=Array.isArray(raw)?raw:String(raw||'').split(/[,;|\n]+/);
+    return list.map(v=>String(v||'').trim()).filter(Boolean);
+  }
+  function activityRowsV16414(){
+    let rows=Array.isArray(dashboard?.perencanaan)?dashboard.perencanaan:[];
+    const menu=menuKeyV16414();
+    try{
+      if(menu==='Pengadaan Langsung')rows=rows.filter(k=>typeof isPipelineV94==='function'&&isPipelineV94(k));
+      else if(['Pencairan','Pencatatan Pengadaan'].includes(menu))rows=rows.filter(k=>typeof isBLV94==='function'&&isBLV94(k));
+      else if(['Non Pengadaan','Pencatatan Non Pengadaan'].includes(menu))rows=rows.filter(k=>typeof isNonKategoriV81==='function'&&isNonKategoriV81(k));
+    }catch(e){}
+    const ids=assignedIdsV16414();
+    if(roleV16414()==='VERIFIKATOR_PBJ'&&ids.length)rows=rows.filter(k=>ids.includes(String(k.id_bidang||'')));
+    return rows;
+  }
+  function paymentFieldNamesV16414(){
+    const activities=[...(paymentWorkspaceV138?.kegiatan||[]),...(dashboard?.perencanaan||[])];
+    const map=new Map();
+    activities.forEach(k=>{
+      const id=String(k?.id_bidang||'').trim();if(!id)return;
+      const name=fieldNameV16414(id);if(name)map.set(id,name);
+    });
+    (paymentWorkspaceV138?.pengajuan||[]).forEach(p=>{
+      const id=String(p?.id_bidang||'').trim();if(!id)return;
+      const name=fieldNameV16414(id);if(name)map.set(id,name);
+    });
+    return [...map.values()].sort((a,b)=>a.localeCompare(b,'id'));
+  }
+  function packageFieldNamesV16414(){
+    const names=new Set();
+    activityRowsV16414().forEach(k=>{const name=fieldNameV16414(k.id_bidang);if(name)names.add(name);});
+    return [...names].sort((a,b)=>a.localeCompare(b,'id'));
+  }
+  function activeFieldNamesV16414(){return isPaymentPageV16414()?paymentFieldNamesV16414():packageFieldNamesV16414();}
+
+  function filterNodesV16414(panel){
+    if(!panel)return [];
+    const payment=[...panel.querySelectorAll('.payment-list-v138 > details.payment-card-v138')];
+    if(payment.length)return payment;
+    const packageRows=[...panel.querySelectorAll('table.paket-table-v95 tbody tr')].filter(row=>!row.querySelector('td.empty'));
+    if(packageRows.length)return packageRows;
+    const nonCards=[...panel.querySelectorAll('.non-list-v83 > .non-card-v83, .non-list-v83 > article, .non-list-v83 > div')].filter(el=>!el.classList.contains('empty-box'));
+    if(nonCards.length)return nonCards;
+    const genericRows=[...panel.querySelectorAll('.table-wrap table tbody tr')].filter(row=>!row.querySelector('td.empty')&&!row.closest('.payment-card-v138'));
+    if(genericRows.length)return genericRows;
+    return [];
+  }
+  function applyLocalFiltersV16414(panel,key){
+    const nodes=filterNodesV16414(panel);if(!nodes.length)return;
+    const query=normV16414(searchStateV16414[key]||'');
+    const field=normV16414(bidangStateV16414[key]||'ALL');
+    let visible=0;
+    nodes.forEach(node=>{
+      const text=normV16414(node.textContent||'');
+      const show=(!query||text.includes(query))&&(field==='all'||!field||text.includes(field));
+      node.style.display=show?'':'none';if(show)visible++;
+    });
+    panel.querySelectorAll('[data-fast-result-count-v16414]').forEach(el=>{el.textContent=String(visible);});
+    const oldCount=panel.querySelector('#paketCountV96');if(oldCount)oldCount.textContent=String(visible);
+  }
+  function scheduleLocalFilterV16414(panel,key){
+    cancelAnimationFrame(panel._fastFilterFrameV16414||0);
+    panel._fastFilterFrameV16414=requestAnimationFrame(()=>applyLocalFiltersV16414(panel,key));
+  }
+
+  function bindPlanningSearchV16414(input){
+    if(!input||input.dataset.fastPlanningV16414==='1')return;
+    input.dataset.fastPlanningV16414='1';input.removeAttribute('oninput');input.oninput=null;
+    input.addEventListener('input',function(){
+      const value=this.value;
+      filters.rencanaSearch=value;
+      clearTimeout(planSearchTimerV16414);
+      planSearchTimerV16414=setTimeout(()=>{
+        if(menuKeyV16414()!=='Perencanaan')return;
+        perencanaanPage=1;
+        renderPerencanaan();
+        requestAnimationFrame(()=>{
+          const next=[...document.querySelectorAll('#contentArea input')].find(el=>/cari nama kegiatan/i.test(el.placeholder||''));
+          if(next){next.focus();const end=next.value.length;try{next.setSelectionRange(end,end);}catch(e){}}
+        });
+      },320);
+    });
+  }
+
+  function bindLocalSearchV16414(input,panel,key){
+    if(!input||input.dataset.fastSearchV16414==='1')return;
+    input.dataset.fastSearchV16414='1';input.removeAttribute('oninput');input.oninput=null;
+    input.value=searchStateV16414[key]??input.value??'';
+    input.addEventListener('input',function(){
+      searchStateV16414[key]=this.value;
+      if(typeof paketSearchV95!=='undefined'&&panel.querySelector('table.paket-table-v95'))paketSearchV95=this.value;
+      if(typeof filters!=='undefined'&&['Non Pengadaan','Pencatatan Non Pengadaan'].includes(menuKeyV16414()))filters.cairSearch=this.value;
+      scheduleLocalFilterV16414(panel,key);
+    });
+  }
+
+  window.setFastBidangFilterV16414=function(key,value){
+    bidangStateV16414[String(key||menuKeyV16414())]=String(value||'ALL');
+    const panel=document.querySelector(`#contentArea [data-fast-panel-key-v16414="${CSS.escape(String(key||menuKeyV16414()))}"]`)||document.querySelector('#contentArea .payment-list-panel-v140, #contentArea .premium-panel');
+    if(panel)scheduleLocalFilterV16414(panel,String(key||menuKeyV16414()));
+  };
+
+  function fieldSelectHtmlV16414(key,names){
+    const selected=String(bidangStateV16414[key]||'ALL');
+    return `<label class="fast-filter-field-v16414"><span>Filter Bidang</span><select onchange="setFastBidangFilterV16414('${esc(key)}',this.value)"><option value="ALL">Semua Bidang</option>${names.map(name=>`<option value="${esc(name)}" ${selected===name?'selected':''}>${esc(name)}</option>`).join('')}</select></label>`;
+  }
+  function searchHtmlV16414(key){
+    return `<label class="fast-search-field-v16414"><span>Pencarian</span><input type="search" value="${esc(searchStateV16414[key]||'')}" placeholder="Cari nama paket, ID, bidang, atau status..."></label>`;
+  }
+
+  function enhancePackagePanelV16414(panel,key){
+    const toolbar=panel.querySelector('.paket-toolbar-v95');
+    if(!toolbar)return false;
+    panel.dataset.fastPanelKeyV16414=key;
+    let input=toolbar.querySelector('input[placeholder*="Cari"],input[placeholder*="cari"]');
+    if(input)bindLocalSearchV16414(input,panel,key);
+    if(roleV16414()==='VERIFIKATOR_PBJ'&&isPbjPackageMenuV16414()&&!toolbar.querySelector('.fast-filter-field-v16414')){
+      const names=activeFieldNamesV16414();
+      const wrap=document.createElement('div');wrap.className='fast-package-field-wrap-v16414';wrap.innerHTML=fieldSelectHtmlV16414(key,names);
+      toolbar.insertBefore(wrap,toolbar.querySelector('input')||toolbar.firstChild);
+    }
+    scheduleLocalFilterV16414(panel,key);return true;
+  }
+
+  function enhanceNonPanelV16414(panel,key){
+    if(!panel.querySelector('.non-list-v83'))return false;
+    panel.dataset.fastPanelKeyV16414=key;
+    let toolbar=panel.querySelector('.filter-card .toolbar');
+    if(!toolbar){
+      const card=document.createElement('div');card.className='filter-card fast-generated-filter-v16414';card.innerHTML='<div class="toolbar"></div>';
+      panel.querySelector('.non-list-v83')?.insertAdjacentElement('beforebegin',card);toolbar=card.querySelector('.toolbar');
+    }
+    let input=toolbar.querySelector('input[placeholder*="Cari"],input[placeholder*="cari"]');
+    if(!input){const holder=document.createElement('div');holder.innerHTML=searchHtmlV16414(key);input=holder.firstElementChild.querySelector('input');toolbar.appendChild(holder.firstElementChild);}
+    bindLocalSearchV16414(input,panel,key);
+    if(roleV16414()==='VERIFIKATOR_PBJ'&&!toolbar.querySelector('.fast-filter-field-v16414')){
+      const holder=document.createElement('div');holder.innerHTML=fieldSelectHtmlV16414(key,activeFieldNamesV16414());toolbar.insertBefore(holder.firstElementChild,toolbar.firstChild);
+    }
+    scheduleLocalFilterV16414(panel,key);return true;
+  }
+
+  function enhancePaymentPanelV16414(panel,key){
+    if(!panel.querySelector('.payment-list-v138'))return false;
+    panel.dataset.fastPanelKeyV16414=key;
+    let toolbar=panel.querySelector('.fast-payment-filter-v16414');
+    if(!toolbar){
+      toolbar=document.createElement('div');toolbar.className='fast-payment-filter-v16414';
+      toolbar.innerHTML=`${searchHtmlV16414(key)}${fieldSelectHtmlV16414(key,activeFieldNamesV16414())}<div class="fast-result-v16414"><span data-fast-result-count-v16414>0</span> data tampil</div>`;
+      const anchor=panel.querySelector('.payment-source-current-v1641')||panel.querySelector('.payment-source-tabs-v1641')||panel.querySelector('.panel-title-row');
+      anchor?.insertAdjacentElement('afterend',toolbar);
+    }
+    const input=toolbar.querySelector('input[type="search"]');bindLocalSearchV16414(input,panel,key);
+    scheduleLocalFilterV16414(panel,key);return true;
+  }
+
+  function bindGenericSearchesV16414(){
+    document.querySelectorAll('#contentArea input[placeholder*="Cari"],#contentArea input[placeholder*="cari"]').forEach(input=>{
+      if(input.closest('.modal-backdrop,.sbv-box-v95,.standard-picker-v96'))return;
+      if(isPlanningV16414()&&/nama kegiatan/i.test(input.placeholder||'')){bindPlanningSearchV16414(input);return;}
+      const panel=input.closest('section.panel');if(!panel||!filterNodesV16414(panel).length)return;
+      bindLocalSearchV16414(input,panel,menuKeyV16414());
+    });
+  }
+
+  function enhanceCurrentPageV16414(){
+    if(observerBusyV16414)return;observerBusyV16414=true;
+    try{
+      const key=menuKeyV16414();
+      if(isPlanningV16414()){
+        const input=[...document.querySelectorAll('#contentArea input')].find(el=>/cari nama kegiatan/i.test(el.placeholder||''));
+        bindPlanningSearchV16414(input);
+      }else{
+        document.querySelectorAll('#contentArea section.panel').forEach(panel=>{
+          if(enhancePaymentPanelV16414(panel,key))return;
+          if(enhancePackagePanelV16414(panel,key))return;
+          enhanceNonPanelV16414(panel,key);
+        });
+      }
+      bindGenericSearchesV16414();
+    }finally{observerBusyV16414=false;}
+  }
+  function scheduleEnhanceV16414(){
+    cancelAnimationFrame(enhanceFrameV16414);
+    enhanceFrameV16414=requestAnimationFrame(enhanceCurrentPageV16414);
+  }
+
+  if(typeof renderContent==='function'){
+    const renderContentBaseV16414=renderContent;
+    renderContent=function(){const result=renderContentBaseV16414.apply(this,arguments);scheduleEnhanceV16414();return result;};
+  }
+  if(typeof renderPerencanaan==='function'){
+    const renderPlanningBaseV16414=renderPerencanaan;
+    renderPerencanaan=function(){const result=renderPlanningBaseV16414.apply(this,arguments);scheduleEnhanceV16414();return result;};
+  }
+  if(typeof renderPaymentWorkspaceV138==='function'){
+    const renderPaymentBaseV16414=renderPaymentWorkspaceV138;
+    renderPaymentWorkspaceV138=function(){const result=renderPaymentBaseV16414.apply(this,arguments);scheduleEnhanceV16414();return result;};
+  }
+  if(typeof renderNonPengadaanV79==='function'){
+    const renderNonBaseV16414=renderNonPengadaanV79;
+    renderNonPengadaanV79=function(){const result=renderNonBaseV16414.apply(this,arguments);scheduleEnhanceV16414();return result;};
+  }
+
+  const content=document.getElementById('contentArea');
+  if(content&&typeof MutationObserver!=='undefined'){
+    const observer=new MutationObserver(()=>scheduleEnhanceV16414());
+    observer.observe(content,{childList:true,subtree:true});
+  }
+  scheduleEnhanceV16414();
+  window.__SIMPROV_PATCH_VERSION_V16414__=PATCH_VERSION_V16414;
+})();
