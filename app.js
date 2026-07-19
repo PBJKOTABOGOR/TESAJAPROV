@@ -16116,3 +16116,145 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V16410__=PATCH_VERSION_V16410;
 })();
+
+/* =========================================================
+   SIMPROV v164.11 - TTE Dokumen Pembayaran Setelah Pengajuan
+   ---------------------------------------------------------
+   Nota Dinas Bidang dan SPTJM tidak menampilkan cap TTE pada
+   pratinjau draft. Cap dan tanggal baru tampil setelah user
+   mengonfirmasi TTE & Ajukan Verifikasi.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16411='164.11';
+  let paymentPrintContextV16411=null;
+
+  function upperV16411(value){return String(value||'').trim().toUpperCase();}
+  function isBidangGeneratedDocV16411(type){
+    return ['ND_BIDANG','SPTJM'].includes(upperV16411(type));
+  }
+  function hasBidangTteV16411(p){
+    return Boolean(String(p?.tte_bidang_waktu||'').trim()||String(p?.tte_bidang_token||'').trim());
+  }
+  function bidangTteDateV16411(p){
+    const raw=p?.tte_bidang_waktu||'';
+    return raw?(formatDate(raw)||String(raw)):'-';
+  }
+
+  /* Simpan konteks dokumen agar fungsi tanda tangan mengetahui apakah
+     dokumen yang dibuka masih draft atau sudah diajukan. */
+  if(typeof printPaymentDocV138==='function'){
+    const printPaymentDocBaseV16411=printPaymentDocV138;
+    printPaymentDocV138=function(id,type){
+      paymentPrintContextV16411={
+        p:typeof paymentByIdV138==='function'?(paymentByIdV138(id)||{}):{},
+        type:upperV16411(type)
+      };
+      try{return printPaymentDocBaseV16411.apply(this,arguments);}
+      finally{setTimeout(()=>{paymentPrintContextV16411=null;},0);}
+    };
+  }
+
+  /* Khusus Nota Dinas Bidang dan SPTJM: draft hanya menampilkan ruang
+     tanda tangan dan nama. Cap TTE beserta tanggal muncul setelah submit. */
+  if(typeof paymentSignatureV138==='function'){
+    const paymentSignatureBaseV16411=paymentSignatureV138;
+    paymentSignatureV138=function(name,role,signed=true){
+      const ctx=paymentPrintContextV16411;
+      if(!ctx||!isBidangGeneratedDocV16411(ctx.type)){
+        return paymentSignatureBaseV16411.apply(this,arguments);
+      }
+      const p=ctx.p||{};
+      const isSigned=hasBidangTteV16411(p);
+      const stamp=isSigned
+        ?`<div class="tte-box-v139 tte-box-v1644">TTE SIMPROV<span class="tte-time-v139">${esc(bidangTteDateV16411(p))}</span></div>`
+        :'';
+      return `<div class="payment-signature-v1644" style="text-align:center">${esc(role||'')}<div class="sign-space"></div>${stamp}<br><b>${esc(name||'[NAMA LENGKAP]')}</b></div>`;
+    };
+  }
+
+  function applySubmittedTteV16411(local,response){
+    if(!local)return;
+    local.status_pengajuan='MENUNGGU PERSETUJUAN PIMPINAN';
+    local.tahap_aktif='PIMPINAN';
+    local.tte_bidang_oleh=response?.tte_bidang_oleh||currentUser?.nama||local.nama_pengaju||'';
+    local.tte_bidang_waktu=response?.tte_bidang_waktu||new Date().toISOString();
+    local.tte_bidang_token=response?.tte_bidang_token||local.tte_bidang_token||'';
+    local.updated_at=new Date().toISOString();
+  }
+
+  /* Handler daftar: konfirmasi jelas bahwa cap TTE baru dipasang setelah
+     user menyetujui pengajuan. */
+  window.submitPaymentFromListV145=async function(id){
+    const p=paymentByIdV138(id);
+    const missing=paymentRequiredDocsV138(p).filter(j=>!paymentDocV138(p,j));
+    if(missing.length)return alert('Dokumen wajib belum lengkap:\n- '+missing.join('\n- '));
+
+    const ok=await confirmActionV133({
+      title:'TTE & Ajukan Verifikasi',
+      message:'Nota Dinas Bidang dan SPTJM akan diberi cap TTE SIMPROV beserta tanggal, lalu pengajuan dikirim kepada Ketua Harian. Lanjutkan?',
+      confirmText:'Ya, TTE & Ajukan'
+    });
+    if(!ok)return;
+
+    showLoading('Memberi TTE dan mengajukan kepada Ketua Harian...');
+    try{
+      const result=await apiPost({action:'submitPaymentV138',user:currentUser,id_pengajuan:id});
+      if(!result.success)throw new Error(result.message||'Gagal mengajukan pembayaran');
+      applySubmittedTteV16411(paymentByIdV138(id),result);
+      paymentTabV138='DAFTAR';
+      paymentEditIdV138='';
+      renderPaymentWorkspaceV138();
+      showFastCacheNotice(result.message||'TTE berhasil dipasang dan pengajuan dikirim kepada Ketua Harian.');
+      setTimeout(()=>loadPaymentWorkspaceV138(true),150);
+    }catch(error){alert(error.message||String(error));}
+    finally{hideLoading();}
+  };
+
+  /* Handler form: simpan perubahan terlebih dahulu, lalu pasang TTE hanya
+     setelah konfirmasi dan submit backend berhasil. */
+  window.submitPaymentFormV145=async function(id){
+    const existing=paymentByIdV138(id),data=collectPaymentFormV138();
+    const candidate={...(existing||{}),reimbursement:data.reimbursement?'1':'0'};
+    const missing=paymentRequiredDocsV138(candidate).filter(j=>!paymentDocV138(candidate,j));
+    if(missing.length)return alert('Dokumen wajib belum lengkap:\n- '+missing.join('\n- '));
+
+    const activity=(paymentWorkspaceV138.kegiatan||[]).find(k=>String(k.id_kegiatan)===String(data.id_kegiatan));
+    const budget=toNumber(activity?.jumlah||0);
+    const detailTotal=paymentTotalRincianV138(data.rincian);
+    const accountTotal=paymentTotalRincianV138(data.rekening);
+    if(!data.id_kegiatan)return alert('Pilih kegiatan terlebih dahulu.');
+    if(!data.rincian.length)return alert('Isi minimal satu rincian penggunaan anggaran.');
+    if(budget>0&&detailTotal>budget)return alert(`Jumlah pengajuan ${rupiah(detailTotal)} melebihi pagu kegiatan ${rupiah(budget)}.`);
+    if(!data.rekening.length||Math.abs(accountTotal-detailTotal)>0.5)return alert('Total rekening tujuan harus sama dengan jumlah pengajuan.');
+
+    const ok=await confirmActionV133({
+      title:'Simpan, TTE & Ajukan Verifikasi',
+      message:'Perubahan terakhir akan disimpan. Setelah berhasil, Nota Dinas Bidang dan SPTJM diberi cap TTE SIMPROV beserta tanggal, lalu dikirim kepada Ketua Harian. Lanjutkan?',
+      confirmText:'Ya, Simpan & Ajukan'
+    });
+    if(!ok)return;
+
+    showLoading('Menyimpan, memberi TTE, dan mengajukan...');
+    try{
+      const saved=await apiPost({action:'savePaymentDraftV138',user:currentUser,data});
+      if(!saved.success)throw new Error(saved.message||'Gagal menyimpan pengajuan');
+      const savedId=saved.id_pengajuan||id;
+      if(saved.pengajuan){
+        paymentWorkspaceV138.pengajuan=[...(paymentWorkspaceV138.pengajuan||[]).filter(x=>String(x.id_pengajuan)!==String(savedId)),saved.pengajuan];
+      }
+      const submitted=await apiPost({action:'submitPaymentV138',user:currentUser,id_pengajuan:savedId});
+      if(!submitted.success)throw new Error(submitted.message||'Gagal mengajukan pembayaran');
+      applySubmittedTteV16411(paymentByIdV138(savedId),submitted);
+      paymentTabV138='DAFTAR';
+      paymentEditIdV138='';
+      renderPaymentWorkspaceV138();
+      showFastCacheNotice(submitted.message||'TTE berhasil dipasang dan pengajuan dikirim kepada Ketua Harian.');
+      setTimeout(()=>loadPaymentWorkspaceV138(true),150);
+    }catch(error){alert(error.message||String(error));}
+    finally{hideLoading();}
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V16411__=PATCH_VERSION_V16411;
+})();
