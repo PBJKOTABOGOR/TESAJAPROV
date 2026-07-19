@@ -14386,3 +14386,150 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V164__=PATCH_VERSION_V164;
 })();
+
+/* =========================================================
+   SIMPROV v165 - Kategori Pengajuan Pembayaran, Role Keuangan,
+   Progress Bendahara, dan Penyederhanaan Aksi
+   ========================================================= */
+(function(){
+  const PATCH_VERSION_V165='165.0';
+
+  /* Role lama/variasi penulisan tetap dikenali. Prefix ID akun menjadi
+     fallback aman untuk akun yang dibuat dari Manajemen Akses. */
+  const actualRoleBaseV165=typeof actualRoleV133==='function'?actualRoleV133:null;
+  function roleTokenV165(value){return String(value||'').trim().toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'');}
+  actualRoleV133=function(user=currentUser){
+    const role=roleTokenV165(user?.role||user?.jenis_role||user?.tipe_akun||user?.role_akses);
+    const id=roleTokenV165(user?.id_user);
+    const combined=role+'_'+id;
+    if(/VERIF.*KEUANGAN|KEUANGAN.*VERIF|(^|_)KEU(_|$)|USR_KEU_/.test(combined))return 'VERIFIKATOR_KEUANGAN';
+    if(/VERIF.*PBJ|PBJ.*VERIF|(^|_)PBJ(_|$)|USR_PBJ_/.test(combined))return 'VERIFIKATOR_PBJ';
+    if(/BENDAHARA|USR_BEN_/.test(combined))return 'BENDAHARA';
+    if(/PIMPINAN|SEKDA|KETUA_UMUM|KETUA_HARIAN|USR_PIM_/.test(combined))return 'PIMPINAN';
+    if(/SUPER_ADMIN|SUPERADMIN|(^|_)ADMIN(_|$)/.test(combined))return 'ADMIN';
+    if(/AUDITOR/.test(combined))return 'AUDITOR';
+    return actualRoleBaseV165?actualRoleBaseV165(user):'BIDANG';
+  };
+
+  window.paymentSourceTabV165=window.paymentSourceTabV165||'PENGADAAN_LANGSUNG';
+  function paymentActivityV165(p){
+    const id=String(p?.id_kegiatan||p||'');
+    return (paymentWorkspaceV138?.kegiatan||[]).find(k=>String(k.id_kegiatan||'')===id)
+      ||(dashboard?.perencanaan||[]).find(k=>String(k.id_kegiatan||'')===id)
+      ||null;
+  }
+  function paymentSourceV165(p){
+    const activity=paymentActivityV165(p),method=roleTokenV165(activity?.metode_pemilihan||p?.metode_pemilihan);
+    return method==='BELANJA_LANGSUNG'?'PENCATATAN_PENGADAAN':'PENGADAAN_LANGSUNG';
+  }
+  function paymentRowsForRoleV165(){
+    const role=actualRoleV133();
+    let rows=[...(paymentWorkspaceV138?.pengajuan||[])];
+    if(role==='VERIFIKATOR_KEUANGAN'&&activeMenu==='Antrean Verifikasi')rows=rows.filter(p=>roleTokenV165(p.status_pengajuan)==='MENUNGGU_VERIFIKASI_KEUANGAN');
+    else if(role==='PIMPINAN'&&activeMenu==='Antrean Persetujuan Pengajuan')rows=rows.filter(p=>['MENUNGGU_PERSETUJUAN_PIMPINAN','MENUNGGU_PERINTAH_KETUA_HARIAN'].includes(roleTokenV165(p.status_pengajuan)));
+    rows.sort((a,b)=>new Date(b.created_at||b.updated_at||0)-new Date(a.created_at||a.updated_at||0));
+    return rows;
+  }
+  window.setPaymentSourceTabV165=function(tab){
+    if(!['PENGADAAN_LANGSUNG','PENCATATAN_PENGADAAN'].includes(tab))return;
+    window.paymentSourceTabV165=tab;
+    if(typeof renderPaymentWorkspaceV138==='function')renderPaymentWorkspaceV138();
+  };
+
+  /* Pertahankan seluruh isi kartu aktif. Hanya sesuaikan aksi khusus role. */
+  if(typeof paymentCardV138==='function'){
+    const paymentCardBaseV165=paymentCardV138;
+    paymentCardV138=function(p){
+      let html=paymentCardBaseV165.apply(this,arguments);
+      try{
+        const holder=document.createElement('div');holder.innerHTML=html;
+        const card=holder.querySelector('.payment-card-v138');if(!card)return html;
+        if(actualRoleV133()==='BENDAHARA')card.querySelectorAll('.payment-view-package-v164').forEach(el=>el.closest('.payment-package-actions-v164')?.remove()||el.remove());
+        [...card.querySelectorAll('a')].filter(a=>/Buka Bukti Pembayaran/i.test(a.textContent||'')).forEach(a=>{
+          a.className='btn-soft payment-proof-button-v165';
+        });
+        card.dataset.paymentSourceV165=paymentSourceV165(p);
+        return holder.innerHTML;
+      }catch(e){console.warn('PAYMENT_CARD_V165',e);return html;}
+    };
+  }
+
+  paymentListV138=function(){
+    const role=actualRoleV133(),rows=paymentRowsForRoleV165();
+    const direct=rows.filter(p=>paymentSourceV165(p)==='PENGADAAN_LANGSUNG');
+    const record=rows.filter(p=>paymentSourceV165(p)==='PENCATATAN_PENGADAAN');
+    const active=window.paymentSourceTabV165==='PENCATATAN_PENGADAAN'?'PENCATATAN_PENGADAAN':'PENGADAAN_LANGSUNG';
+    const visible=active==='PENCATATAN_PENGADAAN'?record:direct;
+    let title='Daftar Pengajuan Pembayaran',sub='Pilih sumber paket agar daftar lebih mudah diperiksa.';
+    if(role==='VERIFIKATOR_KEUANGAN'&&activeMenu==='Antrean Verifikasi'){title='Antrean Verifikasi Keuangan';sub='Pilih sumber paket, lalu periksa pengajuan yang menjadi tugas Anda.';}
+    else if(role==='PIMPINAN'&&activeMenu==='Antrean Persetujuan Pengajuan'){title='Antrean Persetujuan Pengajuan';sub='Pilih sumber paket, lalu proses pengajuan yang menunggu persetujuan.';}
+    else if(role==='BENDAHARA'){title='Antrean Pembayaran Bendahara';sub='Pilih sumber paket untuk melihat pembayaran yang sedang atau telah diproses.';}
+    const canCreate=['BIDANG','ADMIN'].includes(role);
+    return `<section class="panel premium-panel payment-list-panel-v140 payment-list-panel-v165">
+      <div class="panel-title-row"><div><h3>${title}</h3><p class="panel-sub">${sub}</p></div>
+        <div class="action-group payment-list-head-actions-v140"><button class="btn-refresh" onclick="loadPaymentWorkspaceV138(true)">Refresh</button>${canCreate?'<button class="btn-primary-v140" onclick="openPaymentFormV138()">Buat Pengajuan</button>':''}</div>
+      </div>
+      <div class="payment-source-tabs-v165" role="tablist" aria-label="Sumber paket pengajuan pembayaran">
+        <button type="button" class="${active==='PENGADAAN_LANGSUNG'?'active':''}" onclick="setPaymentSourceTabV165('PENGADAAN_LANGSUNG')"><span>Pengadaan Langsung</span><b>${direct.length}</b><small>Pengadaan Langsung dan Tender Manual</small></button>
+        <button type="button" class="${active==='PENCATATAN_PENGADAAN'?'active':''}" onclick="setPaymentSourceTabV165('PENCATATAN_PENGADAAN')"><span>Pencatatan Pengadaan</span><b>${record.length}</b><small>Paket Belanja Langsung</small></button>
+      </div>
+      <div class="payment-source-context-v165">Menampilkan <b>${visible.length}</b> pengajuan dari <b>${active==='PENCATATAN_PENGADAAN'?'Pencatatan Pengadaan':'Pengadaan Langsung'}</b>.</div>
+      <div class="payment-list-v138">${visible.map(paymentCardV138).join('')||`<div class="payment-empty-source-v165"><b>Belum ada pengajuan pada kelompok ini.</b><span>Pilih kelompok lainnya atau buat pengajuan baru dari paket yang sudah siap.</span></div>`}</div>
+    </section>`;
+  };
+
+  let paymentCompleteBusyV165=false;
+  function paymentProgressSetV165(percent,detail){
+    const overlay=document.getElementById('loadingOverlay'),wrap=document.getElementById('loadingProgressWrap');
+    const text=document.getElementById('loadingText'),sub=document.getElementById('loadingSubtext');
+    if(text)text.textContent='Mengunggah bukti dan menyelesaikan pembayaran...';
+    if(sub)sub.textContent='Jangan tutup halaman sampai proses selesai';
+    overlay?.classList.remove('hidden');overlay?.classList.add('upload-mode-v135');wrap?.classList.remove('hidden');
+    const p=Math.max(0,Math.min(100,Math.round(Number(percent)||0)));
+    const bar=document.getElementById('loadingProgressBar'),pct=document.getElementById('loadingProgressPercent'),det=document.getElementById('loadingProgressDetail');
+    if(bar)bar.style.width=p+'%';if(pct)pct.textContent=p+'%';if(det)det.textContent=detail||'Memproses...';
+  }
+  function paymentProgressCloseV165(){
+    document.getElementById('loadingOverlay')?.classList.add('hidden');
+    document.getElementById('loadingOverlay')?.classList.remove('upload-mode-v135');
+  }
+  function paymentReadFileV165(file){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onloadstart=()=>paymentProgressSetV165(4,'Membaca bukti pembayaran...');
+      reader.onprogress=e=>{if(e.lengthComputable)paymentProgressSetV165(5+Math.round((e.loaded/e.total)*30),'Membaca bukti pembayaran...');};
+      reader.onload=()=>{paymentProgressSetV165(38,'Bukti siap dikirim...');resolve(String(reader.result||'').split(',')[1]||'');};
+      reader.onerror=()=>reject(new Error('Bukti pembayaran gagal dibaca.'));
+      reader.readAsDataURL(file);
+    });
+  }
+  completePaymentV138=async function(id){
+    if(paymentCompleteBusyV165)return alert('Proses pembayaran masih berjalan. Tunggu sampai selesai.');
+    const file=document.getElementById('payPaidFileV138')?.files?.[0];if(!file)return alert('Bukti pembayaran wajib dipilih.');
+    if(file.size>MAX_UPLOAD_BYTES_V133)return alert('Bukti pembayaran maksimal 2 MB.');
+    const paidDate=document.getElementById('payPaidDateV138')?.value||'',note=document.getElementById('payPaidNoteV138')?.value.trim()||'';
+    const ok=await confirmActionV133({title:'Selesaikan Pembayaran',message:'Bukti pembayaran akan disimpan dan pengajuan dinyatakan SELESAI.',confirmText:'Ya, Selesaikan'});if(!ok)return;
+    paymentCompleteBusyV165=true;let pulse=null;
+    try{
+      paymentProgressSetV165(0,'Menyiapkan file...');
+      const base64=await paymentReadFileV165(file);if(!base64)throw new Error('Bukti pembayaran kosong.');
+      let progress=42;paymentProgressSetV165(progress,'Mengirim bukti pembayaran ke server...');
+      pulse=setInterval(()=>{if(progress<93){progress+=progress<70?2:1;paymentProgressSetV165(progress,'Menyimpan bukti dan menyelesaikan paket...');}},260);
+      const r=await apiPost({action:'completePaymentV138',user:currentUser,id_pengajuan:id,tanggal_bayar:paidDate,catatan:note,file_name:file.name,mime_type:file.type,file_base64:base64});
+      if(!r.success)throw new Error(r.message||'Gagal menyelesaikan pembayaran');
+      if(pulse){clearInterval(pulse);pulse=null;}paymentProgressSetV165(100,'Pembayaran berhasil diselesaikan');
+      const p=typeof paymentByIdV138==='function'?paymentByIdV138(id):null;
+      if(p)Object.assign(p,{status_pengajuan:'SELESAI',tahap_aktif:'SELESAI',tanggal_bayar:paidDate,catatan_bayar:note,bukti_bayar_nama:file.name,bukti_bayar_url:r.url_file||p.bukti_bayar_url,updated_at:new Date().toISOString()});
+      const k=(dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan||'')===String(p?.id_kegiatan||''));if(k)k.status_pencairan='SELESAI';
+      document.getElementById('paymentActionModalV138')?.remove();
+      await new Promise(resolve=>setTimeout(resolve,220));paymentProgressCloseV165();
+      if(typeof renderPaymentWorkspaceV138==='function')renderPaymentWorkspaceV138();
+      if(typeof renderSummary==='function')renderSummary();
+      alert(r.message||'Pembayaran berhasil dicatat dan paket dinyatakan selesai.');
+      setTimeout(()=>{try{loadPaymentWorkspaceV138(true);}catch(e){}},350);
+    }catch(e){if(pulse)clearInterval(pulse);paymentProgressCloseV165();alert(e.message||String(e));}
+    finally{paymentCompleteBusyV165=false;}
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V165__=PATCH_VERSION_V165;
+})();
