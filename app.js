@@ -14582,3 +14582,242 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V1641__=PATCH_VERSION_V1641;
 })();
+
+/* =========================================================
+   SIMPROV v164.2 - Pembayaran lebih terbaca, riwayat terkelompok,
+   refresh ringan, badge Bendahara, dan logout responsif
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V1642='164.2';
+  const SOURCE_DIRECT_V1642='PENGADAAN_LANGSUNG';
+  const SOURCE_RECORD_V1642='PENCATATAN_PENGADAAN';
+  const categorizedPagesV1642={
+    'Riwayat Verifikasi':{
+      role:'VERIFIKATOR_KEUANGAN',kind:'history',title:'Riwayat Verifikasi Keuangan',
+      sub:'Pengajuan pembayaran yang sudah diperiksa oleh Verifikator Keuangan.'
+    },
+    'Antrean Pembayaran Bendahara':{
+      role:'BENDAHARA',kind:'queue',title:'Antrean Pembayaran Bendahara',
+      sub:'Pengajuan yang menunggu pencatatan pembayaran oleh Bendahara.'
+    },
+    'Riwayat Pembayaran Bendahara':{
+      role:'BENDAHARA',kind:'history',title:'Riwayat Pembayaran Bendahara',
+      sub:'Pengajuan yang pembayaran dan bukti bayarnya sudah dicatat.'
+    }
+  };
+  const sourceTabByPageV1642=window.sourceTabByPageV1642||{};
+  window.sourceTabByPageV1642=sourceTabByPageV1642;
+  let paymentRefreshBusyV1642=false;
+  let logoutBusyV1642=false;
+
+  function upperV1642(v){return String(v==null?'':v).trim().toUpperCase();}
+  function hasValueV1642(v){return String(v==null?'':v).trim()!=='';}
+  function paymentActivityV1642(id){
+    id=String(id||'');
+    try{if(typeof paymentActivityV138==='function'){const row=paymentActivityV138(id);if(row)return row;}}catch(e){}
+    return (paymentWorkspaceV138?.kegiatan||[]).find(k=>String(k.id_kegiatan||'')===id)
+      ||(dashboard?.perencanaan||[]).find(k=>String(k.id_kegiatan||'')===id)||null;
+  }
+  function paymentSourceTypeV1642(payment){
+    const activity=paymentActivityV1642(payment?.id_kegiatan),source=activity||payment||{};
+    try{if(activity&&typeof isPipelineV94==='function'&&isPipelineV94(activity))return SOURCE_DIRECT_V1642;}catch(e){}
+    const method=upperV1642(source.metode_pemilihan||source.metode||source.jenis_metode||source.metode_pengadaan);
+    if(method.includes('PENGADAAN LANGSUNG')||method.includes('TENDER MANUAL')||method==='TENDER')return SOURCE_DIRECT_V1642;
+    return SOURCE_RECORD_V1642;
+  }
+  function paymentTimeV1642(row){
+    const keys=['updated_at','tanggal_bayar','tanggal_verifikasi','tanggal_persetujuan','tanggal_perintah','created_at','tanggal_dibuat'];
+    for(const key of keys){const t=Date.parse(row?.[key]||'');if(Number.isFinite(t))return t;}
+    const match=String(row?.id_pengajuan||'').match(/(\d{13})/);return match?Number(match[1]):Number(row?._row||0);
+  }
+  function sortPaymentsV1642(rows){return (rows||[]).slice().sort((a,b)=>paymentTimeV1642(b)-paymentTimeV1642(a)||Number(b?._row||0)-Number(a?._row||0));}
+  function pageRowsV1642(cfg){
+    const rows=paymentWorkspaceV138?.pengajuan||[];
+    if(cfg.kind==='queue'&&cfg.role==='BENDAHARA')return rows.filter(p=>upperV1642(p.status_pengajuan)==='MENUNGGU PEMBAYARAN BENDAHARA');
+    if(cfg.kind==='history'&&cfg.role==='BENDAHARA')return rows.filter(p=>hasValueV1642(p.tanggal_bayar)||hasValueV1642(p.bendahara_nama)||upperV1642(p.status_pengajuan)==='SELESAI');
+    if(cfg.kind==='history'&&cfg.role==='VERIFIKATOR_KEUANGAN')return rows.filter(p=>hasValueV1642(p.tanggal_verifikasi)||hasValueV1642(p.verifikator_nama));
+    return [];
+  }
+  function sourceTabHtmlV1642(page,directCount,recordCount){
+    const selected=sourceTabByPageV1642[page]||SOURCE_DIRECT_V1642;
+    return `<div class="payment-source-tabs-v1641 payment-source-tabs-v1642" role="tablist" aria-label="Kelompok sumber paket">
+      <button type="button" role="tab" aria-selected="${selected===SOURCE_DIRECT_V1642}" class="payment-source-tab-v1642 ${selected===SOURCE_DIRECT_V1642?'active':''}" onclick="setPaymentPageSourceTabV1642('${esc(page)}','${SOURCE_DIRECT_V1642}')">
+        <span><b>Pengadaan Langsung</b><small>Pengadaan Langsung / Tender Manual</small></span><em>${directCount}</em>
+      </button>
+      <button type="button" role="tab" aria-selected="${selected===SOURCE_RECORD_V1642}" class="payment-source-tab-v1642 ${selected===SOURCE_RECORD_V1642?'active':''}" onclick="setPaymentPageSourceTabV1642('${esc(page)}','${SOURCE_RECORD_V1642}')">
+        <span><b>Pencatatan Pengadaan</b><small>Belanja Langsung</small></span><em>${recordCount}</em>
+      </button>
+    </div>`;
+  }
+  function currentSourceHelpV1642(source){
+    return source===SOURCE_DIRECT_V1642
+      ?['Pengadaan Langsung','Paket Pengadaan Langsung dan Tender Manual.']
+      :['Pencatatan Pengadaan','Paket Belanja Langsung yang diproses melalui Pencatatan Pengadaan.'];
+  }
+  function emptyPaymentTextV1642(cfg,label){
+    if(cfg.kind==='queue')return `Tidak ada antrean ${label}.`;
+    return `Belum ada riwayat ${label}.`;
+  }
+
+  async function fetchPaymentWorkspaceV1642(){
+    const r=await apiPost({action:'getPaymentWorkspaceV138',user:currentUser});
+    if(!r?.success)throw new Error(r?.message||'Gagal memuat data pembayaran.');
+    paymentWorkspaceV138={...r,loaded:true,loading:false};
+    return paymentWorkspaceV138;
+  }
+
+  function renderCategorizedPaymentPageV1642(page){
+    const cfg=categorizedPagesV1642[page],area=document.getElementById('contentArea');
+    if(!cfg||!area)return false;
+    if(!paymentWorkspaceV138?.loaded){
+      area.innerHTML=`<section class="panel premium-panel"><div class="panel-title-row"><div><h3>${esc(cfg.title)}</h3><p class="panel-sub">${esc(cfg.sub)}</p></div></div><p class="empty">Memuat data pembayaran...</p></section>`;
+      if(!paymentWorkspaceV138?.loading){
+        paymentWorkspaceV138=paymentWorkspaceV138||{};paymentWorkspaceV138.loading=true;
+        fetchPaymentWorkspaceV1642().then(()=>{if(activeMenu===page)renderCategorizedPaymentPageV1642(page);decorateBendaharaQueueBadgeV1642();}).catch(e=>{
+          paymentWorkspaceV138.loading=false;
+          if(activeMenu===page)area.innerHTML=`<section class="panel premium-panel"><h3>${esc(cfg.title)}</h3><p class="error">${esc(e.message||String(e))}</p><button class="btn-refresh" onclick="refreshPaymentSectionV1642()">Coba Lagi</button></section>`;
+        });
+      }
+      return true;
+    }
+    const rows=sortPaymentsV1642(pageRowsV1642(cfg));
+    const direct=rows.filter(p=>paymentSourceTypeV1642(p)===SOURCE_DIRECT_V1642),record=rows.filter(p=>paymentSourceTypeV1642(p)===SOURCE_RECORD_V1642);
+    let selected=sourceTabByPageV1642[page]||SOURCE_DIRECT_V1642;
+    if(selected===SOURCE_DIRECT_V1642&&!direct.length&&record.length)selected=SOURCE_RECORD_V1642;
+    else if(selected===SOURCE_RECORD_V1642&&!record.length&&direct.length)selected=SOURCE_DIRECT_V1642;
+    sourceTabByPageV1642[page]=selected;
+    const chosen=selected===SOURCE_DIRECT_V1642?direct:record,[label,help]=currentSourceHelpV1642(selected);
+    area.innerHTML=`<section class="panel premium-panel payment-list-panel-v140 payment-categorized-page-v1642">
+      <div class="panel-title-row"><div><h3>${esc(cfg.title)}</h3><p class="panel-sub">${esc(cfg.sub)}</p></div>
+        <div class="action-group payment-list-head-actions-v140"><button class="btn-refresh payment-refresh-v1642" onclick="refreshPaymentSectionV1642()">Refresh</button></div>
+      </div>
+      ${sourceTabHtmlV1642(page,direct.length,record.length)}
+      <div class="payment-source-current-v1641"><b>${esc(label)}</b><span>${esc(help)}</span></div>
+      <div class="payment-list-v138">${chosen.map(paymentCardV138).join('')||`<div class="payment-empty-source-v1641"><b>${esc(emptyPaymentTextV1642(cfg,label))}</b><span>Data pada kategori ini akan muncul otomatis saat tersedia.</span></div>`}</div>
+    </section>`;
+    decorateBendaharaQueueBadgeV1642();
+    return true;
+  }
+
+  window.setPaymentPageSourceTabV1642=function(page,tab){
+    if(!categorizedPagesV1642[page])return;
+    sourceTabByPageV1642[page]=tab===SOURCE_RECORD_V1642?SOURCE_RECORD_V1642:SOURCE_DIRECT_V1642;
+    renderCategorizedPaymentPageV1642(page);
+  };
+
+  window.refreshPaymentSectionV1642=async function(){
+    if(paymentRefreshBusyV1642)return;
+    paymentRefreshBusyV1642=true;
+    const buttons=[...document.querySelectorAll('.payment-refresh-v1642')];
+    buttons.forEach(btn=>{btn.disabled=true;btn.dataset.oldText=btn.textContent;btn.textContent='Memperbarui...';});
+    try{
+      await fetchPaymentWorkspaceV1642();
+      if(categorizedPagesV1642[activeMenu])renderCategorizedPaymentPageV1642(activeMenu);
+      else if(typeof renderPaymentWorkspaceV138==='function')renderPaymentWorkspaceV138();
+      if(typeof renderMenu==='function')renderMenu();
+      if(typeof renderSummary==='function')renderSummary();
+      if(typeof showFastCacheNotice==='function')showFastCacheNotice('Data pembayaran sudah diperbarui.');
+    }catch(e){alert(e.message||String(e));}
+    finally{
+      paymentRefreshBusyV1642=false;
+      document.querySelectorAll('.payment-refresh-v1642').forEach(btn=>{btn.disabled=false;btn.textContent=btn.dataset.oldText||'Refresh';});
+    }
+  };
+
+  /* Halaman riwayat dan Bendahara memakai renderer kategori yang ringan. */
+  if(typeof renderContent==='function'){
+    const renderContentBaseV1642=renderContent;
+    renderContent=function(){
+      if(categorizedPagesV1642[activeMenu]){renderCategorizedPaymentPageV1642(activeMenu);return;}
+      return renderContentBaseV1642.apply(this,arguments);
+    };
+  }
+
+  /* Tombol bukti pembayaran dibuat identik dengan tombol dokumen sistem. */
+  if(typeof paymentGeneratedButtonsV138==='function'){
+    const paymentGeneratedBaseV1642=paymentGeneratedButtonsV138;
+    paymentGeneratedButtonsV138=function(p){
+      const html=paymentGeneratedBaseV1642.apply(this,arguments);
+      try{
+        const holder=document.createElement('div');holder.innerHTML=html;
+        holder.querySelectorAll('a').forEach(link=>{
+          if(upperV1642(link.textContent).includes('BUKA BUKTI PEMBAYARAN')){
+            link.className='btn-soft payment-proof-button-v1642';
+            link.removeAttribute('style');
+          }
+        });
+        return holder.innerHTML;
+      }catch(e){return html;}
+    };
+  }
+
+  /* Bendahara tidak memerlukan navigasi kembali ke paket sumber. */
+  if(typeof paymentCardV138==='function'){
+    const paymentCardBaseV1642=paymentCardV138;
+    paymentCardV138=function(p){
+      const html=paymentCardBaseV1642.apply(this,arguments),role=typeof actualRoleV133==='function'?actualRoleV133():upperV1642(currentUser?.role);
+      if(upperV1642(role)!=='BENDAHARA')return html;
+      try{
+        const holder=document.createElement('div');holder.innerHTML=html;
+        holder.querySelectorAll('.payment-view-package-v164').forEach(el=>el.remove());
+        holder.querySelectorAll('.payment-package-actions-v164').forEach(el=>{if(!el.children.length)el.remove();});
+        return holder.innerHTML;
+      }catch(e){return html;}
+    };
+  }
+
+  function bendaharaQueueCountV1642(){
+    return (paymentWorkspaceV138?.pengajuan||[]).filter(p=>upperV1642(p.status_pengajuan)==='MENUNGGU PEMBAYARAN BENDAHARA').length;
+  }
+  function decorateBendaharaQueueBadgeV1642(){
+    const role=typeof actualRoleV133==='function'?actualRoleV133():upperV1642(currentUser?.role);
+    if(upperV1642(role)!=='BENDAHARA')return;
+    const button=[...document.querySelectorAll('#menuNav button')].find(btn=>String(btn.textContent||'').replace(/\s+/g,' ').trim().startsWith('Antrean Pembayaran Bendahara'));
+    if(!button)return;
+    button.querySelectorAll('.queue-badge-v147,.queue-badge-v149,.queue-badge-v1642').forEach(el=>el.remove());
+    const count=bendaharaQueueCountV1642();
+    button.insertAdjacentHTML('beforeend',`<span class="queue-badge-v1642 ${count>0?'has-count-v1642':'is-zero-v1642'}" aria-label="${count} antrean pembayaran">${count}</span>`);
+  }
+
+  if(typeof renderMenu==='function'){
+    const renderMenuBaseV1642=renderMenu;
+    renderMenu=function(){const result=renderMenuBaseV1642.apply(this,arguments);requestAnimationFrame(decorateBendaharaQueueBadgeV1642);return result;};
+  }
+  if(typeof renderPaymentWorkspaceV138==='function'){
+    const renderPaymentBaseV1642=renderPaymentWorkspaceV138;
+    renderPaymentWorkspaceV138=function(){const result=renderPaymentBaseV1642.apply(this,arguments);requestAnimationFrame(decorateBendaharaQueueBadgeV1642);return result;};
+  }
+
+  /* Logout langsung membersihkan UI; pemutusan sesi server berjalan setelahnya
+     tanpa menahan pengguna pada halaman aplikasi. */
+  logout=function(){
+    if(logoutBusyV1642)return false;
+    logoutBusyV1642=true;
+    const logoutButton=document.querySelector('.topbar-actions .btn-danger');
+    if(logoutButton){logoutButton.disabled=true;logoutButton.textContent='Keluar...';}
+    let remote=null;
+    try{if(currentUser?.session_token)remote=apiPost({action:'logoutV160'});}catch(e){}
+    try{
+      for(let i=localStorage.length-1;i>=0;i--){const key=localStorage.key(i)||'';if(/siporbo|simprov_session/i.test(key))localStorage.removeItem(key);}
+      for(let i=sessionStorage.length-1;i>=0;i--){const key=sessionStorage.key(i)||'';if(/siporbo|simprov/i.test(key))sessionStorage.removeItem(key);}
+    }catch(e){}
+    currentUser=null;dashboard=null;
+    try{paymentWorkspaceV138={loaded:false,loading:false,pengajuan:[],kegiatan:[],dokumen:[],bidang:[]};}catch(e){}
+    document.getElementById('loadingOverlay')?.classList.add('hidden');
+    document.getElementById('appPage')?.classList.add('hidden');
+    document.getElementById('publicPage')?.classList.add('hidden');
+    document.getElementById('loginPage')?.classList.remove('hidden');
+    const pass=document.getElementById('password');if(pass)pass.value='';
+    const msg=document.getElementById('loginMsg');if(msg){msg.textContent='Anda telah logout.';msg.className='msg';}
+    requestAnimationFrame(()=>{
+      if(logoutButton){logoutButton.disabled=false;logoutButton.textContent='Logout';}
+      document.getElementById('username')?.focus({preventScroll:true});
+    });
+    Promise.resolve(remote).catch(()=>{}).finally(()=>{logoutBusyV1642=false;});
+    return false;
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V1642__=PATCH_VERSION_V1642;
+})();
