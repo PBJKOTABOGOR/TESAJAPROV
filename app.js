@@ -204,7 +204,9 @@ async function apiPost(payload){
 
   for(let attempt=1; attempt<=maxTry; attempt++){
     const controller = new AbortController();
-    const timeoutMs = payload?.action === "getDashboard" ? 40000 : (isReadOnly ? 24000 : 45000);
+    const actionName = String(payload?.action || "");
+    const longWriteActions = new Set(["saveAndSubmitPaymentV16420","submitPaymentFastV16420","savePaymentDraftV138","submitPaymentV138"]);
+    const timeoutMs = actionName === "getDashboard" ? 40000 : (longWriteActions.has(actionName) ? 120000 : (isReadOnly ? 24000 : 45000));
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try{
       const res = await fetch(API_URL, {
@@ -17082,4 +17084,133 @@ verifikasiRealisasiNonV112=async function(id,mode){
   }
 
   window.__SIMPROV_PATCH_VERSION_V16419__=PATCH_VERSION_V16419;
+})();
+
+
+/* =========================================================
+   SIMPROV v164.20 - Stabilitas TTE Pengajuan Pembayaran
+   ---------------------------------------------------------
+   Simpan perubahan dan pengajuan TTE dilakukan dalam satu
+   request agar tidak terkena timeout di antara dua proses.
+   Tampilan diperbarui dari state lokal tanpa reload dashboard.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16420='164.20';
+  let paymentTteBusyV16420=false;
+
+  function paymentStoredValidationV16420(p){
+    if(!p)return 'Pengajuan tidak ditemukan.';
+    const missing=paymentRequiredDocsV138(p).filter(j=>!paymentDocV138(p,j));
+    if(missing.length)return 'Dokumen wajib belum lengkap:\n- '+missing.join('\n- ');
+    const rincian=parseJsonV138(p.rincian_json),rekening=parseJsonV138(p.rekening_json),amount=toNumber(p.jumlah_pengajuan),rt=paymentTotalRincianV138(rincian),at=paymentTotalRincianV138(rekening);
+    if(!rincian.length)return 'Minimal satu rincian penggunaan anggaran wajib diisi.';
+    if(!rekening.length)return 'Minimal satu rekening penerima wajib diisi.';
+    if(Math.abs(rt-amount)>0.5)return 'Total rincian belanja harus sama dengan jumlah pengajuan.';
+    if(Math.abs(at-amount)>0.5)return 'Total rekening tujuan harus sama dengan jumlah pengajuan.';
+    return '';
+  }
+
+  function applyPaymentSubmittedV16420(id,response,data){
+    let p=paymentByIdV138(id);
+    if(!p&&response?.pengajuan){
+      p={...response.pengajuan};
+      paymentWorkspaceV138.pengajuan=Array.isArray(paymentWorkspaceV138.pengajuan)?paymentWorkspaceV138.pengajuan:[];
+      paymentWorkspaceV138.pengajuan.push(p);
+    }
+    if(p){
+      if(data){
+        Object.assign(p,data,{
+          jumlah_pengajuan:paymentTotalRincianV138(data.rincian||[]),
+          rincian_json:JSON.stringify(data.rincian||[]),
+          rekening_json:JSON.stringify(data.rekening||[])
+        });
+      }
+      Object.assign(p,{
+        id_pengajuan:id,
+        status_pengajuan:response?.status_pengajuan||'MENUNGGU PERSETUJUAN PIMPINAN',
+        tahap_aktif:response?.tahap_aktif||'PIMPINAN',
+        tte_bidang_oleh:response?.tte_bidang_oleh||currentUser?.nama||'',
+        tte_bidang_waktu:response?.tte_bidang_waktu||new Date().toISOString(),
+        tte_bidang_token:response?.tte_bidang_token||p.tte_bidang_token||'',
+        updated_at:new Date().toISOString()
+      });
+    }
+    paymentTabV138='DAFTAR';
+    paymentEditIdV138='';
+    paymentPrefillActivityV138='';
+    if(typeof paymentDataUnlockedV145!=='undefined')paymentDataUnlockedV145=false;
+    renderPaymentWorkspaceV138();
+    if(typeof showFastCacheNotice==='function')showFastCacheNotice(response?.message||'Pengajuan berhasil diberi TTE dan dikirim kepada Ketua Harian.');
+    if(typeof refreshPaymentWorkspaceSilentV16418==='function'){
+      setTimeout(()=>refreshPaymentWorkspaceSilentV16418({render:false}),200);
+    }else{
+      setTimeout(()=>loadPaymentWorkspaceV138(true),250);
+    }
+  }
+
+  window.submitPaymentFromListV145=async function(id){
+    if(paymentTteBusyV16420)return;
+    const p=paymentByIdV138(id),err=paymentStoredValidationV16420(p);
+    if(err)return alert(err);
+    const ok=await confirmActionV133({
+      title:'TTE & Ajukan Verifikasi',
+      message:'Nota Dinas Bidang dan SPTJM akan diberi TTE, lalu pengajuan dikirim kepada Ketua Harian. Data tidak dapat diedit sampai dikembalikan.',
+      confirmText:'Ya, TTE & Ajukan'
+    });
+    if(!ok)return;
+    paymentTteBusyV16420=true;
+    showLoading('Memberi TTE dan mengajukan kepada Ketua Harian...');
+    try{
+      const r=await apiPost({action:'submitPaymentFastV16420',id_pengajuan:id});
+      if(!r?.success)throw new Error(r?.message||'Pengajuan gagal diproses.');
+      applyPaymentSubmittedV16420(r.id_pengajuan||id,r,null);
+    }catch(e){
+      alert(e?.message||String(e));
+    }finally{
+      paymentTteBusyV16420=false;
+      hideLoading();
+    }
+  };
+
+  window.submitPaymentFormV145=async function(id){
+    if(paymentTteBusyV16420)return;
+    const p=paymentByIdV138(id);
+    const missing=paymentRequiredDocsV138(p).filter(j=>!paymentDocV138(p,j));
+    if(missing.length)return alert('Dokumen wajib belum lengkap:\n- '+missing.join('\n- '));
+
+    const data=collectPaymentFormV138();
+    const activity=(paymentWorkspaceV138.kegiatan||[]).find(k=>String(k.id_kegiatan)===String(data.id_kegiatan));
+    const budget=toNumber(activity?.jumlah||0),rincianTotal=paymentTotalRincianV138(data.rincian),rekeningTotal=paymentTotalRincianV138(data.rekening);
+    if(!data.id_kegiatan)return alert('Pilih kegiatan terlebih dahulu.');
+    if(!data.rincian.length)return alert('Isi minimal satu rincian penggunaan anggaran.');
+    if(data.rekening.length&&!data.rekening.every(x=>x.uraian&&x.nama_rekening&&x.nama_bank&&x.nomor_rekening&&x.jumlah>0))return alert('Lengkapi seluruh data rekening tujuan.');
+    if(budget>0&&rincianTotal>budget)return alert(`Jumlah pengajuan ${rupiah(rincianTotal)} melebihi pagu kegiatan ${rupiah(budget)}.`);
+    if(!data.rekening.length||Math.abs(rekeningTotal-rincianTotal)>0.5)return alert('Total rekening tujuan harus sama dengan jumlah pengajuan.');
+
+    const ok=await confirmActionV133({
+      title:'TTE & Ajukan Verifikasi',
+      message:'Perubahan terakhir akan disimpan. Nota Dinas Bidang dan SPTJM kemudian diberi TTE dan pengajuan dikirim kepada Ketua Harian.',
+      confirmText:'Ya, Simpan, TTE & Ajukan'
+    });
+    if(!ok)return;
+
+    paymentTteBusyV16420=true;
+    showLoading('Menyimpan, memberi TTE, dan mengajukan kepada Ketua Harian...');
+    try{
+      const r=await apiPost({action:'saveAndSubmitPaymentV16420',data});
+      if(!r?.success)throw new Error(r?.message||'Pengajuan gagal diproses.');
+      const paymentId=r.id_pengajuan||data.id_pengajuan||id;
+      paymentEditIdV138=paymentId;
+      applyPaymentSubmittedV16420(paymentId,r,data);
+    }catch(e){
+      alert(e?.message||String(e));
+    }finally{
+      paymentTteBusyV16420=false;
+      hideLoading();
+    }
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V16420__=PATCH_VERSION_V16420;
 })();
