@@ -12577,6 +12577,7 @@ openHonorModalV79=function(id){
     <input type="hidden" id="honorKegV79" value="${esc(id)}">
     <div class="honor-modal-info-v81"><div><span>ID Kegiatan</span><b>${esc(k.id_kegiatan)}</b></div><div><span>Jenis</span><b>${esc(k.jenis_non_pengadaan||'Non Pengadaan')}</b></div><div><span>Nilai Perencanaan</span><b>${rupiah(k.jumlah)}</b></div><div><span>Versi Berikutnya</span><b>V${(toNumber(latest?.versi_pdf)||0)+1}</b></div></div>
     <div class="honor-tax-note-v87"><b>Perhitungan:</b> Bruto = Volume × Tarif, Pajak = Bruto × Tarif Pajak, Netto = Bruto − Pajak. Total bruto tidak boleh melebihi Nilai Perencanaan.</div>
+    <div class="form-grid honor-signer-grid-v16421"><div class="field"><label>Nama Penandatangan *</label><input id="honorSignerNameV16421" value="${esc(latest?.nama_penandatangan||currentUser?.nama||'')}" placeholder="Nama lengkap penandatangan" autocomplete="off"></div><div class="field"><label>Jabatan Penandatangan *</label><input id="honorSignerRoleV16421" value="${esc(latest?.jabatan_penandatangan||'Penanggung Jawab Kegiatan')}" placeholder="Contoh: Koordinator Bidang Kesehatan" autocomplete="off"></div></div>
     <div class="honor-modal-body-v81"><div class="honor-head-row-v81"><span>Daftar Penerima / Data Pembayaran</span><button class="btn-soft" type="button" onclick="document.getElementById('honorRowsV79').insertAdjacentHTML('beforeend',nonPaymentRowV155(kegiatanById(document.getElementById('honorKegV79').value),{}));syncNonPaymentTotalsV155()">+ Tambah Penerima</button></div><div id="honorRowsV79" class="honor-rows-v92">${(prefill.length?prefill:[{}]).map(p=>nonPaymentRowV155(k,p)).join('')}</div><div id="nonModalTotalsV155" class="non-modal-totals-v155"></div></div>
     <div class="modal-actions honor-actions-v81"><button class="btn-soft" type="button" onclick="document.getElementById('honorModalV79').classList.add('hidden')">Batal</button><button id="btnGenerateHonorV81" class="btn-green" type="button" onclick="generateHonorV112()">Simpan Data &amp; Cetak Dokumen</button></div>
   </div>`;
@@ -12598,11 +12599,15 @@ function collectNonPaymentRowsV155(k){
 generateHonorV112=async function(){
   const btn=document.getElementById('btnGenerateHonorV81');if(btn?.dataset.busy==='1')return;
   const id=document.getElementById('honorKegV79')?.value||'',k=kegiatanById(id);if(!k){alert('Data kegiatan tidak ditemukan.');return;}
+  const namaPenandatangan=(document.getElementById('honorSignerNameV16421')?.value||'').trim();
+  const jabatanPenandatangan=(document.getElementById('honorSignerRoleV16421')?.value||'').trim();
+  if(!namaPenandatangan){alert('Nama penandatangan wajib diisi.');document.getElementById('honorSignerNameV16421')?.focus();return;}
+  if(!jabatanPenandatangan){alert('Jabatan penandatangan wajib diisi.');document.getElementById('honorSignerRoleV16421')?.focus();return;}
   let penerima;try{penerima=collectNonPaymentRowsV155(k);}catch(e){alert(e.message||String(e));return;}
   const preview=window.open('','_blank');if(preview){preview.document.write('<!doctype html><title>Menyiapkan dokumen...</title><p style="font-family:Arial;padding:24px">Menyiapkan dokumen cetak SIMPROV...</p>');preview.document.close();}
   btn.dataset.busy='1';btn.disabled=true;btn.textContent='Menyimpan...';showLoading('Menyimpan data penerima...');
   try{
-    const res=await apiPost({action:'saveNonProcPrintDataV155',user:currentUser,data:{id_kegiatan:id,penerima:penerima}});if(!res.success)throw new Error(res.message||'Gagal menyimpan data');
+    const res=await apiPost({action:'saveNonProcPrintDataV155',user:currentUser,data:{id_kegiatan:id,penerima:penerima,nama_penandatangan:namaPenandatangan,jabatan_penandatangan:jabatanPenandatangan}});if(!res.success)throw new Error(res.message||'Gagal menyimpan data');
     dashboard.nonPengadaan=dashboard.nonPengadaan||[];dashboard.nonPengadaan.push(res.non_pengadaan);
     dashboard.honorPenerima=dashboard.honorPenerima||[];(res.penerima||[]).forEach(x=>dashboard.honorPenerima.push(x));
     k.status_pencairan=res.status_paket||k.status_pencairan;
@@ -12645,6 +12650,8 @@ function renderNonPrintWindowV155(win,id,version){
   const logo=new URL('logo-siporbo.png',window.location.href).href,jenis=String(k.jenis_non_pengadaan||'Honorarium').trim(),isHonor=jenis.toUpperCase().includes('HONOR');
   const title=isHonor?'DAFTAR PEMBAYARAN HONORARIUM':`DAFTAR PEMBAYARAN ${jenis.toUpperCase()}`;
   const period=nonPrintPeriodV155(k,n),eventDate=nonPrintEventDateV155(k,n),sign=nonPrintSignatoriesV155(k);
+  const signerName=String(n.nama_penandatangan||sign.pelaksana||'Belum diisi').trim();
+  const signerRole=String(n.jabatan_penandatangan||sign.jabatanPelaksana||'Penanggung Jawab Kegiatan').trim();
   const totalBruto=rows.reduce((s,x)=>s+toNumber(x.jumlah_bruto),0),totalPajak=rows.reduce((s,x)=>s+toNumber(x.nilai_pajak),0),totalNetto=rows.reduce((s,x)=>s+toNumber(x.jumlah_netto),0);
   const terbilang=typeof numberWordsV138==='function'?numberWordsV138(totalNetto):nonPrintMoneyV155(totalNetto);
   const bodyRows=rows.map(function(p,i){
@@ -12659,7 +12666,7 @@ function renderNonPrintWindowV155(win,id,version){
     <table class="payment-table"><colgroup><col class="no"><col class="nama"><col class="tanggal"><col class="jabatan"><col class="vol"><col class="sat"><col class="harga"><col class="jumlah"><col class="pajak"><col class="netto"><col class="ttd"></colgroup><thead><tr><th>NO</th><th>NAMA</th><th>HARI DAN TANGGAL<br>KEGIATAN</th><th>JABATAN / PERAN</th><th>VOL</th><th>SAT</th><th>HARGA SAT<br>RP</th><th>JUMLAH<br>RP</th><th>PPH 21</th><th>JUMLAH YANG<br>DITERIMA</th><th>TANDA<br>TANGAN</th></tr></thead><tbody>${bodyRows||'<tr><td colspan="11" class="center">Tidak ada data penerima.</td></tr>'}</tbody><tfoot><tr><td colspan="7" class="total-label">TOTAL</td><td class="money">${nonPrintMoneyV155(totalBruto)}</td><td class="money">${nonPrintMoneyV155(totalPajak)}</td><td class="money">${nonPrintMoneyV155(totalNetto)}</td><td></td></tr></tfoot></table>
     <div class="terbilang"><span>Terbilang</span><span>:</span><em>${esc(terbilang)}</em></div>
     <div class="sign-date">Bogor, ${esc(nonPrintEventDateV155({},n).replace(/^[^,]+,\s*/,''))}</div>
-    <section class="signatures"><div>Pelaksana Kegiatan Pengadaan<div class="space"></div><div class="name-line">${esc(sign.pelaksana)}</div>${sign.jabatanPelaksana?`<small>${esc(sign.jabatanPelaksana)}</small>`:''}</div><div>Bendahara<div class="space"></div><div class="name-line">${esc(sign.bendahara)}</div></div></section>
+    <section class="signatures"><div>${esc(signerRole)}<div class="space"></div><div class="name-line">${esc(signerName)}</div></div><div>Bendahara<div class="space"></div><div class="name-line">${esc(sign.bendahara)}</div></div></section>
     <footer class="audit"><span>ID Kegiatan: ${esc(k.id_kegiatan)} • Bidang: ${esc(bidangName(k.id_bidang))} • Versi: V${esc(version)}</span><span>Data disimpan oleh ${esc(n.generate_by||n.input_by||'-')} pada ${esc(nonPrintDateV155(n.tanggal_generate||n.tanggal_input))}</span></footer>
     </main></body></html>`;
   win.document.open();win.document.write(html);win.document.close();
@@ -12791,6 +12798,8 @@ renderNonPrintWindowV155=function(win,id,version){
   if(!win)return alert('Popup diblokir browser. Izinkan popup lalu klik Cetak kembali.');
   const logo=new URL('logo-siporbo.png',window.location.href).href,title='DAFTAR PEMBAYARAN HONORARIUM';
   const period=nonPrintPeriodV155(k,n),eventDate=nonPrintEventDateV155(k,n),sign=nonPrintSignatoriesV155(k);
+  const signerName=String(n.nama_penandatangan||sign.pelaksana||'Belum diisi').trim();
+  const signerRole=String(n.jabatan_penandatangan||sign.jabatanPelaksana||'Penanggung Jawab Kegiatan').trim();
   const totalBruto=rows.reduce((s,x)=>s+toNumber(x.jumlah_bruto),0),totalPajak=rows.reduce((s,x)=>s+toNumber(x.nilai_pajak),0),totalNetto=rows.reduce((s,x)=>s+toNumber(x.jumlah_netto),0);
   const terbilang=typeof numberWordsV138==='function'?numberWordsV138(totalNetto):nonPrintMoneyV155(totalNetto);
   const bodyRows=rows.map(function(p,i){
@@ -12804,7 +12813,7 @@ renderNonPrintWindowV155=function(win,id,version){
     <section class="doc-title"><h1>${title}</h1><h2>${esc(k.nama_kegiatan)}</h2><h3>BULAN ${esc(period.bulan)} TAHUN ${esc(period.tahun)}</h3></section>
     <table class="payment-table"><colgroup><col class="no"><col class="nama"><col class="tanggal"><col class="jabatan"><col class="vol"><col class="sat"><col class="harga"><col class="jumlah"><col class="pajak"><col class="netto"><col class="ttd"></colgroup><thead><tr><th>NO</th><th>NAMA</th><th>HARI DAN TANGGAL<br>KEGIATAN</th><th>JABATAN / PERAN</th><th>VOL</th><th>SAT</th><th>HARGA SAT<br>RP</th><th>JUMLAH<br>RP</th><th>PPH 21</th><th>JUMLAH YANG<br>DITERIMA</th><th>TANDA<br>TANGAN</th></tr></thead><tbody>${bodyRows||'<tr><td colspan="11" class="center">Tidak ada data penerima.</td></tr>'}</tbody><tfoot><tr><td colspan="7" class="total-label">TOTAL</td><td class="money">${nonPrintMoneyV155(totalBruto)}</td><td class="money">${nonPrintMoneyV155(totalPajak)}</td><td class="money">${nonPrintMoneyV155(totalNetto)}</td><td></td></tr></tfoot></table>
     <div class="terbilang"><span>Terbilang</span><span>:</span><em>${esc(terbilang)}</em></div>
-    <section class="signatures"><div class="sign-left">Pelaksana Kegiatan Pengadaan<div class="space"></div><div class="name-line">${esc(sign.pelaksana)}</div>${sign.jabatanPelaksana?`<small>${esc(sign.jabatanPelaksana)}</small>`:''}</div><div class="sign-right"><div class="city-date">Bogor, ${esc(nonPrintCityDateV155R2(n))}</div><div>Bendahara</div><div class="space"></div></div></section>
+    <section class="signatures"><div class="sign-left">${esc(signerRole)}<div class="space"></div><div class="name-line">${esc(signerName)}</div></div><div class="sign-right"><div class="city-date">Bogor, ${esc(nonPrintCityDateV155R2(n))}</div><div>Bendahara</div><div class="space"></div></div></section>
     <footer class="audit"><span>ID Kegiatan: ${esc(k.id_kegiatan)} • Bidang: ${esc(bidangName(k.id_bidang))} • Versi: V${esc(version)}</span><span>Data disimpan oleh ${esc(n.generate_by||n.input_by||'-')} pada ${esc(nonPrintDateV155(n.tanggal_generate||n.tanggal_input))}</span></footer>
     </main></body></html>`;
   win.document.open();win.document.write(html);win.document.close();
@@ -17214,3 +17223,123 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V16420__=PATCH_VERSION_V16420;
 })();
+
+/* =========================================================
+   SIMPROV v164.21 - Lanjutkan Draft & Penandatangan Honorarium
+   ---------------------------------------------------------
+   - Paket yang memiliki pengajuan DRAFT/PERBAIKAN BIDANG dapat
+     dipilih untuk melanjutkan pengajuan yang sama.
+   - Paket yang sedang diproses atau sudah selesai tetap terkunci.
+   - Nama dan jabatan penandatangan Honorarium diisi manual per versi.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16421='164.21';
+  const EDITABLE_PAYMENT_STATUS_V16421=new Set(['DRAFT','PERBAIKAN BIDANG']);
+
+  function upperV16421(value){return String(value==null?'':value).trim().toUpperCase();}
+  function paymentTimeV16421(row){
+    for(const value of [row?.updated_at,row?.created_at,row?.tanggal_bayar]){
+      const time=new Date(value||0).getTime();
+      if(Number.isFinite(time)&&time>0)return time;
+    }
+    return Number(row?._row||0);
+  }
+  function latestPaymentMapV16421(){
+    const map=new Map();
+    (paymentWorkspaceV138?.pengajuan||[]).forEach(row=>{
+      const id=String(row?.id_kegiatan||'').trim();if(!id)return;
+      const current=map.get(id);
+      if(!current||paymentTimeV16421(row)>=paymentTimeV16421(current))map.set(id,row);
+    });
+    return map;
+  }
+  function paymentStatusLabelSafeV16421(row){
+    const status=upperV16421(row?.status_pengajuan||'DRAFT');
+    try{return String(paymentStatusLabelV138(status)||status).trim();}catch(e){return status.replace(/_/g,' ');}
+  }
+  function paymentOptionTextV16421(activity,payment){
+    const id=String(activity?.id_kegiatan||'-').trim();
+    const name=String(activity?.nama_kegiatan||'-').trim();
+    const status=payment?paymentStatusLabelSafeV16421(payment):(activity?.payment_ready?'SIAP':'BELUM SIAP');
+    return `ID Paket: ${id} | ${name} | Status: ${status}`;
+  }
+  function editableDraftForActivityV16421(activityId){
+    const id=String(activityId||'').trim();if(!id)return null;
+    const row=latestPaymentMapV16421().get(id)||null;
+    return row&&EDITABLE_PAYMENT_STATUS_V16421.has(upperV16421(row.status_pengajuan))?row:null;
+  }
+
+  window.handlePaymentActivityChangeV16421=function(select){
+    const activityId=String(select?.value||'').trim();
+    if(!activityId){paymentEditIdV138='';paymentPrefillActivityV138='';renderPaymentWorkspaceV138();return;}
+    const draft=editableDraftForActivityV16421(activityId);
+    if(draft){
+      paymentEditIdV138=String(draft.id_pengajuan||'');
+      paymentPrefillActivityV138=activityId;
+      renderPaymentWorkspaceV138();
+      if(typeof showFastCacheNotice==='function')showFastCacheNotice('Draft pengajuan dibuka. Lanjutkan pengisian data yang belum lengkap.');
+      return;
+    }
+    paymentEditIdV138='';
+    paymentPrefillActivityV138=activityId;
+    renderPaymentWorkspaceV138();
+  };
+
+  if(typeof paymentFormV138==='function'){
+    const paymentFormBaseV16421=paymentFormV138;
+    paymentFormV138=function(){
+      let html=String(paymentFormBaseV16421.apply(this,arguments)||'');
+      const activities=Array.isArray(paymentWorkspaceV138?.kegiatan)?paymentWorkspaceV138.kegiatan:[];
+      const latest=latestPaymentMapV16421();
+      const current=paymentByIdV138(paymentEditIdV138);
+      const selected=String(current?.id_kegiatan||paymentPrefillActivityV138||'');
+      const options=['<option value="">Pilih kegiatan</option>'];
+
+      activities.forEach(activity=>{
+        const id=String(activity?.id_kegiatan||'');
+        const existing=latest.get(id)||null;
+        const isCurrent=!!current&&String(current.id_kegiatan||'')===id;
+        const editableExisting=!!existing&&EDITABLE_PAYMENT_STATUS_V16421.has(upperV16421(existing.status_pengajuan));
+        const disabled=!isCurrent&&((!!existing&&!editableExisting)||(!existing&&!activity?.payment_ready));
+        options.push(`<option value="${esc(id)}" ${id===selected?'selected':''} ${disabled?'disabled':''}>${esc(paymentOptionTextV16421(activity,existing))}</option>`);
+      });
+
+      html=html.replace(
+        /(<select\s+id="payActivityV138"[^>]*>)[\s\S]*?(<\/select>)/,
+        function(_,open,close){
+          const updated=open.replace(/onchange="[^"]*"/, 'onchange="handlePaymentActivityChangeV16421(this)"');
+          return updated+options.join('')+close;
+        }
+      );
+      return html;
+    };
+  }
+
+  if(typeof savePaymentDraftV138==='function'){
+    const savePaymentDraftBaseV16421=savePaymentDraftV138;
+    savePaymentDraftV138=async function(){
+      if(!paymentEditIdV138){
+        const activityId=String(document.getElementById('payActivityV138')?.value||paymentPrefillActivityV138||'').trim();
+        const draft=editableDraftForActivityV16421(activityId);
+        if(draft)paymentEditIdV138=String(draft.id_pengajuan||'');
+      }
+      return savePaymentDraftBaseV16421.apply(this,arguments);
+    };
+  }
+
+  if(typeof openPaymentFormV138==='function'){
+    const openPaymentFormBaseV16421=openPaymentFormV138;
+    openPaymentFormV138=function(id='',activity=''){
+      if(!id&&activity){
+        const draft=editableDraftForActivityV16421(activity);
+        if(draft)return openPaymentFormBaseV16421.call(this,String(draft.id_pengajuan||''),activity);
+      }
+      return openPaymentFormBaseV16421.apply(this,arguments);
+    };
+  }
+
+  window.__SIMPROV_PATCH_VERSION_V16421__=PATCH_VERSION_V16421;
+})();
+
