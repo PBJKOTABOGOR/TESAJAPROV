@@ -16959,3 +16959,127 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V16418__=PATCH_VERSION_V16418;
 })();
+
+/* =========================================================
+   SIMPROV v164.19 - Satu Pengajuan per Paket
+   ---------------------------------------------------------
+   - Paket yang sudah pernah dibuatkan pengajuan tetap tampil
+     pada dropdown sebagai informasi, tetapi tidak dapat dipilih.
+   - Label dropdown memuat ID Paket, Nama Paket, dan Status.
+   - Draft, proses berjalan, perbaikan, maupun selesai semuanya
+     mengunci paket dari pembuatan pengajuan baru.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16419='164.19';
+
+  function paymentStatusTextV16419(row){
+    const raw=String(row?.status_pengajuan||'DRAFT').trim().toUpperCase();
+    if(typeof paymentStatusLabelV138==='function'){
+      try{return String(paymentStatusLabelV138(raw)||raw).trim();}catch(e){}
+    }
+    return raw.replace(/_/g,' ');
+  }
+
+  function paymentTimeV16419(row){
+    const values=[row?.updated_at,row?.created_at,row?.tanggal_bayar];
+    for(const value of values){
+      const time=new Date(value||0).getTime();
+      if(Number.isFinite(time)&&time>0)return time;
+    }
+    return Number(row?._row||0);
+  }
+
+  function latestPaymentByActivityV16419(rows){
+    const map=new Map();
+    (rows||[]).forEach(row=>{
+      const id=String(row?.id_kegiatan||'').trim();
+      if(!id)return;
+      const current=map.get(id);
+      if(!current||paymentTimeV16419(row)>=paymentTimeV16419(current))map.set(id,row);
+    });
+    return map;
+  }
+
+  function activityOptionLabelV16419(activity,payment){
+    const id=String(activity?.id_kegiatan||'-').trim();
+    const name=String(activity?.nama_kegiatan||'-').trim();
+    let status='SIAP';
+    if(payment)status=paymentStatusTextV16419(payment);
+    else if(!activity?.payment_ready)status='BELUM SIAP';
+    return `ID Paket: ${id} | ${name} | Status: ${status}`;
+  }
+
+  function duplicatePaymentForActivityV16419(activityId,currentPaymentId=''){
+    const id=String(activityId||'').trim();
+    const current=String(currentPaymentId||'').trim();
+    if(!id)return null;
+    return (paymentWorkspaceV138?.pengajuan||[]).find(row=>
+      String(row?.id_kegiatan||'').trim()===id&&
+      String(row?.id_pengajuan||'').trim()!==current
+    )||null;
+  }
+
+  if(typeof paymentFormV138==='function'){
+    const paymentFormBaseV16419=paymentFormV138;
+    paymentFormV138=function(){
+      const originalPayments=Array.isArray(paymentWorkspaceV138?.pengajuan)
+        ? paymentWorkspaceV138.pengajuan
+        : [];
+      const currentPaymentId=String(paymentEditIdV138||'').trim();
+      const currentPayment=originalPayments.find(row=>String(row?.id_pengajuan||'').trim()===currentPaymentId)||null;
+
+      /* Prefill dari tombol paket tidak boleh mempertahankan kegiatan yang
+         sudah memiliki pengajuan, termasuk pengajuan berstatus SELESAI. */
+      if(!currentPayment&&paymentPrefillActivityV138){
+        const blocked=originalPayments.some(row=>String(row?.id_kegiatan||'')===String(paymentPrefillActivityV138));
+        if(blocked)paymentPrefillActivityV138='';
+      }
+
+      /* Form lama menyaring kegiatan yang pernah dipakai. Untuk memberikan
+         informasi lengkap, panggil renderer dengan hanya pengajuan yang sedang
+         diedit, lalu susun ulang seluruh option dengan status dan penguncian. */
+      paymentWorkspaceV138.pengajuan=currentPayment?[currentPayment]:[];
+      let html='';
+      try{html=paymentFormBaseV16419.apply(this,arguments);}
+      finally{paymentWorkspaceV138.pengajuan=originalPayments;}
+
+      const activities=Array.isArray(paymentWorkspaceV138?.kegiatan)
+        ? paymentWorkspaceV138.kegiatan
+        : [];
+      const latestByActivity=latestPaymentByActivityV16419(originalPayments);
+      const selected=String(currentPayment?.id_kegiatan||paymentPrefillActivityV138||'');
+      const options=['<option value="">Pilih kegiatan</option>'];
+
+      activities.forEach(activity=>{
+        const activityId=String(activity?.id_kegiatan||'');
+        const existing=latestByActivity.get(activityId)||null;
+        const isCurrent=!!currentPayment&&String(currentPayment.id_kegiatan||'')===activityId;
+        const disabled=(!isCurrent&&!!existing)||(!isCurrent&&!activity?.payment_ready);
+        options.push(`<option value="${esc(activityId)}" ${activityId===selected?'selected':''} ${disabled?'disabled':''}>${esc(activityOptionLabelV16419(activity,existing))}</option>`);
+      });
+
+      return html.replace(
+        /(<select\s+id="payActivityV138"[^>]*>)[\s\S]*?(<\/select>)/,
+        `$1${options.join('')}$2`
+      );
+    };
+  }
+
+  if(typeof savePaymentDraftV138==='function'){
+    const savePaymentDraftBaseV16419=savePaymentDraftV138;
+    savePaymentDraftV138=async function(){
+      const select=document.getElementById('payActivityV138');
+      const activityId=String(select?.value||paymentPrefillActivityV138||'').trim();
+      const duplicate=duplicatePaymentForActivityV16419(activityId,paymentEditIdV138);
+      if(duplicate){
+        alert(`Paket ini sudah memiliki pengajuan pembayaran dengan status ${paymentStatusTextV16419(duplicate)}. Buka pengajuan yang sudah ada dari Daftar Pengajuan Pembayaran.`);
+        return;
+      }
+      return savePaymentDraftBaseV16419.apply(this,arguments);
+    };
+  }
+
+  window.__SIMPROV_PATCH_VERSION_V16419__=PATCH_VERSION_V16419;
+})();
