@@ -16868,3 +16868,94 @@ verifikasiRealisasiNonV112=async function(id,mode){
     };
   }
 })();
+
+/* =========================================================
+   SIMPROV v164.18 - Stabilitas Validasi PBJ & Pengajuan BL
+   ---------------------------------------------------------
+   - Validasi massal tetap satu request dan memakai sesi server.
+   - Kesiapan Pengajuan Pembayaran disinkronkan tanpa reload dashboard.
+   - Pengajuan berstatus SELESAI tidak menyembunyikan paket selamanya.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16418='164.18';
+  let paymentSyncBusyV16418=false;
+
+  function upperV16418(value){return String(value==null?'':value).trim().toUpperCase();}
+  function isPaymentMenuV16418(){
+    return ['Surat','Antrean Persetujuan Pengajuan','Riwayat Persetujuan Pengajuan','Antrean Verifikasi','Riwayat Verifikasi','Antrean Pembayaran Bendahara','Riwayat Pembayaran Bendahara'].includes(String(activeMenu||''));
+  }
+  function isActivePaymentV16418(row){
+    const status=upperV16418(row?.status_pengajuan||'DRAFT');
+    return status!=='SELESAI'&&status!=='DIBATALKAN'&&status!=='DIHAPUS';
+  }
+
+  async function refreshPaymentWorkspaceSilentV16418({render=false}={}){
+    if(paymentSyncBusyV16418)return paymentWorkspaceV138;
+    paymentSyncBusyV16418=true;
+    try{
+      const response=await apiPost({action:'getPaymentWorkspaceV138'});
+      if(!response?.success)throw new Error(response?.message||'Data pengajuan pembayaran gagal disinkronkan.');
+      paymentWorkspaceV138={...response,loaded:true,loading:false,savedAt:Date.now()};
+      if(render&&isPaymentMenuV16418()&&typeof renderPaymentWorkspaceV138==='function')renderPaymentWorkspaceV138();
+      return paymentWorkspaceV138;
+    }catch(error){
+      console.warn('PAYMENT_SYNC_V16418',error);
+      return paymentWorkspaceV138;
+    }finally{paymentSyncBusyV16418=false;}
+  }
+  window.refreshPaymentWorkspaceSilentV16418=refreshPaymentWorkspaceSilentV16418;
+
+  /* Form lama menyembunyikan kegiatan yang pernah memiliki pengajuan,
+     termasuk pengajuan yang sudah SELESAI. Backend sebenarnya hanya melarang
+     duplikasi pengajuan aktif, sehingga frontend disamakan dengan aturan itu. */
+  if(typeof paymentFormV138==='function'){
+    const paymentFormBaseV16418=paymentFormV138;
+    paymentFormV138=function(){
+      const original=Array.isArray(paymentWorkspaceV138?.pengajuan)?paymentWorkspaceV138.pengajuan:[];
+      paymentWorkspaceV138.pengajuan=original.filter(isActivePaymentV16418);
+      try{return paymentFormBaseV16418.apply(this,arguments);}
+      finally{paymentWorkspaceV138.pengajuan=original;}
+    };
+  }
+
+  /* Saat form baru dibuka, tampilkan form langsung lalu sinkronkan workspace
+     di belakang layar. Hanya panel pembayaran yang dirender ulang. */
+  if(typeof openPaymentFormV138==='function'){
+    const openPaymentFormBaseV16418=openPaymentFormV138;
+    openPaymentFormV138=function(id='',activity=''){
+      const result=openPaymentFormBaseV16418.apply(this,arguments);
+      if(!id){
+        refreshPaymentWorkspaceSilentV16418().then(()=>{
+          if(paymentTabV138==='FORM'&&!paymentEditIdV138&&typeof renderPaymentWorkspaceV138==='function')renderPaymentWorkspaceV138();
+        });
+      }
+      return result;
+    };
+  }
+
+  /* Setelah validasi massal selesai, data kesiapan paket diperbarui ringan.
+     Tidak merender menu paket yang sedang dibuka. */
+  if(typeof window.bulkValidateProcDocsV16413==='function'){
+    const bulkValidateBaseV16418=window.bulkValidateProcDocsV16413;
+    window.bulkValidateProcDocsV16413=async function(id,button){
+      const result=await bulkValidateBaseV16418.apply(this,arguments);
+      if(typeof syncPaymentReadyLocalV16417==='function')syncPaymentReadyLocalV16417(id);
+      refreshPaymentWorkspaceSilentV16418();
+      return result;
+    };
+  }
+
+  /* Validasi satuan juga menyinkronkan daftar kegiatan pembayaran. */
+  if(typeof verifDokV96==='function'){
+    const verifyOneBaseV16418=verifDokV96;
+    verifDokV96=async function(idDok,status,ctx){
+      const result=await verifyOneBaseV16418.apply(this,arguments);
+      if(ctx!=='NON')refreshPaymentWorkspaceSilentV16418();
+      return result;
+    };
+  }
+
+  window.__SIMPROV_PATCH_VERSION_V16418__=PATCH_VERSION_V16418;
+})();
