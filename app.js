@@ -17343,3 +17343,293 @@ verifikasiRealisasiNonV112=async function(id,mode){
   window.__SIMPROV_PATCH_VERSION_V16421__=PATCH_VERSION_V16421;
 })();
 
+
+/* =========================================================
+   SIMPROV v164.22 - Navigasi SPTJM & Progress Upload Honorarium
+   ---------------------------------------------------------
+   - Tombol SPTJM mengikuti status Pengajuan Pembayaran paket.
+   - Draft dibuka untuk dilanjutkan; proses aktif dibuka pada kartu pengajuan.
+   - Upload dokumen Honorarium menampilkan progres 0-100%.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16422='164.22';
+  const EDITABLE_PAYMENT_STATUS_V16422=new Set(['DRAFT','PERBAIKAN BIDANG']);
+  let paymentNavigationBusyV16422=false;
+  let honorUploadPulseV16422=null;
+  let honorUploadProgressV16422=0;
+
+  function upperV16422(value){return String(value==null?'':value).trim().toUpperCase();}
+  function paymentRowTimeV16422(row){
+    for(const value of [row?.updated_at,row?.created_at,row?.tanggal_bayar]){
+      const time=new Date(value||0).getTime();
+      if(Number.isFinite(time)&&time>0)return time;
+    }
+    return Number(row?._row||0);
+  }
+  function allPaymentRowsV16422(){
+    const map=new Map();
+    const sources=[
+      ...(Array.isArray(dashboard?.pengajuanPembayaranV138)?dashboard.pengajuanPembayaranV138:[]),
+      ...(Array.isArray(paymentWorkspaceV138?.pengajuan)?paymentWorkspaceV138.pengajuan:[])
+    ];
+    sources.forEach(row=>{
+      const key=String(row?.id_pengajuan||`${row?.id_kegiatan||''}|${row?.status_pengajuan||''}`);
+      const previous=map.get(key);
+      if(!previous||paymentRowTimeV16422(row)>=paymentRowTimeV16422(previous))map.set(key,row);
+    });
+    return [...map.values()];
+  }
+  function latestPaymentForActivityV16422(activityId){
+    const id=String(activityId||'').trim();
+    return allPaymentRowsV16422()
+      .filter(row=>String(row?.id_kegiatan||'').trim()===id)
+      .sort((a,b)=>paymentRowTimeV16422(b)-paymentRowTimeV16422(a))[0]||null;
+  }
+  function paymentButtonStateV16422(activityId){
+    const payment=latestPaymentForActivityV16422(activityId);
+    if(!payment)return {label:'Buat di Sistem',mode:'CREATE',payment:null};
+    const status=upperV16422(payment.status_pengajuan||'DRAFT');
+    if(EDITABLE_PAYMENT_STATUS_V16422.has(status))return {label:'Lanjutkan Draft',mode:'EDIT',payment};
+    return {label:'Lihat Pengajuan',mode:'VIEW',payment};
+  }
+
+  function patchSptjmButtonV16422(root,k){
+    if(!root||!k)return;
+    try{if(typeof isBLV94==='function'&&!isBLV94(k))return;}catch(e){}
+    const role=upperV16422(typeof actualRoleV133==='function'?actualRoleV133():currentUser?.role);
+    if(!['BIDANG','ADMIN'].includes(role))return;
+    const state=paymentButtonStateV16422(k.id_kegiatan);
+    root.querySelectorAll('tbody tr').forEach(row=>{
+      const cells=row.querySelectorAll('td');if(cells.length<4)return;
+      const label=String(cells[0]?.textContent||'').replace(/\s+/g,' ').trim();
+      const isSptjm=(typeof dokKeyV94==='function')
+        ?dokKeyV94(label)===dokKeyV94('SPTJM')
+        :upperV16422(label)==='SPTJM';
+      if(!isSptjm)return;
+      const actionCell=cells[3];
+      let button=[...actionCell.querySelectorAll('button')].find(btn=>/BUAT DI SISTEM|BUAT SPTJM|LANJUTKAN DRAFT|LIHAT PENGAJUAN/i.test(btn.textContent||''));
+      if(!button){
+        const wrap=actionCell.querySelector('.document-helper-actions-v149')||actionCell;
+        button=document.createElement('button');wrap.appendChild(button);
+      }
+      button.type='button';
+      button.textContent=state.label;
+      button.setAttribute('onclick',`openPaymentFromSptjmV16422('${String(k.id_kegiatan).replace(/'/g,"\\'")}')`);
+      button.className=state.mode==='VIEW'
+        ?'btn-soft document-system-btn-v149 payment-view-btn-v16422'
+        :'btn-green document-system-btn-v149';
+      button.title=state.mode==='EDIT'?'Lanjutkan pengisian draft pengajuan pembayaran':state.mode==='VIEW'?'Buka pengajuan pembayaran paket ini':'Buat SPTJM dan pengajuan pembayaran';
+    });
+  }
+
+  if(typeof dokumenTableV95==='function'){
+    const dokumenTableBaseV16422=dokumenTableV95;
+    dokumenTableV95=function(k,jenisList,ctx){
+      const html=dokumenTableBaseV16422.apply(this,arguments);
+      if((ctx||'PGD')!=='PGD')return html;
+      try{
+        const box=document.createElement('div');box.innerHTML=html;
+        patchSptjmButtonV16422(box,k);
+        return box.innerHTML;
+      }catch(e){return html;}
+    };
+  }
+
+  if(typeof pasangTombolHpsOptionalV121==='function'){
+    const helperBaseV16422=pasangTombolHpsOptionalV121;
+    pasangTombolHpsOptionalV121=function(k){
+      const result=helperBaseV16422.apply(this,arguments);
+      patchSptjmButtonV16422(document.getElementById('contentArea'),k);
+      return result;
+    };
+  }
+
+  if(typeof renderDetailPengadaanLangsungV123==='function'){
+    const renderDetailBaseV16422=renderDetailPengadaanLangsungV123;
+    renderDetailPengadaanLangsungV123=function(k){
+      const result=renderDetailBaseV16422.apply(this,arguments);
+      setTimeout(()=>patchSptjmButtonV16422(document.getElementById('contentArea'),k),0);
+      return result;
+    };
+    renderDetailPengadaanLangsungV95=function(k){return renderDetailPengadaanLangsungV123(k);};
+  }
+
+  if(typeof paymentCardV138==='function'){
+    const paymentCardBaseV16422=paymentCardV138;
+    paymentCardV138=function(p){
+      const html=paymentCardBaseV16422.apply(this,arguments);
+      try{
+        const box=document.createElement('div');box.innerHTML=html;
+        const card=box.querySelector('.payment-card-v138');
+        if(card){
+          card.dataset.activityId=String(p?.id_kegiatan||'');
+          card.dataset.paymentId=String(p?.id_pengajuan||'');
+        }
+        return box.innerHTML;
+      }catch(e){return html;}
+    };
+  }
+
+  function focusPaymentCardV16422(activityId){
+    const selector=`.payment-card-v138[data-activity-id="${CSS.escape(String(activityId||''))}"]`;
+    const card=document.querySelector(selector);if(!card)return false;
+    card.open=true;
+    card.scrollIntoView({behavior:'smooth',block:'start'});
+    card.classList.add('payment-focus-v16422');
+    setTimeout(()=>card.classList.remove('payment-focus-v16422'),1400);
+    return true;
+  }
+
+  window.openPaymentFromSptjmV16422=async function(activityId){
+    if(paymentNavigationBusyV16422)return;
+    const id=String(activityId||'').trim();if(!id)return;
+    paymentNavigationBusyV16422=true;
+    showLoading('Membuka pengajuan pembayaran...');
+    try{
+      activeMenu='Surat';
+      suratTabV133='PEMBAYARAN';
+      paymentPrefillActivityV138=id;
+      if(typeof paymentDataUnlockedV145!=='undefined')paymentDataUnlockedV145=true;
+      if(typeof renderMenu==='function')renderMenu();
+      if(typeof renderSummary==='function')renderSummary();
+      if(typeof renderContent==='function')renderContent();
+
+      await loadPaymentWorkspaceV138(true);
+      const payment=latestPaymentForActivityV16422(id);
+      if(!payment){
+        paymentEditIdV138='';
+        paymentPrefillActivityV138=id;
+        paymentTabV138='FORM';
+        renderPaymentWorkspaceV138();
+        window.scrollTo({top:0,behavior:'smooth'});
+        return;
+      }
+
+      const status=upperV16422(payment.status_pengajuan||'DRAFT');
+      if(EDITABLE_PAYMENT_STATUS_V16422.has(status)){
+        paymentEditIdV138=String(payment.id_pengajuan||'');
+        paymentPrefillActivityV138=id;
+        paymentTabV138='FORM';
+        renderPaymentWorkspaceV138();
+        window.scrollTo({top:0,behavior:'smooth'});
+        return;
+      }
+
+      paymentEditIdV138='';
+      paymentPrefillActivityV138='';
+      paymentTabV138='DAFTAR';
+      if(typeof setPaymentSourceTabV1641==='function'){
+        window.paymentSourceTabV1641='PENCATATAN_PENGADAAN';
+        setPaymentSourceTabV1641('PENCATATAN_PENGADAAN');
+      }else renderPaymentWorkspaceV138();
+      setTimeout(()=>{
+        if(!focusPaymentCardV16422(id)){
+          renderPaymentWorkspaceV138();
+          setTimeout(()=>focusPaymentCardV16422(id),80);
+        }
+      },80);
+    }catch(e){
+      alert(e?.message||String(e));
+    }finally{
+      paymentNavigationBusyV16422=false;
+      hideLoading();
+    }
+  };
+
+  function stopHonorUploadPulseV16422(){
+    if(honorUploadPulseV16422){clearInterval(honorUploadPulseV16422);honorUploadPulseV16422=null;}
+  }
+  function setHonorUploadProgressV16422(percent,detail){
+    const p=Math.max(0,Math.min(100,Math.round(Number(percent)||0)));
+    honorUploadProgressV16422=Math.max(honorUploadProgressV16422,p);
+    const wrap=document.getElementById('loadingProgressWrap');
+    const bar=document.getElementById('loadingProgressBar');
+    const pct=document.getElementById('loadingProgressPercent');
+    const text=document.getElementById('loadingProgressDetail');
+    if(wrap)wrap.classList.remove('hidden');
+    if(bar)bar.style.width=honorUploadProgressV16422+'%';
+    if(pct)pct.textContent=honorUploadProgressV16422+'%';
+    if(text&&detail)text.textContent=detail;
+  }
+  function startHonorUploadPulseV16422(){
+    stopHonorUploadPulseV16422();
+    honorUploadPulseV16422=setInterval(()=>{
+      if(honorUploadProgressV16422>=92)return;
+      const step=honorUploadProgressV16422<65?2:1;
+      setHonorUploadProgressV16422(Math.min(92,honorUploadProgressV16422+step),'Mengirim file ke penyimpanan...');
+    },300);
+  }
+  function fileBase64ProgressV16422(file,onProgress){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onprogress=event=>{if(event.lengthComputable&&onProgress)onProgress(event.loaded/event.total);};
+      reader.onload=()=>resolve(String(reader.result||'').split(',')[1]||'');
+      reader.onerror=()=>reject(new Error(`File ${file.name} gagal dibaca.`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  uploadNonDocsV155=async function(id){
+    const btn=document.getElementById('btnUploadNonV155');if(btn?.dataset.busy==='1')return;
+    const inputs=[...document.querySelectorAll('.non-doc-file-v155')].filter(input=>input.files?.length);
+    if(!inputs.length){alert('Pilih file PDF terlebih dahulu.');return;}
+
+    const files=[];
+    for(const input of inputs){
+      const file=input.files[0],jenis=input.dataset.jenis||'Dokumen';
+      if(file.size>2*1024*1024){alert(`${jenis}: ukuran file maksimal 2 MB.`);return;}
+      if(file.type&&file.type!=='application/pdf'){alert(`${jenis}: file harus PDF.`);return;}
+      files.push({input,file,jenis});
+    }
+
+    if(btn){btn.dataset.busy='1';btn.disabled=true;btn.textContent='Mengunggah...';}
+    honorUploadProgressV16422=0;
+    showLoading('Mengunggah dokumen Honorarium...');
+    setHonorUploadProgressV16422(0,`Membaca file 0/${files.length}`);
+
+    try{
+      const items=[];
+      for(let index=0;index<files.length;index++){
+        const item=files[index];
+        const baseStart=(index/files.length)*35;
+        const baseEnd=((index+1)/files.length)*35;
+        const fileBase64=await fileBase64ProgressV16422(item.file,ratio=>{
+          setHonorUploadProgressV16422(baseStart+(baseEnd-baseStart)*ratio,`Membaca file ${index+1}/${files.length}: ${item.file.name}`);
+        });
+        items.push({jenis_dokumen:item.jenis,file_name:item.file.name,mime_type:item.file.type||'application/pdf',file_base64:fileBase64});
+        setHonorUploadProgressV16422(baseEnd,`File ${index+1}/${files.length} siap diunggah`);
+      }
+
+      setHonorUploadProgressV16422(40,'Mengirim dokumen ke server...');
+      startHonorUploadPulseV16422();
+      const response=await apiPost({action:'uploadDokumenNonPengadaanBatchV155',user:currentUser,id_kegiatan:id,items});
+      stopHonorUploadPulseV16422();
+      if(!response?.success)throw new Error(response?.message||'Upload gagal');
+      setHonorUploadProgressV16422(96,'Memperbarui data dokumen...');
+
+      dashboard.dokumenNonPengadaan=dashboard.dokumenNonPengadaan||[];
+      (response.dokumen||[]).forEach(doc=>{
+        const existingIndex=dashboard.dokumenNonPengadaan.findIndex(old=>String(old.id_dokumen_non||'')===String(doc.id_dokumen_non||''));
+        if(existingIndex>=0)dashboard.dokumenNonPengadaan[existingIndex]=doc;else dashboard.dokumenNonPengadaan.push(doc);
+      });
+      const activity=kegiatanById(id);if(activity)activity.status_pencairan=response.status_paket||activity.status_pencairan;
+      writeDashboardCache(dashboard);
+      renderDetailNonPengadaanV95(activity);
+      setHonorUploadProgressV16422(100,'Upload selesai');
+      await new Promise(resolve=>setTimeout(resolve,220));
+      alert(response.message||'Dokumen berhasil diunggah.');
+    }catch(e){
+      stopHonorUploadPulseV16422();
+      alert(e?.message||String(e));
+    }finally{
+      stopHonorUploadPulseV16422();
+      hideLoading();
+      honorUploadProgressV16422=0;
+      if(btn){btn.dataset.busy='0';btn.disabled=false;btn.textContent='Upload File Terpilih';}
+    }
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V16422__=PATCH_VERSION_V16422;
+})();
