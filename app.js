@@ -16787,3 +16787,84 @@ verifikasiRealisasiNonV112=async function(id,mode){
   };
   window.__SIMPROV_PATCH_VERSION_V16415__='164.15';
 })();
+
+/* =========================================================
+   SIMPROV v164.17 - Sinkron kesiapan Pengajuan Pembayaran
+   ========================================================= */
+(function(){
+  const READY_DOCS_V16417=[
+    'Hasil Survey Harga',
+    'Spesifikasi Teknis dan HPS',
+    'Kuitansi / Nota / Invoice',
+    'Berita Acara Pemeriksaan Barang/Pekerjaan',
+    'Berita Acara Serah Terima',
+    'Faktur Pembelian'
+  ];
+  const key=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+  const approved=status=>{
+    const s=String(status||'').toUpperCase().replace(/_/g,' ').trim();
+    return s==='DISETUJUI'||s==='DISETUJUI PBJ'||s.startsWith('DISETUJUI');
+  };
+  const validDoc=doc=>['VALID','VALID DOKUMEN','VALID KEUANGAN'].includes(String(doc?.status_verifikasi||'').toUpperCase().trim());
+
+  function syncPaymentReadyLocalV16417(idKegiatan){
+    if(typeof paymentWorkspaceV138==='undefined'||!paymentWorkspaceV138)return;
+    const activity=(paymentWorkspaceV138.kegiatan||[]).find(item=>String(item.id_kegiatan)===String(idKegiatan));
+    if(!activity)return;
+    const plan=(dashboard?.perencanaan||[]).find(item=>String(item.id_kegiatan)===String(idKegiatan));
+    const method=String(activity.metode_pemilihan||plan?.metode_pemilihan||'').toUpperCase().trim();
+    if(method!=='BELANJA LANGSUNG')return;
+
+    const latest={};
+    (dashboard?.dokumen||[])
+      .filter(doc=>String(doc.id_kegiatan)===String(idKegiatan)&&(doc.url_file||doc.nama_file))
+      .sort((a,b)=>Number(a._row||0)-Number(b._row||0))
+      .forEach(doc=>{latest[key(doc.jenis_dokumen)]=doc;});
+
+    let valid=0;
+    const missing=[];
+    const waiting=[];
+    READY_DOCS_V16417.forEach(name=>{
+      const doc=latest[key(name)];
+      if(!doc)missing.push(name);
+      else if(!validDoc(doc))waiting.push(name);
+      else valid++;
+    });
+
+    const planningApproved=approved(activity.status_perencanaan||plan?.status_perencanaan);
+    activity.payment_ready=planningApproved&&missing.length===0&&waiting.length===0;
+    activity.payment_valid_process=valid;
+    activity.payment_required_process=READY_DOCS_V16417.length;
+    activity.payment_reason=!planningApproved
+      ?'Perencanaan belum disetujui Verifikator PBJ'
+      :missing.length
+        ?`Lengkapi dokumen awal sampai Faktur Pembelian (${valid}/${READY_DOCS_V16417.length} valid)`
+        :waiting.length
+          ?`Menunggu validasi Verifikator PBJ (${valid}/${READY_DOCS_V16417.length} valid)`
+          :'Enam dokumen awal sudah lengkap dan valid';
+  }
+  window.syncPaymentReadyLocalV16417=syncPaymentReadyLocalV16417;
+
+  /* Validasi satuan juga langsung memperbarui kesiapan kegiatan pada
+     workspace pembayaran yang sudah pernah dimuat. */
+  if(typeof verifDokV96==='function'){
+    const baseVerifyV16417=verifDokV96;
+    verifDokV96=async function(idDok,status,ctx){
+      const doc=(dashboard?.[ctx==='NON'?'dokumenNonPengadaan':'dokumen']||[])
+        .find(item=>String(item[ctx==='NON'?'id_dokumen_non':'id_dokumen'])===String(idDok));
+      const result=await baseVerifyV16417.apply(this,arguments);
+      if(ctx!=='NON'&&doc?.id_kegiatan)syncPaymentReadyLocalV16417(doc.id_kegiatan);
+      return result;
+    };
+  }
+
+  /* Sisipkan sinkronisasi pada validasi massal aktif tanpa request tambahan. */
+  const baseBulkV16417=window.bulkValidateProcDocsV16413;
+  if(typeof baseBulkV16417==='function'){
+    window.bulkValidateProcDocsV16413=async function(id,button){
+      const result=await baseBulkV16417.apply(this,arguments);
+      syncPaymentReadyLocalV16417(id);
+      return result;
+    };
+  }
+})();
