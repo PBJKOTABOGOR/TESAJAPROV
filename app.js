@@ -7076,7 +7076,7 @@ dokumenTableV95 = function(k, jenisList, ctx){
       const idd=isNon?d.id_dokumen_non:d.id_dokumen;
       aksi=`<button class="btn-soft" onclick="verifDokV96('${esc(idd)}','VALID','${ctx}')" type="button">Valid</button> <button class="btn-red" onclick="verifDokV96('${esc(idd)}','PERBAIKAN','${ctx}')" type="button">Perbaikan</button>`;
     }
-    const uploadCell=canChoose?`<input type="file" class="dok-file-v96" data-jenis="${esc(j)}" data-ctx="${ctx}" onchange="this.closest('tr').classList.toggle('siap-upload-v96',this.files.length>0);tampilkanTombolUploadV96()">`:(d?`<span class="muted kecil-v96">${repair?'Upload ulang tersedia':'Sudah diupload'}</span>`:'<span class="muted kecil-v96">-</span>');
+    const uploadCell=canChoose?`<input type="file" class="dok-file-v96" data-jenis="${esc(j)}" data-ctx="${ctx}" data-repair="${repair?'1':'0'}" data-idd="${repair?esc(isNon?d.id_dokumen_non:d.id_dokumen):''}" onchange="this.closest('tr').classList.toggle('siap-upload-v96',this.files.length>0);tampilkanTombolUploadV96()">`:(d?`<span class="muted kecil-v96">${repair?'Upload ulang tersedia':'Sudah diupload'}</span>`:'<span class="muted kecil-v96">-</span>');
     const history=d?`<button class="btn-mini btn-detail" onclick="${isNon?`openNonHistoryV104('${esc(d.id_dokumen_non)}')`:`openDocStatusModal('${esc(d.id_dokumen)}')`}" type="button">Riwayat</button>`:'-';
     return `<tr><td>${esc(j)}</td><td>${d?`<a href="${esc(d.url_file)}" target="_blank">${esc(d.nama_file||'Buka File')}</a>`:'<span class="muted">Belum diupload</span>'}</td><td>${d?badge(d.status_verifikasi||'MENUNGGU'):'-'}</td>${bolehUpload?`<td>${uploadCell}</td>`:''}<td>${d?esc(d.catatan_verifikator||d.catatan_Verifikator||d.catatan_admin||'-'):'-'}</td><td>${history}</td><td>${aksi}</td></tr>`;
   }).join('');
@@ -16361,7 +16361,26 @@ verifikasiRealisasiNonV112=async function(id,mode){
     if(button){button.disabled=true;button.dataset.busy='1';button.textContent='Memvalidasi...';}
     showLoading('Memvalidasi dokumen terpilih...');
     try{
-      const result=await apiPost({action:'bulkValidateDokumenV16413',user:currentUser,id_kegiatan:id,ids});
+      let result=await apiPost({action:'bulkValidateDokumenV16416',user:currentUser,id_kegiatan:id,ids});
+      /* Pengaman cache/deployment lama: bila endpoint massal belum dikenali,
+         gunakan aksi validasi dokumen yang sudah ada tanpa memuat ulang dashboard. */
+      if(!result?.success&&/Action tidak dikenal/i.test(String(result?.message||''))){
+        const updated=[];
+        for(let i=0;i<ids.length;i++){
+          if(typeof setLoadingProgressV133==='function'){
+            const pct=Math.max(5,Math.round(((i+1)/ids.length)*95));
+            setLoadingProgressV133(pct,`Memvalidasi dokumen ${i+1} dari ${ids.length}...`);
+          }
+          const one=await apiPost({action:'verifyDokumen',user:currentUser,id_dokumen:ids[i],status_verifikasi:'VALID',catatan_admin:''});
+          if(!one?.success)throw new Error(one?.message||`Validasi dokumen ke-${i+1} gagal`);
+          const local=(dashboard.dokumen||[]).find(doc=>String(doc.id_dokumen)===String(ids[i]));
+          if(local){
+            Object.assign(local,{status_verifikasi:'VALID DOKUMEN',catatan_admin:'',verifikasi_by:currentUser?.nama||currentUser?.username||'Verifikator PBJ',tanggal_verifikasi:new Date().toISOString()});
+            updated.push({...local});
+          }
+        }
+        result={success:true,message:`${ids.length} dokumen berhasil dinyatakan valid`,dokumen:updated,status_paket:'',fallback:true};
+      }
       if(!result?.success)throw new Error(result?.message||'Validasi dokumen gagal');
       dashboard.dokumen=dashboard.dokumen||[];
       (result.dokumen||[]).forEach(update=>{
@@ -16734,4 +16753,37 @@ verifikasiRealisasiNonV112=async function(id,mode){
   }
   scheduleEnhanceV16414();
   window.__SIMPROV_PATCH_VERSION_V16414__=PATCH_VERSION_V16414;
+})();
+
+
+/* =========================================================
+   SIMPROV v164.15 - Upload ulang dokumen perbaikan
+   ---------------------------------------------------------
+   File dengan status PERBAIKAN mengganti record lama melalui
+   action revisiDokumen, bukan membuat upload awal duplikat.
+   ========================================================= */
+(function(){
+  const uploadSemuaDokV16415Base = uploadSemuaDokV96;
+  uploadSemuaDokV96 = async function(idKegiatan){
+    document.querySelectorAll('.dok-file-v96').forEach(function(inp){
+      if(!inp.files || !inp.files.length || inp.dataset.repair === '1') return;
+      const jenis = String(inp.dataset.jenis || '');
+      const ctx = String(inp.dataset.ctx || 'PGD');
+      const source = ctx === 'NON' ? (dashboard?.dokumenNonPengadaan || []) : (dashboard?.dokumen || []);
+      const existing = source.find(function(d){
+        const sameActivity = String(d.id_kegiatan || '') === String(idKegiatan || '');
+        const sameType = typeof dokKeyV94 === 'function'
+          ? dokKeyV94(d.jenis_dokumen) === dokKeyV94(jenis)
+          : String(d.jenis_dokumen || '').toUpperCase() === jenis.toUpperCase();
+        const status = String(d.status_verifikasi || '').toUpperCase();
+        return sameActivity && sameType && ['PERBAIKAN','PERBAIKAN DOKUMEN','DITOLAK'].includes(status);
+      });
+      if(existing){
+        inp.dataset.repair = '1';
+        inp.dataset.idd = ctx === 'NON' ? String(existing.id_dokumen_non || '') : String(existing.id_dokumen || '');
+      }
+    });
+    return uploadSemuaDokV16415Base.apply(this, arguments);
+  };
+  window.__SIMPROV_PATCH_VERSION_V16415__='164.15';
 })();
