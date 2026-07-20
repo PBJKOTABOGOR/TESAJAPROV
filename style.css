@@ -3651,3 +3651,12 @@ button.plan-id-link-v161:focus-visible{
   .fast-package-field-wrap-v16414{width:100%;min-width:0}
   .paket-toolbar-v95>input{width:100%;min-width:0}
 }
+
+/* SIMPROV v164.22 */
+.payment-card-v138.payment-focus-v16422{
+  outline:3px solid rgba(23,126,192,.28);
+  outline-offset:4px;
+  transition:outline-color .25s ease,box-shadow .25s ease;
+  box-shadow:0 12px 30px rgba(12,78,132,.14);
+}
+.payment-view-btn-v16422{white-space:nowrap}
