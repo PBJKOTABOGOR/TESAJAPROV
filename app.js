@@ -658,7 +658,7 @@ function openReportWindow(title, bodyHtml){
     .title-block{text-align:center;margin:12px 0 10px}
     .title-block h2{font-size:16px;text-transform:uppercase;margin:0;color:#0a3d70;text-decoration:underline}
     .title-block .sub{font-size:10.5px;color:#506176;margin-top:4px}
-    .summary{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:10px 0 12px}
+    .summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin:10px 0 12px}
     .card{border:1px solid #bdd4e8;border-radius:8px;padding:8px;background:#f7fbff;min-height:48px}
     .card span{display:block;font-size:8.5px;text-transform:uppercase;color:#53677e;font-weight:800;letter-spacing:.2px}
     .card b{display:block;font-size:12.5px;color:#0a3d70;margin-top:3px;line-height:1.25}
@@ -709,6 +709,7 @@ function downloadDashboardPDF(){
   const dokumen = semuaBidang ? (dashboard.dokumen || []) : (dashboard.dokumen || []).filter(d => String(d.id_bidang) === userBidang);
   const pagu = rekap.reduce((s,r)=>s+toNumber(r.pagu),0);
   const total = rekap.reduce((s,r)=>s+toNumber(r.total_perencanaan),0);
+  const realisasi = rekap.reduce((s,r)=>s+toNumber(r.total_realisasi),0);
   const sisa = pagu - total;
   const valid = dokumen.filter(d=>isDocValidKeuanganV70(d)).length;
   const perluPersetujuan = perencanaan.filter(k => ["DIAJUKAN","PERUBAHAN_DIAJUKAN"].includes(String(k.status_perencanaan||"").toUpperCase())).length;
@@ -2790,7 +2791,8 @@ function buildMonitoringReportBodyV55(semuaBidang){
   return `<div class="summary">
     <div class="card"><span>Total Pagu</span><b>${rupiah(pagu)}</b></div>
     <div class="card"><span>Total Perencanaan</span><b>${rupiah(total)}</b></div>
-    <div class="card"><span>Sisa Pagu</span><b class="${sisa<0?'red':''}">${rupiah(sisa)}</b></div>
+    <div class="card"><span>Sisa Pagu Perencanaan</span><b class="${sisa<0?'red':''}">${rupiah(sisa)}</b></div>
+    <div class="card"><span>Total Realisasi</span><b>${rupiah(realisasi)}</b></div>
     <div class="card"><span>Dokumen Valid</span><b>${valid}/${dokumen.length}</b></div>
     <div class="card"><span>Perlu Pemeriksaan</span><b>${perluPersetujuan} rencana / ${menungguDok} dokumen</b></div>
   </div>
@@ -5577,18 +5579,16 @@ buildMonitoringReportBodyV55=function(semuaBidang){
   const userBidang=String(currentUser?.id_bidang||'');
   const plans=(dashboard.perencanaan||[]).filter(k=>isNonKategoriV81(k) && (semuaBidang||String(k.id_bidang)===userBidang));
   const docs=(dashboard.dokumenNonPengadaan||[]).filter(d=>semuaBidang||String(d.id_bidang)===userBidang);
-  const latestRows=dashboard.nonPengadaan||[];
   const rows=plans.map((k,i)=>{
     const kd=docs.filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan));
     const valid=kd.filter(d=>String(d.status_verifikasi||'').toUpperCase()==='VALID DOKUMEN').length;
-    const latest=latestRows.filter(n=>String(n.id_kegiatan)===String(k.id_kegiatan)).sort((a,b)=>toNumber(b.versi_pdf)-toNumber(a.versi_pdf))[0];
     const detail=allowedNonDocsV93().map(j=>{
       const d=kd.find(x=>String(x.jenis_dokumen||'').toLowerCase()===j.toLowerCase());
       return `<div><b>${plainText(j)}</b>: ${d?`${plainText(displayStatusText(d.status_verifikasi||'-'))}${d.url_file?` - <a href="${esc(d.url_file)}" target="_blank">Buka File</a>`:''}`:'BELUM DIUPLOAD'}</div>`;
     }).join('');
-    return `<tr><td>${i+1}</td><td>${plainText(k.id_kegiatan)}</td><td>${plainText(bidangName(k.id_bidang))}</td><td>${plainText(k.nama_kegiatan)}</td><td>${plainText(k.jenis_non_pengadaan||'-')}</td><td>${rupiah(k.jumlah||0)}</td><td>${latest?.url_pdf?`V${plainText(latest.versi_pdf||1)} - <a href="${esc(latest.url_pdf)}" target="_blank">Buka Dokumen Honor</a>`:'-'}</td><td>${valid}/2 valid</td><td>${detail}</td></tr>`;
+    return `<tr><td>${i+1}</td><td>${plainText(k.id_kegiatan)}</td><td>${plainText(bidangName(k.id_bidang))}</td><td>${plainText(k.nama_kegiatan)}</td><td>${plainText(k.jenis_non_pengadaan||'-')}</td><td>${rupiah(k.jumlah||0)}</td><td>${valid}/2 valid</td><td>${detail}</td></tr>`;
   }).join('');
-  const section=`<h3>4. Rekap Kegiatan dan Dokumen Non Pengadaan</h3><table><thead><tr><th>No</th><th>ID Kegiatan</th><th>Bidang</th><th>Nama Kegiatan</th><th>Jenis</th><th>Jumlah</th><th>Dokumen Honor</th><th>Dokumen Valid</th><th>Rincian Dokumen</th></tr></thead><tbody>${rows||'<tr><td colspan="9">Belum ada kegiatan Non Pengadaan</td></tr>'}</tbody></table>`;
+  const section=`<h3>4. Rekap Kegiatan dan Dokumen Non Pengadaan</h3><table><thead><tr><th>No</th><th>ID Kegiatan</th><th>Bidang</th><th>Nama Kegiatan</th><th>Jenis</th><th>Jumlah</th><th>Dokumen Valid</th><th>Rincian Dokumen</th></tr></thead><tbody>${rows||'<tr><td colspan="8">Belum ada kegiatan Non Pengadaan</td></tr>'}</tbody></table>`;
   return html+section;
 };
 
@@ -18069,4 +18069,140 @@ verifikasiRealisasiNonV112=async function(id,mode){
   window.verifyPaymentV138=verifyPaymentV138;
 
   window.__SIMPROV_PATCH_VERSION_V16424__=PATCH_VERSION_V16424;
+})();
+
+
+/* =========================================================
+   SIMPROV v164.25 - Card Surat, Sisa Pagu Perencanaan, dan Laporan
+   ---------------------------------------------------------
+   - Card Surat membaca Nota Dinas dan Pengajuan Pembayaran aktif.
+   - Struktur Anggaran dan Perencanaan memakai Sisa Pagu Perencanaan.
+   - Urutan card anggaran: Pagu, Perencanaan, Sisa Perencanaan, Realisasi.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16425='164.25';
+  function upperV16425(v){return String(v||'').trim().toUpperCase();}
+  function roleV16425(){return typeof actualRoleV133==='function'?actualRoleV133():upperV16425(currentUser?.role);}
+  function splitScopeV16425(v){return Array.isArray(v)?v.map(String).filter(Boolean):String(v||'').split(/[,;|\n]+/).map(x=>x.trim()).filter(Boolean);}
+  function scopedRekapV16425(){
+    const rows=Array.isArray(dashboard?.rekap)?dashboard.rekap:[],role=roleV16425();
+    if(['ADMIN','AUDITOR','PIMPINAN','BENDAHARA'].includes(role))return rows;
+    if(['VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN'].includes(role)){
+      const ids=splitScopeV16425(currentUser?.bidang_akses);
+      return ids.length?rows.filter(r=>ids.includes(String(r.id_bidang||''))):[];
+    }
+    const id=String(currentUser?.id_bidang||'');
+    return id?rows.filter(r=>String(r.id_bidang||'')===id):rows;
+  }
+  function scopedPlansV16425(){
+    const rows=Array.isArray(dashboard?.perencanaan)?dashboard.perencanaan:[],role=roleV16425();
+    if(['ADMIN','AUDITOR','PIMPINAN','BENDAHARA'].includes(role))return rows;
+    if(['VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN'].includes(role)){
+      const ids=splitScopeV16425(currentUser?.bidang_akses);
+      return ids.length?rows.filter(k=>ids.includes(String(k.id_bidang||''))):[];
+    }
+    const id=String(currentUser?.id_bidang||'');
+    return id?rows.filter(k=>String(k.id_bidang||'')===id):rows;
+  }
+  function budgetValuesV16425(){
+    const rekap=scopedRekapV16425(),plans=scopedPlansV16425();
+    const pagu=rekap.reduce((n,r)=>n+toNumber(r.pagu),0);
+    const planning=rekap.length?rekap.reduce((n,r)=>n+toNumber(r.total_perencanaan),0):plans.reduce((n,k)=>n+toNumber(k.jumlah||toNumber(k.volume)*toNumber(k.harga_satuan)),0);
+    const real=rekap.reduce((n,r)=>n+toNumber(r.total_realisasi),0);
+    return {pagu,planning,real,sisaPlanning:pagu-planning,jumlahBidang:rekap.length};
+  }
+  function summaryCardV16425(label,value){return `<div class="summary-card summary-card-v159"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;}
+  function renderStructureBudgetV16425(){
+    if(String(activeMenu||'')!=='Struktur Anggaran')return false;
+    const wrap=document.getElementById('summaryCards');if(!wrap)return false;
+    const v=budgetValuesV16425();
+    wrap.className='summary-grid';
+    wrap.innerHTML=summaryCardV16425('Total Pagu',rupiah(v.pagu))+
+      summaryCardV16425('Total Perencanaan',rupiah(v.planning))+
+      summaryCardV16425('Sisa Pagu Perencanaan',rupiah(v.sisaPlanning))+
+      summaryCardV16425('Total Realisasi',rupiah(v.real))+
+      summaryCardV16425('Jumlah Bidang',String(v.jumlahBidang));
+    return true;
+  }
+  function renderPlanningBudgetV16425(){
+    if(String(activeMenu||'')!=='Perencanaan'||!['BIDANG','VERIFIKATOR_PBJ'].includes(roleV16425()))return false;
+    const wrap=document.getElementById('summaryCards');if(!wrap)return false;
+    const budget=wrap.querySelector('.summary-budget-v1644');if(!budget)return false;
+    const v=budgetValuesV16425();
+    budget.innerHTML=summaryCardV16425('Total Pagu',rupiah(v.pagu))+
+      summaryCardV16425('Total Perencanaan',rupiah(v.planning))+
+      summaryCardV16425('Sisa Pagu Perencanaan',rupiah(v.sisaPlanning))+
+      summaryCardV16425('Total Realisasi',rupiah(v.real));
+    return true;
+  }
+  function paymentRowsV16425(){
+    let rows=Array.isArray(paymentWorkspaceV138?.pengajuan)?paymentWorkspaceV138.pengajuan:[];
+    if(roleV16425()==='BIDANG'){
+      const idb=String(currentUser?.id_bidang||''),uid=String(currentUser?.id_user||'');
+      rows=rows.filter(p=>!idb||String(p.id_bidang||'')===idb||String(p.id_user||p.created_by||p.dibuat_oleh||'')===uid);
+    }
+    return rows;
+  }
+  function letterRowsV16425(){
+    let rows=Array.isArray(suratWorkspaceV133?.surat)?suratWorkspaceV133.surat:[];
+    if(roleV16425()==='BIDANG'){
+      const idb=String(currentUser?.id_bidang||''),uid=String(currentUser?.id_user||'');
+      rows=rows.filter(s=>String(s.asal_id_user||'')===uid||String(s.asal_bidang||s.id_bidang||'')===idb);
+    }
+    return rows;
+  }
+  function statusBucketV16425(status){
+    const s=upperV16425(status);
+    if(s==='DRAFT')return 'draft';
+    if(s==='SELESAI'||s==='DIBAYARKAN'||s==='TERBAYAR')return 'done';
+    if(s.includes('PERBAIKAN')||s.includes('DITOLAK')||s.includes('DIKEMBALIKAN'))return 'repair';
+    return 'pending';
+  }
+  function renderSuratCardsV16425(){
+    if(String(activeMenu||'')!=='Surat')return false;
+    const wrap=document.getElementById('summaryCards');if(!wrap)return false;
+    const states=[...letterRowsV16425().map(x=>statusBucketV16425(x.status_surat)),...paymentRowsV16425().map(x=>statusBucketV16425(x.status_pengajuan))];
+    const count=k=>states.filter(x=>x===k).length;
+    wrap.className='summary-grid';
+    wrap.innerHTML=summaryCardV16425('Total Surat',String(states.length))+
+      summaryCardV16425('Draft',String(count('draft')))+
+      summaryCardV16425('Menunggu Proses',String(count('pending')))+
+      summaryCardV16425('Selesai',String(count('done')))+
+      summaryCardV16425('Perlu Perbaikan',String(count('repair')));
+    return true;
+  }
+  function applySummaryFixV16425(){
+    renderStructureBudgetV16425();
+    renderPlanningBudgetV16425();
+    renderSuratCardsV16425();
+  }
+
+  if(typeof renderSummary==='function'){
+    const renderSummaryBaseV16425=renderSummary;
+    renderSummary=function(){
+      const result=renderSummaryBaseV16425.apply(this,arguments);
+      applySummaryFixV16425();
+      return result;
+    };
+  }
+  if(typeof renderSuratV133==='function'){
+    const renderSuratBaseV16425=renderSuratV133;
+    renderSuratV133=function(){const result=renderSuratBaseV16425.apply(this,arguments);requestAnimationFrame(renderSuratCardsV16425);return result;};
+  }
+  if(typeof renderPaymentWorkspaceV138==='function'){
+    const renderPaymentBaseV16425=renderPaymentWorkspaceV138;
+    renderPaymentWorkspaceV138=function(){const result=renderPaymentBaseV16425.apply(this,arguments);requestAnimationFrame(renderSuratCardsV16425);return result;};
+  }
+  if(typeof loadPaymentWorkspaceV138==='function'){
+    const loadPaymentBaseV16425=loadPaymentWorkspaceV138;
+    loadPaymentWorkspaceV138=async function(){const result=await loadPaymentBaseV16425.apply(this,arguments);renderSuratCardsV16425();return result;};
+  }
+  if(typeof loadSuratWorkspaceV133==='function'){
+    const loadSuratBaseV16425=loadSuratWorkspaceV133;
+    loadSuratWorkspaceV133=async function(){const result=await loadSuratBaseV16425.apply(this,arguments);renderSuratCardsV16425();return result;};
+  }
+
+  window.__SIMPROV_PATCH_VERSION_V16425__=PATCH_VERSION_V16425;
 })();
