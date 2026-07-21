@@ -18290,3 +18290,206 @@ verifikasiRealisasiNonV112=async function(id,mode){
   window.__SIMPROV_PATCH_VERSION_V16426__=PATCH_VERSION_V16426;
 })();
 
+
+/* =========================================================
+   SIMPROV v164.27 - Konsistensi Label Anggaran dan Realisasi
+   ---------------------------------------------------------
+   - Struktur Anggaran User Bidang menampilkan Sisa Perencanaan
+     dan Total Realisasi sebagai kolom terpisah.
+   - Laporan monitoring memakai kolom Sisa Perencanaan dan
+     Total Realisasi pada Rekapitulasi Anggaran per Bidang.
+   - Dashboard monitoring internal membedakan sisa perencanaan
+     dari total realisasi.
+   - Dashboard publik memakai istilah Total Realisasi dan
+     Sisa Pagu Realisasi secara konsisten.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16427='164.27';
+
+  function upperV16427(value){return String(value||'').trim().toUpperCase();}
+  function roleV16427(){
+    return upperV16427(typeof actualRoleV133==='function'?actualRoleV133():(currentUser?.role||''));
+  }
+  function numberV16427(value){return typeof toNumber==='function'?toNumber(value):(Number(value)||0);}
+  function sisaPerencanaanV16427(row){
+    return numberV16427(row?.pagu)-numberV16427(row?.total_perencanaan);
+  }
+  function scopedRekapV16427(){
+    const rows=Array.isArray(dashboard?.rekap)?dashboard.rekap:[];
+    const role=roleV16427();
+    if(['ADMIN','AUDITOR','PIMPINAN','BENDAHARA','SEKDA'].includes(role))return rows;
+    if(['VERIFIKATOR_PBJ','VERIFIKATOR_KEUANGAN'].includes(role)){
+      const raw=currentUser?.bidang_akses;
+      const ids=(Array.isArray(raw)?raw:String(raw||'').split(/[,;|\n]+/)).map(String).map(x=>x.trim()).filter(Boolean);
+      return ids.length?rows.filter(r=>ids.includes(String(r.id_bidang||''))):rows;
+    }
+    const own=String(currentUser?.id_bidang||'');
+    return own?rows.filter(r=>String(r.id_bidang||'')===own):rows;
+  }
+  function monitoringTotalsV16427(){
+    const rows=scopedRekapV16427();
+    return rows.reduce((out,row)=>{
+      out.pagu+=numberV16427(row.pagu);
+      out.perencanaan+=numberV16427(row.total_perencanaan);
+      out.realisasi+=numberV16427(row.total_realisasi);
+      return out;
+    },{pagu:0,perencanaan:0,realisasi:0});
+  }
+
+  /* Struktur Anggaran khusus User Bidang. Role lain tetap memakai alur lama. */
+  if(typeof renderStruktur==='function'){
+    const renderStrukturBaseV16427=renderStruktur;
+    renderStruktur=function(){
+      if(roleV16427()!=='BIDANG')return renderStrukturBaseV16427.apply(this,arguments);
+      const rows=Array.isArray(dashboard?.rekap)?dashboard.rekap:[];
+      const r=rows.find(x=>String(x.id_bidang||'')===String(currentUser?.id_bidang||''))||{};
+      const sisa=sisaPerencanaanV16427(r);
+      const over=sisa<0;
+      const target=document.getElementById('contentArea');
+      if(!target)return;
+      target.innerHTML=`<section class="panel fade-up premium-panel"><h3>Ringkasan Bidang</h3><p class="panel-sub">Informasi anggaran dan progres bidang.</p><div class="action-group"><button class="btn-refresh" onclick="refreshData()">Refresh Data</button></div><div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Bidang</th><th>Pagu</th><th>Total Perencanaan</th><th>Sisa Perencanaan</th><th>Total Realisasi</th><th>Kegiatan</th><th>Dokumen</th><th>Akses</th><th>Progress</th></tr></thead><tbody><tr><td>${esc(r.nama_bidang||currentUser?.nama_bidang||'-')}</td><td>${rupiah(r.pagu||0)}</td><td>${rupiah(r.total_perencanaan||0)}</td><td class="${over?'text-danger fw-bold':''}">${rupiah(sisa)}</td><td>${rupiah(r.total_realisasi||0)}</td><td>${esc(r.jumlah_kegiatan||0)}</td><td>${esc(r.dokumen_upload||0)}</td><td>${badge(r.status_akses||'-')}</td><td>${over?badge('MELEBIHI PAGU PERENCANAAN'):badge(r.status_progress||'-')}</td></tr></tbody></table></div></section>`;
+    };
+  }
+
+  /* Dashboard monitoring internal untuk Admin, Pimpinan dan Verifikator. */
+  renderMonitoring=function(){
+    const rekap=Array.isArray(dashboard?.rekap)?dashboard.rekap:[];
+    const rows=rekap.map(r=>{
+      const pagu=numberV16427(r.pagu),planning=numberV16427(r.total_perencanaan),sisa=pagu-planning;
+      const pct=pagu?Math.min(100,Math.max(0,Math.round(planning/pagu*100))):0;
+      const over=sisa<0;
+      return `<tr class="${over?'row-rejected':''}"><td><b>${esc(r.nama_bidang)}</b><br><small class="muted">${esc(r.id_bidang)}</small></td><td>${rupiah(pagu)}</td><td>${rupiah(planning)}</td><td class="${over?'text-danger fw-bold':''}">${rupiah(sisa)}</td><td>${rupiah(r.total_realisasi||0)}</td><td><div class="progress-bar"><div style="width:${pct}%"></div></div><small>${pct}%</small></td><td>${esc(r.jumlah_kegiatan||0)}</td><td>${esc(r.dokumen_upload||0)}</td><td>${esc(r.dokumen_valid||0)}</td><td>${badge(r.status_akses)}</td><td>${over?badge('MELEBIHI PAGU PERENCANAAN'):badge(r.status_progress)}</td></tr>`;
+    }).join('');
+    const cards=rekap.map(r=>{
+      const pagu=numberV16427(r.pagu),planning=numberV16427(r.total_perencanaan),sisa=pagu-planning;
+      const pct=pagu?Math.min(100,Math.max(0,Math.round(planning/pagu*100))):0;
+      const over=sisa<0;
+      return `<div class="monitor-card ${over?'over-budget':''}">
+        <div class="monitor-head"><div><b>${esc(r.nama_bidang)}</b><small>${esc(r.id_bidang)}</small></div><div>${over?badge('MELEBIHI PAGU PERENCANAAN'):badge(r.status_progress)}</div></div>
+        <div class="monitor-grid">
+          <div><span>Pagu</span><strong>${rupiah(pagu)}</strong></div>
+          <div><span>Perencanaan</span><strong>${rupiah(planning)}</strong></div>
+          <div><span>Sisa Pagu Perencanaan</span><strong class="${over?'text-danger':''}">${rupiah(sisa)}</strong></div>
+          <div><span>Total Realisasi</span><strong>${rupiah(r.total_realisasi||0)}</strong></div>
+          <div><span>Kegiatan</span><strong>${esc(r.jumlah_kegiatan||0)}</strong></div>
+          <div><span>Dokumen Upload</span><strong>${esc(r.dokumen_upload||0)}</strong></div>
+          <div><span>Dokumen Valid</span><strong>${esc(r.dokumen_valid||0)}</strong></div>
+        </div>
+        <div class="progress-line"><div style="width:${pct}%"></div></div>
+        <div class="monitor-foot"><span>Akses Input</span>${badge(r.status_akses)}</div>
+      </div>`;
+    }).join('');
+    const totalBidang=rekap.length;
+    const bidangOver=rekap.filter(r=>sisaPerencanaanV16427(r)<0).length;
+    const perluPersetujuan=(dashboard?.perencanaan||[]).filter(k=>['DIAJUKAN','PERUBAHAN_DIAJUKAN'].includes(upperV16427(k.status_perencanaan))).length;
+    const dokMenunggu=(dashboard?.dokumen||[]).filter(d=>['','MENUNGGU','PERBAIKAN','PERLU PERBAIKAN'].includes(upperV16427(d.status_verifikasi))).length;
+    const auditBox=canSeeAll()?`<div class="review-kpi-grid">
+      <div><span>Total Bidang</span><strong>${totalBidang}</strong></div>
+      <div><span>Perlu Persetujuan</span><strong>${perluPersetujuan}</strong></div>
+      <div><span>Dokumen Perlu Dicek</span><strong>${dokMenunggu}</strong></div>
+      <div><span>Bidang Melebihi Pagu Perencanaan</span><strong class="${bidangOver?'text-danger':''}">${bidangOver}</strong></div>
+    </div>`:'';
+    const target=document.getElementById('contentArea');
+    if(!target)return;
+    target.innerHTML=`<section class="panel fade-up"><div class="panel-title-row"><div><h3>${isReviewer()?'Dashboard Pemeriksaan':'Dashboard Monitoring Admin'}</h3><p class="panel-sub">${isReviewer()?'Tampilan khusus pemeriksaan seluruh bidang: pagu, perencanaan, realisasi, dokumen, status akses, dan progres.':'Pantauan perencanaan, realisasi, dan pencairan dari semua bidang.'}</p></div><div class="action-group"><button class="btn-refresh" onclick="refreshData()">Refresh Data</button><button class="btn-soft btn-report" onclick="downloadDashboardPDF()">Cetak Laporan PDF</button></div></div>${auditBox}<div class="monitor-card-list">${cards||'<p class="empty">Belum ada data</p>'}</div><div class="table-hint">Geser tabel ke samping untuk melihat kolom lainnya.</div><div class="table-wrap dashboard-table" style="margin-top:10px"><table><thead><tr><th>Bidang</th><th>Pagu</th><th>Perencanaan</th><th>Sisa Pagu Perencanaan</th><th>Total Realisasi</th><th>%</th><th>Kegiatan</th><th>Dok Upload</th><th>Dok Valid</th><th>Akses</th><th>Progress</th></tr></thead><tbody>${rows||'<tr><td colspan="11" class="empty">Belum ada data</td></tr>'}</tbody></table></div></section>`;
+  };
+
+  /* Ringkasan atas Dashboard Monitoring: sisa dihitung dari perencanaan. */
+  function patchMonitoringSummaryV16427(){
+    if(String(activeMenu||'')!=='Dashboard Monitoring')return;
+    const wrap=document.getElementById('summaryCards');if(!wrap)return;
+    const totals=monitoringTotalsV16427();
+    let realCard=null,sisaCard=null;
+    [...wrap.querySelectorAll('.summary-card')].forEach(card=>{
+      const label=upperV16427(card.querySelector('span')?.textContent);
+      if(label==='REALISASI PAGU'||label==='TOTAL REALISASI')realCard=card;
+      if(label==='SISA PAGU'||label==='SISA PAGU ANGGARAN'||label==='SISA PAGU PERENCANAAN')sisaCard=card;
+    });
+    if(realCard){
+      const label=realCard.querySelector('span'),value=realCard.querySelector('b');
+      if(label)label.textContent='Total Realisasi';if(value)value.textContent=rupiah(totals.realisasi);
+    }else{
+      realCard=document.createElement('div');realCard.className='summary-card summary-card-v159';
+      realCard.innerHTML=`<span>Total Realisasi</span><b>${esc(rupiah(totals.realisasi))}</b>`;wrap.appendChild(realCard);
+    }
+    if(sisaCard){
+      const label=sisaCard.querySelector('span'),value=sisaCard.querySelector('b');
+      if(label)label.textContent='Sisa Pagu Perencanaan';if(value)value.textContent=rupiah(totals.pagu-totals.perencanaan);
+    }else{
+      sisaCard=document.createElement('div');sisaCard.className='summary-card summary-card-v159';
+      sisaCard.innerHTML=`<span>Sisa Pagu Perencanaan</span><b>${esc(rupiah(totals.pagu-totals.perencanaan))}</b>`;wrap.appendChild(sisaCard);
+    }
+  }
+  if(typeof renderSummary==='function'){
+    const renderSummaryBaseV16427=renderSummary;
+    renderSummary=function(){
+      const result=renderSummaryBaseV16427.apply(this,arguments);
+      patchMonitoringSummaryV16427();
+      return result;
+    };
+  }
+
+  /* Tambahkan kolom realisasi pada tabel Rekapitulasi laporan tanpa
+     mengubah bagian laporan lain yang sudah berjalan. */
+  if(typeof buildMonitoringReportBodyV55==='function'){
+    const buildMonitoringReportBaseV16427=buildMonitoringReportBodyV55;
+    buildMonitoringReportBodyV55=function(semuaBidang){
+      const html=buildMonitoringReportBaseV16427.apply(this,arguments);
+      const holder=document.createElement('div');holder.innerHTML=html;
+      const heading=[...holder.querySelectorAll('h3')].find(h=>upperV16427(h.textContent).includes('REKAPITULASI ANGGARAN PER BIDANG'));
+      const table=heading?.nextElementSibling?.tagName==='TABLE'?heading.nextElementSibling:null;
+      if(!table)return html;
+      const headers=[...table.querySelectorAll('thead th')];
+      const sisaIndex=headers.findIndex(th=>['SISA','SISA PAGU','SISA PERENCANAAN','SISA PAGU PERENCANAAN'].includes(upperV16427(th.textContent)));
+      if(sisaIndex<0)return html;
+      headers[sisaIndex].textContent='Sisa Perencanaan';
+      const realHead=document.createElement('th');realHead.textContent='Total Realisasi';
+      headers[sisaIndex].after(realHead);
+      const userBidang=String(currentUser?.id_bidang||'');
+      const reportRows=(semuaBidang?(dashboard?.rekap||[]):(dashboard?.rekap||[]).filter(r=>String(r.id_bidang||'')===userBidang));
+      [...table.querySelectorAll('tbody tr')].forEach((tr,index)=>{
+        const cells=[...tr.children];
+        if(!cells.length||cells[0].hasAttribute('colspan')){
+          const empty=tr.querySelector('[colspan]');if(empty)empty.setAttribute('colspan',String(Number(empty.getAttribute('colspan')||10)+1));
+          return;
+        }
+        const row=reportRows[index]||{};
+        const sisa=sisaPerencanaanV16427(row);
+        if(cells[sisaIndex]){
+          cells[sisaIndex].textContent=rupiah(sisa);
+          cells[sisaIndex].className=sisa<0?'red':'';
+        }
+        const realCell=document.createElement('td');realCell.textContent=rupiah(row.total_realisasi||0);
+        cells[sisaIndex]?.after(realCell);
+      });
+      return holder.innerHTML;
+    };
+  }
+
+  /* Dashboard publik: istilah berdasarkan realisasi, bukan perencanaan. */
+  renderPublicDashboardV82=function(payload,fromCache=false){
+    const sum=document.getElementById('publicSummary');if(!sum)return;
+    const s=payload.summary||{},ident=payload.identity||{};
+    const compact=typeof compactRupiahV84==='function'?compactRupiahV84:rupiah;
+    const identity=document.getElementById('publicIdentity');
+    if(identity)identity.innerHTML=[ident.ketua_umum&&`Ketua Umum: ${esc(ident.ketua_umum)}`,ident.sekretaris_umum&&`Sekretaris Umum: ${esc(ident.sekretaris_umum)}`,ident.verifikator&&`Verifikator: ${esc(ident.verifikator)}`].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
+    sum.innerHTML=[
+      publicMetricCard('Total Pagu',compact(s.total_pagu),'Total anggaran keseluruhan','blue'),
+      publicMetricCard('Total Realisasi',compact(s.realisasi_total),`${Number(s.persentase_realisasi||0).toFixed(1)}% dari pagu`,'green'),
+      publicMetricCard('Sisa Pagu Realisasi',compact(s.sisa_pagu),'Pagu dikurangi total realisasi','red'),
+      publicMetricCard('Jumlah Kegiatan',String(s.jumlah_kegiatan||0),`${s.jumlah_selesai||0} kegiatan selesai`,'yellow')
+    ].join('');
+    const pct=Math.max(0,Math.min(100,Number(s.persentase_realisasi||0)));
+    const progress=document.getElementById('publicProgress');
+    if(progress)progress.innerHTML=`<div class="big-percent">${pct.toFixed(1)}%</div><div class="public-progress-track"><i style="width:${pct}%"></i></div><div class="public-progress-notes"><span>Total Pagu ${compact(s.total_pagu)}</span><span>Total Realisasi ${compact(s.realisasi_total)}</span><span>Sisa Pagu Realisasi ${compact(s.sisa_pagu)}</span></div>`;
+    const composition=document.getElementById('publicComposition');
+    if(composition)composition.innerHTML=`<p class="public-system-note-v84">Ringkasan berikut hanya menghitung kegiatan yang sudah diinput ke dalam SIMPROV.</p><div class="public-simple-stats-v82"><div><span>Total Perencanaan Terinput</span><b>${compact(s.perencanaan_total||0)}</b></div><div><span>Kegiatan Terinput</span><b>${s.jumlah_kegiatan||0}</b></div><div><span>Kegiatan Selesai</span><b>${s.jumlah_selesai||0}</b></div></div>${fromCache?`<div class="public-cache-info-v82">Tampilan cache: ${dashboardCacheAgeText(payload.savedAt)}</div>`:''}`;
+    const rows=(payload.ringkasan||[]).map(x=>`<tr><td>${esc(x.nama_bidang||x.id_bidang)}</td><td title="${rupiah(x.pagu)}">${compact(x.pagu)}</td><td title="${rupiah(x.total_perencanaan||0)}">${compact(x.total_perencanaan||0)}</td><td title="${rupiah(x.realisasi_total||0)}">${compact(x.realisasi_total||0)}</td><td title="${rupiah(x.sisa_pagu||0)}">${compact(x.sisa_pagu||0)}</td><td>${x.jumlah_kegiatan||0}</td><td>${x.kegiatan_selesai||0}</td></tr>`).join('');
+    const table=document.getElementById('publicBidangTable');
+    if(table)table.innerHTML=`<table class="public-table-v82"><thead><tr><th>Bidang</th><th>Total Pagu</th><th>Total Perencanaan</th><th>Total Realisasi</th><th>Sisa Pagu Realisasi</th><th>Kegiatan</th><th>Selesai</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">Belum ada data</td></tr>'}</tbody></table>`;
+  };
+
+  window.__SIMPROV_PATCH_VERSION_V16427__=PATCH_VERSION_V16427;
+})();
