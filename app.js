@@ -709,7 +709,6 @@ function downloadDashboardPDF(){
   const dokumen = semuaBidang ? (dashboard.dokumen || []) : (dashboard.dokumen || []).filter(d => String(d.id_bidang) === userBidang);
   const pagu = rekap.reduce((s,r)=>s+toNumber(r.pagu),0);
   const total = rekap.reduce((s,r)=>s+toNumber(r.total_perencanaan),0);
-  const realisasi = rekap.reduce((s,r)=>s+toNumber(r.total_realisasi),0);
   const sisa = pagu - total;
   const valid = dokumen.filter(d=>isDocValidKeuanganV70(d)).length;
   const perluPersetujuan = perencanaan.filter(k => ["DIAJUKAN","PERUBAHAN_DIAJUKAN"].includes(String(k.status_perencanaan||"").toUpperCase())).length;
@@ -2745,6 +2744,7 @@ function buildMonitoringReportBodyV55(semuaBidang){
   const pagu = rekap.reduce((s,r)=>s+toNumber(r.pagu),0);
   const total = rekap.reduce((s,r)=>s+toNumber(r.total_perencanaan),0);
   const sisa = pagu - total;
+  const realisasi = rekap.reduce((s,r)=>s+toNumber(r.total_realisasi),0);
   const valid = dokumen.filter(d=>isDocValidKeuanganV70(d)).length;
   const perbaikanDok = dokumen.filter(d=>["PERBAIKAN","DITOLAK"].includes(String(d.status_verifikasi||"").toUpperCase())).length;
   const menungguDok = dokumen.filter(d=>["","MENUNGGU"].includes(String(d.status_verifikasi||"").toUpperCase())).length;
@@ -18206,3 +18206,87 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V16425__=PATCH_VERSION_V16425;
 })();
+
+/* =========================================================
+   SIMPROV v164.26 - Pulihkan Routing Laporan & Ringkas Card Pembayaran
+   ---------------------------------------------------------
+   - Klik Laporan oleh User Bidang langsung membuka tab cetak laporan
+     tanpa mengubah menu aktif atau card halaman utama.
+   - Template cetak memakai Sisa Pagu Perencanaan dan Total Realisasi.
+   - Card Total Nilai dihapus khusus halaman antrean/riwayat Pimpinan,
+     Verifikator Keuangan, dan Bendahara.
+   ========================================================= */
+(function(){
+  'use strict';
+
+  const PATCH_VERSION_V16426='164.26';
+  const PAYMENT_SUMMARY_ROLES_V16426=new Set(['PIMPINAN','VERIFIKATOR_KEUANGAN','BENDAHARA']);
+  const PAYMENT_SUMMARY_MENUS_V16426=new Set([
+    'Antrean Persetujuan Pengajuan','Riwayat Persetujuan Pengajuan',
+    'Antrean Verifikasi','Riwayat Verifikasi',
+    'Antrean Pembayaran Bendahara','Riwayat Pembayaran Bendahara'
+  ]);
+
+  function roleV16426(){
+    return String(typeof actualRoleV133==='function'?actualRoleV133():(currentUser?.role||'')).trim().toUpperCase();
+  }
+  function cardLabelV16426(card){
+    return String(card?.querySelector('span')?.textContent||'').replace(/\s+/g,' ').trim().toUpperCase();
+  }
+  function removePaymentTotalValueCardV16426(){
+    if(!PAYMENT_SUMMARY_ROLES_V16426.has(roleV16426()))return false;
+    if(!PAYMENT_SUMMARY_MENUS_V16426.has(String(activeMenu||'')))return false;
+    const wrap=document.getElementById('summaryCards');
+    if(!wrap)return false;
+    let changed=false;
+    [...wrap.querySelectorAll('.summary-card')].forEach(card=>{
+      if(cardLabelV16426(card)==='TOTAL NILAI'){
+        card.remove();
+        changed=true;
+      }
+    });
+    wrap.classList.remove('summary-six-v163');
+    return changed;
+  }
+
+  if(typeof renderSummary==='function'){
+    const renderSummaryBaseV16426=renderSummary;
+    renderSummary=function(){
+      const result=renderSummaryBaseV16426.apply(this,arguments);
+      removePaymentTotalValueCardV16426();
+      return result;
+    };
+  }
+
+  if(typeof setMenu==='function'){
+    const setMenuBaseV16426=setMenu;
+    setMenu=function(menu){
+      const target=String(menu||'');
+      /* Laporan memang berupa keluaran cetak di tab baru, bukan halaman
+         dashboard. Jangan ubah activeMenu agar card dan form yang sedang
+         dibuka tetap utuh. */
+      if(target==='Laporan'&&roleV16426()==='BIDANG'){
+        if(typeof renderLaporan==='function')return renderLaporan();
+        if(typeof downloadDashboardPDF==='function')return downloadDashboardPDF();
+        return;
+      }
+      const result=setMenuBaseV16426.apply(this,arguments);
+      requestAnimationFrame(removePaymentTotalValueCardV16426);
+      return result;
+    };
+  }
+
+  /* Beberapa halaman pembayaran merender ulang konten tanpa berpindah menu. */
+  ['renderPaymentWorkspaceV138','renderPimpinanPaymentPageV1644','renderPaymentRolePageV147','renderPaymentRolePageV150'].forEach(name=>{
+    const fn=window[name];
+    if(typeof fn!=='function')return;
+    window[name]=function(){
+      const result=fn.apply(this,arguments);
+      requestAnimationFrame(removePaymentTotalValueCardV16426);
+      return result;
+    };
+  });
+
+  window.__SIMPROV_PATCH_VERSION_V16426__=PATCH_VERSION_V16426;
+})();
+
