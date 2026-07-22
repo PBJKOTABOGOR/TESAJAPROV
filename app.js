@@ -1812,7 +1812,7 @@ function renderStruktur(){
           ${editing?`<select id="akses_${esc(r.id_bidang)}"><option value="BUKA" ${r.status_akses==='BUKA'?'selected':''}>BUKA</option><option value="TUTUP" ${r.status_akses==='TUTUP'?'selected':''}>TUTUP</option></select>`:`<div class="readonly-display">${esc(r.status_akses || '-')}</div>`}
         </div>
         <div class="admin-budget-status">${badge(r.status_progress)}</div>
-        <div class="admin-budget-actions">${editing?`<button onclick="updateBidang('${esc(r.id_bidang)}')">Simpan</button><button class="btn-soft" onclick="setAdminEditRow('${esc(r.id_bidang)}', false)">Batal</button>`:`<button class="btn-mini" onclick="setAdminEditRow('${esc(r.id_bidang)}', true)">Edit</button>`}</div>
+        <div class="admin-budget-actions">${editing?`<button onclick="updateBidang('${esc(r.id_bidang)}')">Simpan</button><button class="btn-soft" onclick="setAdminEditRow('${esc(r.id_bidang)}', false)">Batal</button>`:`<button class="btn-mini" onclick="setAdminEditRow('${esc(r.id_bidang)}', true)">Edit</button> <button class="btn-mini btn-soft" onclick="hapusBidangV165('${esc(r.id_bidang)}','${esc(r.nama_bidang||r.id_bidang)}')">Hapus</button>`}</div>
       </div>`;
     }).join("");
     document.getElementById("contentArea").innerHTML = `<section class="panel fade-up premium-panel struktur-admin-panel">
@@ -4376,12 +4376,12 @@ function renderManajemenAkunV65(){
   const rows=users.map(u=>{
     const ids=String(u.bidang_akses||'').split(',').map(x=>x.trim()).filter(Boolean);
     const names=ids.map(id=>bidangName(id)).join(', ') || '-';
-    return `<div class="admin-budget-card account-card-v65"><div class="admin-budget-info"><b>${esc(u.nama||'-')}</b><small>${esc(u.id_user||'')} • ${esc(u.username||'')}</small></div><div><span class="badge badge-blue">VERIFIKATOR</span></div><div class="account-scope-text"><small>Bidang Penugasan</small><br>${esc(names)}</div><div>${badge(u.status||'AKTIF')}</div><div><button class="btn-mini" onclick="openEditVerifierV65('${esc(u.id_user)}')">Edit</button></div></div>`;
+    return `<div class="admin-budget-card account-card-v65"><div class="admin-budget-info"><b>${esc(u.nama||'-')}</b><small>${esc(u.id_user||'')} • ${esc(u.username||'')}</small></div><div><span class="badge badge-blue">VERIFIKATOR</span></div><div class="account-scope-text"><small>Bidang Penugasan</small><br>${esc(names)}</div><div>${badge(u.status||'AKTIF')}</div><div><button class="btn-mini" onclick="openEditVerifierV65('${esc(u.id_user)}')">Edit</button> <button class="btn-mini btn-soft" onclick="hapusAkunV165('${esc(u.id_user)}','${esc(u.nama||u.id_user)}')">Hapus</button></div></div>`;
   }).join('');
   const i=identityV77();
   document.getElementById('contentArea').innerHTML=`
   <section class="panel fade-up premium-panel"><div class="panel-title-row"><div><h3>Identitas Penanggung Jawab</h3><p class="panel-sub">Nama ini tampil pada header dan digunakan sebagai identitas resmi aplikasi.</p></div></div><div class="form-grid"><div class="field"><label>Nama Ketua Umum</label><input id="ketuaUmumV77" value="${esc(i.ketua_umum||'')}" placeholder="Nama lengkap Ketua Umum"></div><div class="field"><label>Nama Verifikator</label><input id="verifikatorUtamaV77" value="${esc(i.verifikator||users[0]?.nama||'')}" placeholder="Nama lengkap Verifikator"></div></div><button onclick="saveIdentityV77()">Simpan Identitas</button><div id="identityMsgV77" class="msg"></div></section>
-  <section class="panel fade-up premium-panel"><div class="panel-title-row"><div><h3>Manajemen Akses dan Akun Verifikator</h3><p class="panel-sub">Satu jenis Verifikator menangani perencanaan, dokumen, dan finalisasi sesuai bidang penugasannya.</p></div><button class="btn-refresh" onclick="openCreateVerifierV65()">+ Buat Akun</button></div><div class="admin-budget-list">${rows||'<p class="muted">Belum ada akun verifikator.</p>'}</div></section><div id="verifierModalV65" class="modal hidden"></div>`;
+  <section class="panel fade-up premium-panel"><div class="panel-title-row"><div><h3>Manajemen Akses dan Akun Verifikator</h3><p class="panel-sub">Satu jenis Verifikator menangani perencanaan, dokumen, dan finalisasi sesuai bidang penugasannya.</p></div><div><button class="btn-mini btn-soft" onclick="migrasiPasswordV165()" title="Ubah password lama yang masih tersimpan sebagai teks biasa menjadi SHA256">Amankan Password Lama</button></div><button class="btn-refresh" onclick="openCreateVerifierV65()">+ Buat Akun</button></div><div class="admin-budget-list">${rows||'<p class="muted">Belum ada akun verifikator.</p>'}</div></section><div id="verifierModalV65" class="modal hidden"></div>`;
 }
 function verifierFormModalV65(u){
   const editing=!!u; const selected=String(u?.bidang_akses||'').split(',').map(x=>x.trim()).filter(Boolean); const modal=document.getElementById('verifierModalV65');
@@ -9174,19 +9174,24 @@ function verifierFormModalV65(u){
   if(!modal)return;
   const role=actualRoleV133(u||{role:'VERIFIKATOR_PBJ'});
   modal.className='modal-backdrop access-modal-v133';
-  modal.innerHTML=`<div class="modal-card modal-wide access-card-v133 fade-up"><div class="modal-head"><div><h3>${editing?'Edit':'Buat'} Akun</h3><p>Hak akses menu mengikuti role yang dipilih.</p></div><button class="btn-soft" onclick="closeVerifierModalV65()">Tutup</button></div><div class="form-grid"><div class="field"><label>Nama Lengkap</label><input id="akunNama" value="${esc(u?.nama||'')}" placeholder="Nama pemilik akun"></div><div class="field"><label>Role</label><select id="akunRole" onchange="onManagedRoleChangeV133()"><option value="VERIFIKATOR_PBJ" ${role==='VERIFIKATOR_PBJ'?'selected':''}>Verifikator PBJ</option><option value="VERIFIKATOR_KEUANGAN" ${role==='VERIFIKATOR_KEUANGAN'?'selected':''}>Verifikator Keuangan</option><option value="BENDAHARA" ${role==='BENDAHARA'?'selected':''}>Bendahara</option><option value="PIMPINAN" ${role==='PIMPINAN'?'selected':''}>Pimpinan</option></select></div><div class="field"><label>Username</label><input id="akunUsername" value="${esc(u?.username||'')}" placeholder="username"></div><div class="field"><label>Password ${editing?'(kosongkan jika tidak diubah)':''}</label><input id="akunPassword" type="password" placeholder="Password akun"></div>${editing?`<div class="field"><label>Status</label><select id="akunStatus"><option value="AKTIF" ${String(u?.status).toUpperCase()==='AKTIF'?'selected':''}>AKTIF</option><option value="NONAKTIF" ${String(u?.status).toUpperCase()==='NONAKTIF'?'selected':''}>NONAKTIF</option></select></div>`:''}</div><div id="akunBidangWrapV133" class="field"><label>Pilih Bidang Penugasan</label><p class="field-help-v133">Wajib untuk Verifikator PBJ dan Verifikator Keuangan.</p><div class="account-scope-grid">${bidangChecksV65(selected)}</div></div><div class="modal-actions"><button class="btn-soft" onclick="closeVerifierModalV65()">Batal</button><button onclick="saveVerifierV65('${esc(u?.id_user||'')}')">Simpan Akun</button></div></div>`;
+  modal.innerHTML=`<div class="modal-card modal-wide access-card-v133 fade-up"><div class="modal-head"><div><h3>${editing?'Edit':'Buat'} Akun</h3><p>Hak akses menu mengikuti role yang dipilih.</p></div><button class="btn-soft" onclick="closeVerifierModalV65()">Tutup</button></div><div class="form-grid"><div class="field"><label>Nama Lengkap</label><input id="akunNama" value="${esc(u?.nama||'')}" placeholder="Nama pemilik akun"></div><div class="field"><label>Role</label><select id="akunRole" onchange="onManagedRoleChangeV133()"><option value="VERIFIKATOR_PBJ" ${role==='VERIFIKATOR_PBJ'?'selected':''}>Verifikator PBJ</option><option value="VERIFIKATOR_KEUANGAN" ${role==='VERIFIKATOR_KEUANGAN'?'selected':''}>Verifikator Keuangan</option><option value="BENDAHARA" ${role==='BENDAHARA'?'selected':''}>Bendahara</option><option value="PIMPINAN" ${role==='PIMPINAN'?'selected':''}>Pimpinan</option><option value="BIDANG" ${role==='BIDANG'?'selected':''}>User Bidang</option></select></div><div class="field" id="akunBidangTunggalWrapV165" style="display:none"><label>Bidang Akun</label><select id="akunBidangTunggalV165">${bidangTunggalOptionsV165(u?.id_bidang||'')}</select><small class="hint-v165">Satu akun untuk satu bidang. Cabang olahraga dipilih di sini.</small></div><div class="field"><label>Username</label><input id="akunUsername" value="${esc(u?.username||'')}" placeholder="username"></div><div class="field"><label>Password ${editing?'(kosongkan jika tidak diubah)':''}</label><input id="akunPassword" type="password" placeholder="Password akun"></div>${editing?`<div class="field"><label>Status</label><select id="akunStatus"><option value="AKTIF" ${String(u?.status).toUpperCase()==='AKTIF'?'selected':''}>AKTIF</option><option value="NONAKTIF" ${String(u?.status).toUpperCase()==='NONAKTIF'?'selected':''}>NONAKTIF</option></select></div>`:''}</div><div id="akunBidangWrapV133" class="field"><label>Pilih Bidang Penugasan</label><p class="field-help-v133">Wajib untuk Verifikator PBJ dan Verifikator Keuangan.</p><div class="account-scope-grid">${bidangChecksV65(selected)}</div></div><div class="modal-actions"><button class="btn-soft" onclick="closeVerifierModalV65()">Batal</button><button onclick="saveVerifierV65('${esc(u?.id_user||'')}')">Simpan Akun</button></div></div>`;
   onManagedRoleChangeV133();
 }
 function onManagedRoleChangeV133(){
   const role=document.getElementById('akunRole')?.value,wrap=document.getElementById('akunBidangWrapV133');
   if(wrap)wrap.classList.toggle('optional-scope-v133',!managedRoleNeedsBidangV133(role));
+  const bidangRole=String(role||'').toUpperCase()==='BIDANG';
+  const tunggal=document.getElementById('akunBidangTunggalWrapV165');
+  if(tunggal)tunggal.style.display=bidangRole?'':'none';
+  if(wrap)wrap.style.display=bidangRole?'none':'';
 }
 function closeVerifierModalV65(){const m=document.getElementById('verifierModalV65');if(m){m.className='modal-backdrop hidden';m.innerHTML='';}}
 async function saveVerifierV65(id){
   const role=document.getElementById('akunRole')?.value||'',bidang_akses=[...document.querySelectorAll('input[name="akunBidang"]:checked')].map(x=>x.value);
-  const data={id_user:id,nama:document.getElementById('akunNama')?.value.trim(),role,username:document.getElementById('akunUsername')?.value.trim(),password:document.getElementById('akunPassword')?.value||'',bidang_akses,status:document.getElementById('akunStatus')?.value||'AKTIF'};
+  const data={id_user:id,nama:document.getElementById('akunNama')?.value.trim(),role,username:document.getElementById('akunUsername')?.value.trim(),password:document.getElementById('akunPassword')?.value||'',bidang_akses,status:document.getElementById('akunStatus')?.value||'AKTIF',id_bidang:(document.getElementById('akunBidangTunggalV165')||{}).value||''};
   if(!data.nama||!data.username||(!id&&!data.password)){alert('Nama, username, dan password wajib diisi.');return;}
-  if(managedRoleNeedsBidangV133(role)&&!bidang_akses.length){alert('Pilih minimal satu bidang penugasan.');return;}
+  if(String(role||'').toUpperCase()==='BIDANG'){ if(!data.id_bidang){alert('Pilih bidang untuk akun User Bidang.');return;} }
+  else if(managedRoleNeedsBidangV133(role)&&!bidang_akses.length){alert('Pilih minimal satu bidang penugasan.');return;}
   const ok=await confirmActionV133({title:id?'Simpan Perubahan Akun':'Buat Akun Baru',message:`Pastikan nama, role ${roleLabelV133(role)}, username, dan bidang penugasan sudah benar.`,confirmText:id?'Ya, Simpan':'Ya, Buat Akun'});if(!ok)return;
   showLoading('Menyimpan akun...');
   try{const r=await apiPost({action:id?'updateVerifierAccount':'saveVerifierAccount',user:currentUser,data});if(!r.success)throw new Error(r.message||'Gagal menyimpan akun');closeVerifierModalV65();await loadDashboard(false);renderAll();alert(r.message);}catch(e){alert(e.message||String(e));}finally{hideLoading();}
@@ -18513,3 +18518,61 @@ function parentOptionsV165(terpilih){
   return html;
 }
 window.parentOptionsV165 = parentOptionsV165;
+
+
+/* SIMPROV v165.2 - opsi bidang untuk akun User Bidang, hapus akun,
+   hapus bidang, dan migrasi password lama. */
+
+function bidangTunggalOptionsV165(terpilih){
+  var src=(typeof dashboard!=='undefined'&&dashboard)?(dashboard.bidang||dashboard.bidangs||[]):[];
+  var rows=Array.isArray(src)?src:[];
+  var sel=String(terpilih||'').trim().toUpperCase();
+  var html='<option value="">-- Pilih bidang --</option>';
+  rows.forEach(function(b){
+    var id=String(b.id_bidang||'').trim(); if(!id) return;
+    var induk=String(b.id_parent||'').trim();
+    var label=id+' - '+(b.nama_bidang||'')+(induk?'  (cabang '+induk+')':'');
+    html+='<option value="'+esc(id)+'"'+(sel===id.toUpperCase()?' selected':'')+'>'+esc(label)+'</option>';
+  });
+  return html;
+}
+window.bidangTunggalOptionsV165=bidangTunggalOptionsV165;
+
+async function hapusAkunV165(idUser,nama){
+  var ok=await confirmActionV133({title:'Hapus Akun',message:'Akun '+(nama||idUser)+' akan dihapus permanen dari sheet USER. Lanjutkan?',confirmText:'Ya, Hapus'});
+  if(!ok)return;
+  showLoading('Menghapus akun...');
+  try{
+    var r=await apiPost({action:'deleteManagedAccountV165',user:currentUser,id_user:idUser});
+    if(!r.success)throw new Error(r.message||'Gagal menghapus akun');
+    await loadDashboard(false); renderAll(); alert(r.message);
+  }catch(e){alert(e.message||String(e));}
+  finally{hideLoading();}
+}
+window.hapusAkunV165=hapusAkunV165;
+
+async function hapusBidangV165(idBidang,nama){
+  var ok=await confirmActionV133({title:'Hapus Bidang',message:'Bidang '+(nama||idBidang)+' akan dihapus. Hanya bisa dihapus bila tidak punya cabang, kegiatan, maupun akun.',confirmText:'Ya, Hapus'});
+  if(!ok)return;
+  showLoading('Menghapus bidang...');
+  try{
+    var r=await apiPost({action:'deleteBidangV165',user:currentUser,id_bidang:idBidang});
+    if(!r.success)throw new Error(r.message||'Gagal menghapus bidang');
+    await loadDashboard(false); renderAll(); alert(r.message);
+  }catch(e){alert(e.message||String(e));}
+  finally{hideLoading();}
+}
+window.hapusBidangV165=hapusBidangV165;
+
+async function migrasiPasswordV165(){
+  var ok=await confirmActionV133({title:'Amankan Password Lama',message:'Seluruh password yang masih tersimpan sebagai teks biasa akan diubah menjadi SHA256. Password pengguna tidak berubah, hanya cara penyimpanannya. Lanjutkan?',confirmText:'Ya, Amankan'});
+  if(!ok)return;
+  showLoading('Mengamankan password...');
+  try{
+    var r=await apiPost({action:'migratePasswordsV165',user:currentUser});
+    if(!r.success)throw new Error(r.message||'Migrasi gagal');
+    alert(r.message);
+  }catch(e){alert(e.message||String(e));}
+  finally{hideLoading();}
+}
+window.migrasiPasswordV165=migrasiPasswordV165;
