@@ -954,7 +954,7 @@ td:nth-child(6), td:nth-child(7), td:nth-child(8){
   border:1px solid #cfe6f7;
   white-space:nowrap;
 }
-.audit-pill::before{content:"👁️";font-size:13px}
+.audit-pill::before{content:none}
 
 .review-kpi-grid{
   display:grid;
@@ -1093,10 +1093,7 @@ td:nth-child(6), td:nth-child(7), td:nth-child(8){
   font-size:12.5px;
   white-space:nowrap;
 }
-.upload-time::before{
-  content:"🕒";
-  font-size:12px;
-}
+.upload-time::before{content:none}
 
 
 /* v27 - Menu Laporan khusus user bidang */
