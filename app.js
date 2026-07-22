@@ -574,7 +574,7 @@ function renderPerencanaan(){
     if(aksesPerencanaanTerbuka()){
       html += `<section class="panel fade-up premium-panel collapsible-panel"><div class="panel-head"><div><h3>Input Perencanaan</h3><p class="panel-sub">Input rencana kegiatan/kebutuhan. Setelah disimpan, status langsung DIAJUKAN ke Verifikator.</p></div>${collapseButton('perencanaanInput')}</div><div class="collapse-body ${collapseState.perencanaanInput?'hidden':''}"><div class="form-grid"><div class="field"><label>Nama Kegiatan</label><input id="namaKegiatan" placeholder="Contoh: Rapat Koordinasi"></div><div class="field"><label>Keterangan</label><input id="keterangan" placeholder="Opsional"></div><div class="field"><label>Volume</label><input id="volume" inputmode="numeric" placeholder="Contoh: 2" oninput="onAngkaInput(this)"></div><div class="field"><label>Satuan</label><input id="satuan" placeholder="Orang / Paket / Buah"></div><div class="field"><label>Harga Satuan</label><input id="harga" inputmode="numeric" placeholder="Contoh: 500.000" oninput="onAngkaInput(this)"></div><div class="field"><label>Total Otomatis</label><input id="totalPreview" class="readonly-total" value="Rp0" readonly></div><div class="field"><label>Metode</label><input id="metodePemilihan" class="readonly-total" placeholder="Otomatis sesuai pagu" readonly></div><div class="field"><label>Waktu Pemilihan</label><input id="waktuPemilihan" type="date" onchange="onWaktuPemilihanInput(false)"></div></div><div id="metodePreview" class="metode-preview"></div><button onclick="savePerencanaan()">Simpan & Ajukan</button><div id="saveMsg" class="msg"></div></div></section>`;
     } else {
-      html += `<section class="panel fade-up locked-panel"><h3>Perencanaan Ditutup</h3><p class="panel-sub">🔒 Akses perencanaan bidang sedang ditutup oleh Verifikator. Kamu masih bisa membuka menu Pencairan untuk upload/revisi dokumen.</p></section>`;
+      html += `<section class="panel fade-up locked-panel"><h3>Perencanaan Ditutup</h3><p class="panel-sub">Akses perencanaan bidang sedang ditutup oleh Verifikator. Kamu masih bisa membuka menu Pencairan untuk upload/revisi dokumen.</p></section>`;
     }
   }
   const rows = pageData.map(k=>renderPerencanaanRow(k)).join("");
@@ -1862,6 +1862,7 @@ function openTambahBidangModal(){
           <div class="field"><label>Nama Bidang</label><input id="newNamaBidang" placeholder="Contoh: Kesekretariatan"></div>
           <div class="field"><label>Pagu</label><input id="newPaguBidang" inputmode="numeric" placeholder="Contoh: 10.000.000" oninput="onPaguAdminInput(this)"></div>
           <div class="field"><label>Akses Input</label><select id="newAksesBidang"><option value="BUKA">BUKA</option><option value="TUTUP">TUTUP</option></select></div>
+          <div class="field full"><label>Induk Bidang</label><select id="newParentBidang">${parentOptionsV165("")}</select><small class="hint-v165">Kosongkan bila bidang ini berdiri sendiri. Bidang cabang tidak dapat memiliki cabang lagi.</small></div>
           <div class="field full"><label>Keterangan</label><input id="newKetBidang" placeholder="Opsional"></div>
         </div>
         <div class="modal-actions-v49">
@@ -1883,7 +1884,8 @@ async function submitTambahBidang(){
     nama_bidang: document.getElementById("newNamaBidang").value,
     pagu: toNumber(document.getElementById("newPaguBidang").value),
     status_akses: document.getElementById("newAksesBidang").value,
-    keterangan: document.getElementById("newKetBidang").value
+    keterangan: document.getElementById("newKetBidang").value,
+    id_parent: (document.getElementById("newParentBidang")||{}).value || ""
   };
   if(!data.id_bidang || !data.nama_bidang){ alert("ID bidang dan nama bidang wajib diisi."); return; }
   showLoading("Menyimpan bidang...");
@@ -11777,7 +11779,7 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
     if(!input)return;
     const show=input.type==='password';
     input.type=show?'text':'password';
-    if(btn){btn.setAttribute('aria-label',show?'Sembunyikan password':'Tampilkan password');btn.title=show?'Sembunyikan password':'Tampilkan password';btn.querySelector('span').textContent=show?'🙈':'👁';}
+    if(btn){btn.setAttribute('aria-label',show?'Sembunyikan password':'Tampilkan password');btn.title=show?'Sembunyikan password':'Tampilkan password';btn.querySelector('span').innerHTML=show?'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 20C5 20 1 12 1 12a18.5 18.5 0 0 1 5.1-5.9M9.9 4.2A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.2 3.2m-6.7-1.1a3 3 0 1 1-4.2-4.2"/><path d="M1 1l22 22"/></svg>':'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';}
     input.focus({preventScroll:true});
   };
 
@@ -12382,7 +12384,7 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
       if(btn){
         btn.setAttribute('aria-label', show ? 'Sembunyikan password' : 'Tampilkan password');
         btn.title = show ? 'Sembunyikan password' : 'Tampilkan password';
-        var sp = btn.querySelector('span'); if(sp) sp.textContent = show ? '🙈' : '👁';
+        var sp = btn.querySelector('span'); if(sp) sp.innerHTML = show ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 20C5 20 1 12 1 12a18.5 18.5 0 0 1 5.1-5.9M9.9 4.2A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.2 3.2m-6.7-1.1a3 3 0 1 1-4.2-4.2"/><path d="M1 1l22 22"/></svg>' : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
       }
       input.focus({preventScroll:true});
       try{ input.setSelectionRange(selStart, selEnd); }catch(e){}          /* kembalikan kursor */
@@ -18493,3 +18495,21 @@ verifikasiRealisasiNonV112=async function(id,mode){
 
   window.__SIMPROV_PATCH_VERSION_V16427__=PATCH_VERSION_V16427;
 })();
+
+
+/* SIMPROV v165.1 - opsi Induk Bidang pada form Admin.
+   Hanya bidang tingkat atas yang belum menjadi cabang yang boleh dipilih. */
+function parentOptionsV165(terpilih){
+  var src = (typeof dashboard !== 'undefined' && dashboard) ? (dashboard.bidang || dashboard.bidangs || []) : [];
+  var rows = Array.isArray(src) ? src : [];
+  var kandidat = rows.filter(function(b){ return !String(b.id_parent || '').trim(); });
+  var sel = String(terpilih || '').trim().toUpperCase();
+  var html = '<option value="">Tidak ada (bidang tingkat atas)</option>';
+  kandidat.forEach(function(b){
+    var id = String(b.id_bidang || '').trim();
+    if(!id) return;
+    html += '<option value="' + esc(id) + '"' + (sel === id.toUpperCase() ? ' selected' : '') + '>' + esc(id + ' - ' + (b.nama_bidang || '')) + '</option>';
+  });
+  return html;
+}
+window.parentOptionsV165 = parentOptionsV165;
