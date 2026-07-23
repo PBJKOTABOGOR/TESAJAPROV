@@ -9968,15 +9968,20 @@ function formatDate(v){
     renderManageBaseV136();
     if(!isSuperAdminV65())return;
     const area=document.getElementById('contentArea');if(!area)return;
-    const cards=(dashboard?.bidangs||[]).map(b=>`<label class="pimpinan-bidang-card-v136"><span><b>${esc(b.nama_bidang||'-')}</b><small>${esc(b.id_bidang||'')}</small></span><input class="pimpinan-bidang-input-v136" data-id="${esc(b.id_bidang)}" value="${esc(b.nama_pimpinan_bidang||'')}" placeholder="Nama pimpinan bidang"></label>`).join('');
-    const panel=`<section class="panel fade-up premium-panel pimpinan-bidang-panel-v136"><div class="panel-title-row"><div><h3>Nama Pimpinan Setiap Bidang</h3><p class="panel-sub">Nama ini digunakan pada tanda tangan elektronik Nota Dinas dan dokumen yang dibuat oleh masing-masing bidang.</p></div><button class="btn-refresh" onclick="savePimpinanBidangV136()">Simpan Nama Pimpinan</button></div><div class="pimpinan-bidang-grid-v136">${cards||'<p class="empty">Belum ada data bidang.</p>'}</div></section>`;
+    const cards=(dashboard?.bidangs||[]).map(b=>{
+      const cabang=!!String(b.id_parent||'').trim();
+      const sebutan=cabang?'Panpel':'Pimpinan Bidang';
+      const induk=cabang?`<em class="panpel-induk-v1654">Panpel &middot; induk ${esc(String(b.id_parent).trim())}</em>`:'';
+      return `<label class="pimpinan-bidang-card-v136"><span><b>${esc(b.nama_bidang||'-')}</b><small>${esc(b.id_bidang||'')}</small>${induk}</span><input class="pimpinan-bidang-input-v136" data-id="${esc(b.id_bidang)}" value="${esc(b.nama_pimpinan_bidang||'')}" placeholder="Nama ${sebutan.toLowerCase()}"></label>`;
+    }).join('');
+    const panel=`<section class="panel fade-up premium-panel pimpinan-bidang-panel-v136"><div class="panel-title-row"><div><h3>Penanggung Jawab Setiap Bidang</h3><p class="panel-sub">Pimpinan Bidang untuk bidang induk, Panitia Pelaksana (Panpel) untuk bidang cabang. Nama ini dipakai pada tanda tangan elektronik Nota Dinas dan dokumen yang dibuat bidang bersangkutan.</p></div><button class="btn-refresh" onclick="savePimpinanBidangV136()">Simpan Nama Pimpinan</button></div><div class="pimpinan-bidang-grid-v136">${cards||'<p class="empty">Belum ada data bidang.</p>'}</div></section>`;
     area.insertAdjacentHTML('afterbegin',panel);
   };
   window.savePimpinanBidangV136=async function(){
     const inputs=[...document.querySelectorAll('.pimpinan-bidang-input-v136')],empty=inputs.filter(x=>!x.value.trim());
     if(empty.length){alert(`Nama pimpinan belum diisi untuk ${empty.length} bidang. Lengkapi seluruh nama agar tanda tangan surat tidak kosong.`);empty[0].focus();return;}
     const items=inputs.map(x=>({id_bidang:x.dataset.id,nama_pimpinan:x.value.trim()}));
-    const ok=await confirmActionV133({title:'Simpan Nama Pimpinan Bidang',message:`Nama pimpinan untuk ${items.length} bidang akan digunakan pada tanda tangan elektronik surat.`,confirmText:'Ya, Simpan'});if(!ok)return;
+    const ok=await confirmActionV133({title:'Simpan Penanggung Jawab Bidang',message:`Nama pimpinan untuk ${items.length} bidang akan digunakan pada tanda tangan elektronik surat.`,confirmText:'Ya, Simpan'});if(!ok)return;
     showLoading('Menyimpan nama pimpinan bidang...');
     try{const r=await apiPost({action:'savePimpinanBidangV136',user:currentUser,data:{items}});if(!r.success)throw new Error(r.message||'Gagal menyimpan nama pimpinan bidang');await loadDashboard(false);renderAll();sessionStorage.removeItem(suratCacheKeyV133());alert(r.message);}catch(e){alert(e.message||String(e));}finally{hideLoading();}
   };
@@ -18576,3 +18581,63 @@ async function migrasiPasswordV165(){
   finally{hideLoading();}
 }
 window.migrasiPasswordV165=migrasiPasswordV165;
+
+
+/* SIMPROV v165.4 - Dashboard Publik mengikuti Notula Rapat 21 Juli 2026.
+   Poin 1: istilah "Sisa Pagu Realisasi" dihapus dari tampilan.
+   Poin 2: "Progres Anggaran" menjadi "Persentase Realisasi".
+   Poin 3: "Total Perencanaan", "Kegiatan", dan "Selesai" dihapus.
+   Poin 4: rincian pagu per bidang dipertahankan dan dilengkapi
+           persentase realisasi tiap bidang.
+   Angka tetap berasal dari payload yang sama, tidak ada request tambahan. */
+(function(){
+  if(typeof renderPublicDashboardV82!=='function')return;
+
+  const pctOf=(real,pagu)=>{const p=Number(pagu)||0;return p?Math.max(0,Math.min(100,(Number(real)||0)/p*100)):0;};
+
+  renderPublicDashboardV82=function(payload,fromCache=false){
+    const sum=document.getElementById('publicSummary');if(!sum)return;
+    const s=payload.summary||{},ident=payload.identity||{};
+    const compact=typeof compactRupiahV84==='function'?compactRupiahV84:rupiah;
+    const pct=Math.max(0,Math.min(100,Number(s.persentase_realisasi||0)));
+
+    const identity=document.getElementById('publicIdentity');
+    if(identity)identity.innerHTML=[
+      ident.ketua_umum&&`Ketua Umum: ${esc(ident.ketua_umum)}`,
+      ident.sekretaris_umum&&`Sekretaris Umum: ${esc(ident.sekretaris_umum)}`,
+      ident.verifikator&&`Verifikator: ${esc(ident.verifikator)}`
+    ].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
+
+    sum.innerHTML=[
+      publicMetricCard('Total Pagu',compact(s.total_pagu),'Total anggaran keseluruhan','blue'),
+      publicMetricCard('Total Realisasi',compact(s.realisasi_total),'Anggaran yang sudah terserap','green'),
+      publicMetricCard('Persentase Realisasi',pct.toFixed(1)+'%','Realisasi dibanding total pagu','yellow')
+    ].join('');
+
+    const progress=document.getElementById('publicProgress');
+    if(progress)progress.innerHTML=
+      `<div class="big-percent">${pct.toFixed(1)}%</div>`+
+      `<div class="public-progress-track"><i style="width:${pct}%"></i></div>`+
+      `<div class="public-progress-notes"><span>Total Pagu ${compact(s.total_pagu)}</span>`+
+      `<span>Total Realisasi ${compact(s.realisasi_total)}</span></div>`;
+
+    const composition=document.getElementById('publicComposition');
+    if(composition)composition.innerHTML='';
+
+    const daftar=(payload.ringkasan||[]).slice().sort((a,b)=>(Number(b.pagu)||0)-(Number(a.pagu)||0));
+    const rows=daftar.map(x=>{
+      const p=pctOf(x.realisasi_total,x.pagu);
+      return `<tr><td>${esc(x.nama_bidang||x.id_bidang)}</td>`+
+             `<td title="${rupiah(x.pagu)}">${compact(x.pagu)}</td>`+
+             `<td title="${rupiah(x.realisasi_total||0)}">${compact(x.realisasi_total||0)}</td>`+
+             `<td class="pct-cell-v1654">${p.toFixed(1)}%</td></tr>`;
+    }).join('');
+
+    const table=document.getElementById('publicBidangTable');
+    if(table)table.innerHTML=
+      `<table class="public-table-v82"><thead><tr><th>Bidang</th><th>Total Pagu</th>`+
+      `<th>Total Realisasi</th><th>Persentase Realisasi</th></tr></thead><tbody>`+
+      (rows||'<tr><td colspan="4" class="empty">Belum ada data</td></tr>')+
+      `</tbody></table>`;
+  };
+})();
