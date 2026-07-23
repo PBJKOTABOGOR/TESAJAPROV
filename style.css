@@ -3657,3 +3657,11 @@ button.plan-id-link-v161:focus-visible{
   box-shadow:0 12px 30px rgba(12,78,132,.14);
 }
 .payment-view-btn-v16422{white-space:nowrap}
+
+
+/* SIMPROV v165.4 - panel persentase realisasi kini tunggal */
+.public-chart-single-v1654{grid-template-columns:1fr}
+.public-progress-notes span{font-variant-numeric:tabular-nums}
+.public-table-v82 td:nth-child(n+2),.public-table-v82 th:nth-child(n+2){text-align:right}
+.pct-cell-v1654{font-weight:800;color:#0f4c81}
+.panpel-induk-v1654{display:block;margin-top:2px;font-size:11.5px;font-style:normal;font-weight:700;color:#0f4c81;opacity:.85}
