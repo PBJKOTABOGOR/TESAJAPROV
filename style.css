@@ -3665,3 +3665,29 @@ button.plan-id-link-v161:focus-visible{
 .public-table-v82 td:nth-child(n+2),.public-table-v82 th:nth-child(n+2){text-align:right}
 .pct-cell-v1654{font-weight:800;color:#0f4c81}
 .panpel-induk-v1654{display:block;margin-top:2px;font-size:11.5px;font-style:normal;font-weight:700;color:#0f4c81;opacity:.85}
+
+/* SIMPROV v165.5 - Impor RAB */
+.rab-import-head-v1655{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.rab-import-head-v1655 input[type=file]{padding:10px;border:1px dashed #bcd8ef;border-radius:10px;background:#f7fbff;cursor:pointer;font-size:13px}
+.rab-preview-v1655{margin-top:6px}
+.rab-preview-stat-v1655{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.rab-chip-v1655{padding:5px 12px;border-radius:999px;font-size:12.5px;font-weight:800;background:#eef4fa;color:#17365b;border:1px solid #d6e6f4}
+.rab-chip-v1655.baru{background:#e8f7ee;color:#12633a;border-color:#bfe6cf}
+.rab-chip-v1655.ubah{background:#fff6e5;color:#8a5a00;border-color:#f3ddb0}
+.rab-chip-v1655.sama{background:#f1f3f6;color:#5a6472;border-color:#dde2e8}
+.rab-chip-v1655.induk{background:#eef2ff;color:#3b4a9c;border-color:#ccd5f5}
+.rab-chip-v1655.tolak{background:#fdeced;color:#a01722;border-color:#f5c6ca}
+.rab-chip-v1655.total{background:#eaf7ff;color:#0f4c81;border-color:#cfe6f7}
+.rab-error-box-v1655{background:#fff7f7;border:1px solid #f3ccd0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#8a1220}
+.rab-error-box-v1655 ul{margin:6px 0 0;padding-left:18px}
+.rab-preview-table-v1655{width:100%;border-collapse:collapse;font-size:13px}
+.rab-preview-table-v1655 th{background:#f4f8fc;text-align:left;padding:9px 10px;font-weight:800;color:#17365b;white-space:nowrap}
+.rab-preview-table-v1655 td{padding:9px 10px;border-top:1px solid #eef2f6;vertical-align:top}
+.rab-preview-table-v1655 td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rab-preview-table-v1655 s{color:#98a2ae}
+.rab-tag-v1655{padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:800;white-space:nowrap}
+.rab-tag-v1655.baru{background:#e8f7ee;color:#12633a}
+.rab-tag-v1655.ubah{background:#fff6e5;color:#8a5a00}
+.rab-tag-v1655.kunci{background:#fdeced;color:#a01722}
+.rab-preview-actions-v1655{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+@media(max-width:720px){.rab-preview-table-v1655{font-size:12px}}
