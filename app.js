@@ -18651,15 +18651,35 @@ window.migrasiPasswordV165=migrasiPasswordV165;
 (function(){
 
   /* Pembaca CSV yang menangani tanda kutip, koma di dalam kutip, dan CRLF. */
-  function parseCsvV1655(teks){
-    var s=String(teks||'').replace(/^\uFEFF/,''), baris=[], sel=[], buf='', kutip=false;
+  /* Excel dengan pengaturan wilayah Indonesia menyimpan CSV memakai titik koma.
+     Pemisah ditentukan sekali dari baris judul, lalu dipakai konsisten. Memotong
+     pada koma dan titik koma sekaligus membuat kolom bergeser bila salah satunya
+     muncul di dalam isi sel. */
+  function delimiterV1655(teks){
+    var judul=String(teks||'').split(/\r?\n/)[0]||'';
+    var luar=true, n={',':0,';':0,'\t':0};
+    for(var i=0;i<judul.length;i++){
+      var c=judul[i];
+      if(c==='"') luar=!luar;
+      else if(luar && n[c]!==undefined) n[c]++;
+    }
+    var pilih=',', besar=n[','];
+    if(n[';']>besar){ pilih=';'; besar=n[';']; }
+    if(n['\t']>besar){ pilih='\t'; }
+    return pilih;
+  }
+
+  function parseCsvV1655(teks, pemisah){
+    var s=String(teks||'').replace(/^\uFEFF/,'');
+    var d=pemisah||delimiterV1655(s);
+    var baris=[], sel=[], buf='', kutip=false;
     for(var i=0;i<s.length;i++){
       var c=s[i];
       if(kutip){
         if(c==='"'){ if(s[i+1]==='"'){buf+='"';i++;} else kutip=false; }
         else buf+=c;
       }else if(c==='"') kutip=true;
-      else if(c===','||c===';'){ sel.push(buf); buf=''; }
+      else if(c===d){ sel.push(buf); buf=''; }
       else if(c==='\n'){ sel.push(buf); baris.push(sel); sel=[]; buf=''; }
       else if(c!=='\r') buf+=c;
     }
@@ -18741,7 +18761,7 @@ window.migrasiPasswordV165=migrasiPasswordV165;
       var k=String(r.kode_rab||'').trim().toUpperCase(); if(k) petaLama[k]=r;
     });
 
-    var items=[], induk=0, tolak=[], kodeAda={};
+    var items=[], induk=0, indukDaftar=[], tolak=[], kodeAda={};
     var nBaru=0, nUbah=0, nSama=0;
 
     for(var i=1;i<baris.length;i++){
@@ -18750,11 +18770,20 @@ window.migrasiPasswordV165=migrasiPasswordV165;
       var vol=angkaV1655(ambil(r,'volume')), harga=angkaV1655(ambil(r,'harga_satuan'));
       if(!pagu && vol && harga) pagu=vol*harga;
 
-      /* Baris induk pada RAB bertingkat: tidak punya nilai sama sekali. */
-      if(!pagu && !vol && !harga){ induk++; continue; }
-
       var kode=ambil(r,'kode_rab'), idBidang=ambil(r,'id_bidang').toUpperCase();
-      if(!kode){ tolak.push('Baris '+noBaris+': kode_rab kosong'); continue; }
+
+      /* Baris induk pada RAB bertingkat: tidak punya kode dan tidak punya nilai.
+         Baris yang punya kode TIDAK boleh dianggap induk, supaya baris data
+         tidak lenyap diam-diam ketika angkanya gagal terbaca. */
+      if(!kode && !pagu && !vol && !harga){
+        indukDaftar.push('Baris '+noBaris+': '+(uraian||'(tanpa uraian)'));
+        induk++; continue;
+      }
+      if(!kode){ tolak.push('Baris '+noBaris+': kode_rab kosong ('+(uraian||'tanpa uraian')+')'); continue; }
+      if(!pagu && !vol && !harga){
+        tolak.push('Baris '+noBaris+': '+kode+' punya kode tetapi nilainya tidak terbaca. Periksa kolom volume, harga satuan, dan jumlah.');
+        continue;
+      }
       if(!uraian){ tolak.push('Baris '+noBaris+': uraian kosong'); continue; }
       if(!idBidang){ tolak.push('Baris '+noBaris+': id_bidang kosong'); continue; }
       if(pagu<=0){ tolak.push('Baris '+noBaris+': pagu tidak terbaca'); continue; }
@@ -18780,7 +18809,9 @@ window.migrasiPasswordV165=migrasiPasswordV165;
     }
 
     return {ok:true,items:items,baru:nBaru,berubah:nUbah,sama:nSama,
-            induk:induk,tolak:tolak,total:items.reduce(function(t,x){return t+x.pagu;},0)};
+            induk:induk,indukDaftar:indukDaftar,tolak:tolak,
+            barisData:baris.length-1,
+            total:items.reduce(function(t,x){return t+x.pagu;},0)};
   }
 
   window.pilihCsvRabV1655=function(input){
@@ -18808,6 +18839,7 @@ window.migrasiPasswordV165=migrasiPasswordV165;
   function htmlPratinjauRabV1655(h){
     var kirim=h.baru+h.berubah;
     var ringkas='<div class="rab-preview-stat-v1655">'+
+      '<span class="rab-chip-v1655">Baris data di berkas '+(h.barisData||0)+'</span>'+
       '<span class="rab-chip-v1655 baru">Baru '+h.baru+'</span>'+
       '<span class="rab-chip-v1655 ubah">Berubah '+h.berubah+'</span>'+
       '<span class="rab-chip-v1655 sama">Tidak berubah '+h.sama+'</span>'+
@@ -18815,31 +18847,48 @@ window.migrasiPasswordV165=migrasiPasswordV165;
       (h.tolak.length?'<span class="rab-chip-v1655 tolak">Bermasalah '+h.tolak.length+'</span>':'')+
       '<span class="rab-chip-v1655 total">Total pagu '+rupiah(h.total)+'</span></div>';
 
+    var cek='<p class="panel-sub rab-cek-v1655">Rincian: '+h.items.length+' baris terbaca + '+
+      h.induk+' baris induk dilewati'+(h.tolak.length?' + '+h.tolak.length+' bermasalah':'')+
+      ' = '+(h.barisData||0)+' baris data di berkas.</p>';
+
+    var indukBox=h.induk?'<details class="rab-error-box-v1655 rab-induk-box-v1655"><summary><b>'+h.induk+
+      ' baris induk dilewati</b> (baris tanpa volume, harga, dan jumlah dianggap judul kelompok)</summary><ul>'+
+      (h.indukDaftar||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></details>':'';
+
     var galat=h.tolak.length?'<div class="rab-error-box-v1655"><b>Baris yang perlu diperiksa</b><ul>'+
       h.tolak.slice(0,15).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+
       (h.tolak.length>15?'<li>dan '+(h.tolak.length-15)+' lainnya</li>':'')+'</ul></div>':'';
 
-    var tampil=h.items.filter(function(x){return x._status!=='SAMA';}).slice(0,50);
+    /* Seluruh baris ditampilkan, termasuk yang tidak berubah, supaya jumlahnya
+       dapat dicocokkan langsung dengan berkas sumber. */
+    var tampil=h.items.slice(0,200);
     var baris=tampil.map(function(x){
       var lencana=x._status==='BARU'?'<span class="rab-tag-v1655 baru">Baru</span>':
-        '<span class="rab-tag-v1655 ubah">Berubah</span>';
+        x._status==='BERUBAH'?'<span class="rab-tag-v1655 ubah">Berubah</span>':
+        '<span class="rab-tag-v1655 sama">Tidak berubah</span>';
       var kunciTag=x._dikunci?' <span class="rab-tag-v1655 kunci">Terkunci</span>':'';
       var pagu=x._status==='BERUBAH'
         ? '<s>'+rupiah(x._pagu_lama)+'</s><br>'+rupiah(x.pagu)
         : rupiah(x.pagu);
-      return '<tr><td>'+esc(x.kode_rab)+kunciTag+'</td><td>'+esc(x.uraian)+'</td><td>'+esc(x.id_bidang)+'</td>'+
-             '<td class="num">'+(x.volume||'')+' '+esc(x.satuan||'')+'</td><td class="num">'+pagu+'</td>'+
+      return '<tr'+(x._status==='SAMA'?' class="rab-row-sama-v1655"':'')+'>'+
+             '<td>'+esc(x.kode_rab)+kunciTag+'</td><td>'+esc(x.uraian)+'</td><td>'+esc(x.id_bidang)+'</td>'+
+             '<td class="num">'+(x.volume||'')+' '+esc(x.satuan||'')+'</td>'+
+             '<td class="num">'+rupiah(x.harga_satuan||0)+'</td>'+
+             '<td class="num">'+pagu+'</td>'+
+             '<td>'+esc(x.kategori||'-')+'</td><td>'+esc(x.jenis_pengadaan||'-')+'</td>'+
              '<td>'+esc(x.metode_pemilihan||'-')+'</td><td>'+lencana+'</td></tr>';
     }).join('');
 
     var tabel=baris?'<div class="table-wrap"><table class="rab-preview-table-v1655"><thead><tr>'+
-      '<th>Kode</th><th>Uraian</th><th>Bidang</th><th>Volume</th><th>Pagu</th><th>Metode</th><th>Status</th>'+
+      '<th>Kode</th><th>Uraian</th><th>Bidang</th><th>Volume</th><th>Harga Satuan</th><th>Jumlah</th>'+
+      '<th>Kategori</th><th>Jenis</th><th>Metode</th><th>Status</th>'+
       '</tr></thead><tbody>'+baris+'</tbody></table></div>'+
-      (h.baru+h.berubah>50?'<p class="panel-sub">Menampilkan 50 baris pertama dari '+kirim+' baris yang akan disimpan.</p>':'')
-      :'<p class="empty">Tidak ada baris baru atau berubah. Berkas ini sama dengan data yang sudah ada.</p>';
+      (h.items.length>200?'<p class="panel-sub">Menampilkan 200 baris pertama dari '+h.items.length+' baris terbaca.</p>':'')
+      :'<p class="empty">Tidak ada baris yang terbaca dari berkas ini.</p>';
 
-    var tombol=kirim?'<button class="btn-refresh" onclick="simpanImporRabV1655()">Simpan '+kirim+' Baris ke Sistem</button>':'';
-    return ringkas+galat+tabel+'<div class="rab-preview-actions-v1655">'+tombol+
+    var tombol=kirim?'<button class="btn-refresh" onclick="simpanImporRabV1655()">Simpan '+kirim+' Baris ke Sistem</button>'
+      :'<span class="rab-chip-v1655 sama">Seluruh baris sudah sama dengan data tersimpan, tidak ada yang perlu disimpan</span>';
+    return ringkas+cek+indukBox+galat+tabel+'<div class="rab-preview-actions-v1655">'+tombol+
       '<button class="btn-soft" onclick="batalImporRabV1655()">Batal</button></div>';
   }
 
