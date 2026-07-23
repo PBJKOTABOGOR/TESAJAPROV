@@ -18979,3 +18979,153 @@ window.migrasiPasswordV165=migrasiPasswordV165;
     return hasil;
   };
 })();
+
+
+/* SIMPROV v165.8 - Acuan RAB pada Input Perencanaan.
+   Daftar RAB dimuat sekali lalu disimpan di memori, sehingga berpindah menu
+   tidak memicu permintaan baru. Sisa pagu dihitung ulang di server saat
+   menyimpan, jadi angka di layar hanya panduan. */
+(function(){
+  let rabCacheV1658=null, rabMuatV1658=null;
+
+  function rabTerpilihV1658(){
+    const sel=document.getElementById('acuanRabV1658');
+    if(!sel||!sel.value||!rabCacheV1658)return null;
+    return rabCacheV1658.find(r=>r.id_rab===sel.value)||null;
+  }
+  window.rabTerpilihV1658=rabTerpilihV1658;
+
+  async function muatRabV1658(paksa){
+    if(rabCacheV1658&&!paksa)return rabCacheV1658;
+    if(rabMuatV1658&&!paksa)return rabMuatV1658;
+    rabMuatV1658=(async()=>{
+      try{
+        const r=await apiPost({action:'getRabV1655',user:currentUser});
+        rabCacheV1658=(r&&r.success)?(r.rab||[]).filter(x=>String(x.status_rab||'AKTIF').toUpperCase()==='AKTIF'):[];
+      }catch(e){ rabCacheV1658=[]; }
+      finally{ rabMuatV1658=null; }
+      return rabCacheV1658;
+    })();
+    return rabMuatV1658;
+  }
+  window.invalidasiRabV1658=()=>{rabCacheV1658=null;};
+
+  function isiOpsiRabV1658(){
+    const sel=document.getElementById('acuanRabV1658');
+    if(!sel)return;
+    const list=rabCacheV1658||[];
+    if(!list.length){
+      sel.innerHTML='<option value="">Belum ada RAB untuk bidang ini</option>';
+      infoRabV1658(); return;
+    }
+    sel.innerHTML='<option value="">-- Pilih baris RAB --</option>'+list.map(r=>{
+      const sisa=Number(r.sisa!=null?r.sisa:r.pagu)||0;
+      const habis=sisa<=0?' [habis]':'';
+      return `<option value="${esc(r.id_rab)}"${habis?' disabled':''}>${esc(r.kode_rab)} · ${esc(r.uraian)} · sisa ${rupiah(sisa)}${habis}</option>`;
+    }).join('');
+    infoRabV1658();
+  }
+
+  function infoRabV1658(){
+    const box=document.getElementById('infoRabV1658');
+    if(!box)return;
+    const r=rabTerpilihV1658();
+    if(!r){
+      box.innerHTML=(rabCacheV1658&&rabCacheV1658.length)
+        ? '<span class="rab-hint-v1658">Pilih baris RAB. Volume, satuan, harga, kategori, dan metode mengikuti RAB.</span>'
+        : '<span class="rab-hint-v1658">Belum ada RAB tersimpan untuk bidang ini. Hubungi Admin untuk mengunggah RAB.</span>';
+      return;
+    }
+    const sisa=Number(r.sisa!=null?r.sisa:r.pagu)||0;
+    box.innerHTML=`<span class="rab-info-v1658"><b>${esc(r.kode_rab)}</b> pagu ${rupiah(r.pagu)}`+
+      ` · terpakai ${rupiah(r.terpakai||0)} · <b class="${sisa>0?'sisa-ada':'sisa-habis'}">sisa ${rupiah(sisa)}</b></span>`;
+  }
+
+  window.pilihAcuanRabV1658=function(){
+    const r=rabTerpilihV1658();
+    infoRabV1658();
+    if(!r)return;
+    const set=(id,v)=>{const el=document.getElementById(id); if(el&&v!=null&&v!=='')el.value=v;};
+    set('namaKegiatan',r.uraian);
+    if(Number(r.volume)>0)set('volume',r.volume);
+    set('satuan',r.satuan);
+    if(Number(r.harga_satuan)>0)set('harga',r.harga_satuan);
+
+    const kat=String(r.kategori||'').toUpperCase();
+    const selKat=document.getElementById('kategoriPerencanaanV79');
+    if(selKat&&(kat==='PENGADAAN'||kat==='NON PENGADAAN')){
+      selKat.value=kat;
+      if(typeof toggleKategoriV79==='function')toggleKategoriV79();
+    }
+    const selJenis=document.getElementById('jenisPengadaanV96');
+    if(selJenis&&r.jenis_pengadaan){
+      const ada=Array.from(selJenis.options).some(o=>o.value===r.jenis_pengadaan);
+      if(ada)selJenis.value=r.jenis_pengadaan;
+    }
+    const metode=document.getElementById('metodePemilihan');
+    if(metode&&r.metode_pemilihan&&r.metode_pemilihan!=='-')metode.value=r.metode_pemilihan;
+
+    ['volume','harga'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el&&typeof el.dispatchEvent==='function')el.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+  };
+
+  /* Sisipkan pemilih RAB di baris pertama form, mengikuti pola v79. */
+  if(typeof renderPerencanaan==='function'){
+    const dasar=renderPerencanaan;
+    renderPerencanaan=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{
+        if(typeof canSeeAll==='function'&&canSeeAll())return hasil;
+        const nama=document.getElementById('namaKegiatan');
+        const grid=nama&&nama.closest('.form-grid');
+        if(grid&&!document.getElementById('acuanRabV1658')){
+          const f=document.createElement('div');
+          f.className='field full rab-acuan-field-v1658';
+          f.innerHTML='<label>Acuan RAB</label>'+
+            '<select id="acuanRabV1658" onchange="pilihAcuanRabV1658()"><option value="">Memuat daftar RAB...</option></select>'+
+            '<div id="infoRabV1658" class="rab-info-box-v1658"></div>';
+          grid.insertBefore(f,grid.firstChild);
+          muatRabV1658().then(isiOpsiRabV1658);
+        }
+      }catch(e){}
+      return hasil;
+    };
+  }
+
+  /* Kirim id_rab dan tahan bila melebihi sisa. */
+  if(typeof savePerencanaan==='function'){
+    const kirimDasar=savePerencanaan;
+    savePerencanaan=async function(){
+      const sel=document.getElementById('acuanRabV1658');
+      const punyaRab=rabCacheV1658&&rabCacheV1658.length;
+      if(punyaRab&&sel&&!sel.value){ alert('Pilih acuan RAB terlebih dahulu.'); return; }
+      const r=rabTerpilihV1658();
+      if(r){
+        const vol=toNumber(document.getElementById('volume')?.value);
+        const hrg=toNumber(document.getElementById('harga')?.value);
+        const sisa=Number(r.sisa!=null?r.sisa:r.pagu)||0;
+        if(vol*hrg>sisa){
+          alert('Nilai kegiatan '+rupiah(vol*hrg)+' melebihi sisa pagu RAB '+r.kode_rab+'.\nSisa yang tersedia '+rupiah(sisa)+'.');
+          return;
+        }
+      }
+      const hasil=await kirimDasar.apply(this,arguments);
+      rabCacheV1658=null;                       /* sisa berubah, muat ulang saat dibutuhkan */
+      const s=document.getElementById('acuanRabV1658');
+      if(s){ muatRabV1658(true).then(isiOpsiRabV1658); }
+      return hasil;
+    };
+
+    /* id_rab disisipkan ke payload tanpa mengubah pembangun data yang sudah ada. */
+    const postDasarV1658=apiPost;
+    apiPost=function(payload){
+      if(payload&&payload.action==='savePerencanaan'&&payload.data){
+        const r=rabTerpilihV1658();
+        if(r&&!payload.data.id_rab){ payload.data.id_rab=r.id_rab; payload.data.kode_rab=r.kode_rab; }
+      }
+      return postDasarV1658(payload);
+    };
+  }
+})();
