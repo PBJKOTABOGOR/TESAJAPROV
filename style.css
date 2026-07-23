@@ -3742,3 +3742,11 @@ button.plan-id-link-v161:focus-visible{
   #publicProgress .big-percent{font-size:36px;min-width:0}
   #publicProgress .public-progress-notes{flex-direction:row;text-align:left}
 }
+
+/* SIMPROV v165.8 - Acuan RAB pada form perencanaan */
+.rab-acuan-field-v1658 select{font-weight:600}
+.rab-info-box-v1658{margin-top:6px;min-height:18px}
+.rab-hint-v1658{font-size:12.5px;color:#667085}
+.rab-info-v1658{font-size:13px;color:#17365b}
+.rab-info-v1658 .sisa-ada{color:#12633a}
+.rab-info-v1658 .sisa-habis{color:#a01722}
