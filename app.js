@@ -4382,7 +4382,6 @@ function renderManajemenAkunV65(){
   document.getElementById('contentArea').innerHTML=`
   <section class="panel fade-up premium-panel"><div class="panel-title-row"><div><h3>Identitas Penanggung Jawab</h3><p class="panel-sub">Nama ini tampil pada header dan digunakan sebagai identitas resmi aplikasi.</p></div></div><div class="form-grid"><div class="field"><label>Nama Ketua Umum</label><input id="ketuaUmumV77" value="${esc(i.ketua_umum||'')}" placeholder="Nama lengkap Ketua Umum"></div><div class="field"><label>Nama Verifikator</label><input id="verifikatorUtamaV77" value="${esc(i.verifikator||users[0]?.nama||'')}" placeholder="Nama lengkap Verifikator"></div></div><button onclick="saveIdentityV77()">Simpan Identitas</button><div id="identityMsgV77" class="msg"></div></section>
   <section class="panel fade-up premium-panel"><div class="panel-title-row"><div><h3>Manajemen Akses dan Akun Verifikator</h3><p class="panel-sub">Satu jenis Verifikator menangani perencanaan, dokumen, dan finalisasi sesuai bidang penugasannya.</p></div><div><button class="btn-mini btn-soft" onclick="migrasiPasswordV165()" title="Ubah password lama yang masih tersimpan sebagai teks biasa menjadi SHA256">Amankan Password Lama</button></div><button class="btn-refresh" onclick="openCreateVerifierV65()">+ Buat Akun</button></div><div class="admin-budget-list">${rows||'<p class="muted">Belum ada akun verifikator.</p>'}</div></section><div id="verifierModalV65" class="modal hidden"></div>
-  ${typeof panelImporRabV1655==='function'?panelImporRabV1655():''}
   `;
 }
 function verifierFormModalV65(u){
@@ -18883,7 +18882,48 @@ window.migrasiPasswordV165=migrasiPasswordV165;
       '<small class="hint-v165">Kolom wajib: kode_rab, id_bidang, uraian, dan jumlah atau pagu. '+
       'Kolom volume, satuan, harga satuan, kategori, jenis pengadaan, dan metode pemilihan ikut terbaca bila ada. '+
       'Baris induk tanpa nilai akan dilewati.</small></div>'+
-      '<div id="rabPreviewV1655" class="rab-preview-v1655"><p class="empty">Belum ada berkas yang dibaca.</p></div>'+
+      '<div id="rabRingkasV1655" class="rab-preview-stat-v1655"><span class="rab-chip-v1655 sama">Memuat daftar RAB...</span></div>'+'<div id="rabPreviewV1655" class="rab-preview-v1655"><p class="empty">Belum ada berkas yang dibaca.</p></div>'+
       '</section>';
+  };
+})();
+
+
+/* SIMPROV v165.5b - Pasang panel Impor RAB pada renderManajemenAkunV65 yang AKTIF.
+   renderManajemenAkunV65 didefinisikan delapan kali. Versi yang berlaku adalah
+   penugasan terakhir (renderManageBaseV137 + setupManagementPanelsV137), bukan
+   deklarasi function di bagian atas berkas. Pembungkusan dilakukan di sini,
+   setelah seluruh definisi, sehingga selalu membungkus versi yang aktif. */
+(function(){
+  if(typeof renderManajemenAkunV65!=='function')return;
+  const dasar=renderManajemenAkunV65;
+
+  async function muatRingkasanRabV1655(){
+    const kotak=document.getElementById('rabRingkasV1655');
+    if(!kotak)return;
+    try{
+      const r=await apiPost({action:'getRabV1655',user:currentUser});
+      if(!r||!r.success){kotak.textContent='Daftar RAB belum dapat dibaca.';return;}
+      const aktif=(r.rab||[]).filter(x=>String(x.status_rab||'AKTIF').toUpperCase()==='AKTIF');
+      const total=aktif.reduce((t,x)=>t+(Number(x.pagu)||0),0);
+      const kunci=aktif.filter(x=>x.dikunci).length;
+      kotak.innerHTML=aktif.length
+        ? `<span class="rab-chip-v1655 total">${aktif.length} baris RAB aktif</span>`+
+          `<span class="rab-chip-v1655">Total pagu ${rupiah(total)}</span>`+
+          (kunci?`<span class="rab-chip-v1655 tolak">${kunci} terkunci</span>`:'')
+        : '<span class="rab-chip-v1655 sama">Belum ada RAB tersimpan</span>';
+    }catch(e){ kotak.textContent='Daftar RAB belum dapat dibaca.'; }
+  }
+
+  renderManajemenAkunV65=function(){
+    const hasil=dasar.apply(this,arguments);
+    try{
+      if(typeof isSuperAdminV65==='function' && !isSuperAdminV65()) return hasil;
+      const area=document.getElementById('contentArea');
+      if(area && typeof panelImporRabV1655==='function' && !document.getElementById('rabPreviewV1655')){
+        area.insertAdjacentHTML('beforeend',panelImporRabV1655());
+        muatRingkasanRabV1655();   /* sekaligus membentuk sheet RAB bila belum ada */
+      }
+    }catch(e){}
+    return hasil;
   };
 })();
