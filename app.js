@@ -18610,28 +18610,31 @@ window.migrasiPasswordV165=migrasiPasswordV165;
     ].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
 
     sum.innerHTML=[
-      publicMetricCard('Total Pagu',compact(s.total_pagu),'Total anggaran keseluruhan','blue'),
-      publicMetricCard('Total Realisasi',compact(s.realisasi_total),'Anggaran yang sudah terserap','green'),
-      publicMetricCard('Persentase Realisasi',pct.toFixed(1)+'%','Realisasi dibanding total pagu','yellow')
+      publicMetricCard('Total Pagu',compact(s.total_pagu),'Anggaran seluruh bidang','blue'),
+      publicMetricCard('Total Realisasi',compact(s.realisasi_total),
+        Number(s.realisasi_total)>0?'Anggaran yang sudah terserap':'Belum ada realisasi tercatat','green')
     ].join('');
 
     const progress=document.getElementById('publicProgress');
-    if(progress)progress.innerHTML=
-      `<div class="big-percent">${pct.toFixed(1)}%</div>`+
-      `<div class="public-progress-track"><i style="width:${pct}%"></i></div>`+
-      `<div class="public-progress-notes"><span>Total Pagu ${compact(s.total_pagu)}</span>`+
-      `<span>Total Realisasi ${compact(s.realisasi_total)}</span></div>`;
+    const adaRealisasi=Number(s.realisasi_total)>0;
+    if(progress)progress.innerHTML=adaRealisasi
+      ? `<div class="big-percent">${pct.toFixed(1)}%</div>`+
+        `<div class="public-progress-track"><i style="width:${pct}%"></i></div>`+
+        `<div class="public-progress-notes"><span>Terserap ${compact(s.realisasi_total)}</span>`+
+        `<span>dari ${compact(s.total_pagu)}</span></div>`
+      : `<p class="public-belum-v1656">Belum ada realisasi anggaran yang tercatat. `+
+        `Angka akan muncul setelah kegiatan diselesaikan dan diverifikasi.</p>`;
 
     const composition=document.getElementById('publicComposition');
     if(composition)composition.innerHTML='';
 
     const daftar=(payload.ringkasan||[]).slice().sort((a,b)=>(Number(b.pagu)||0)-(Number(a.pagu)||0));
     const rows=daftar.map(x=>{
-      const p=pctOf(x.realisasi_total,x.pagu);
+      const real=Number(x.realisasi_total)||0, p=pctOf(real,x.pagu);
       return `<tr><td>${esc(x.nama_bidang||x.id_bidang)}</td>`+
              `<td title="${rupiah(x.pagu)}">${compact(x.pagu)}</td>`+
-             `<td title="${rupiah(x.realisasi_total||0)}">${compact(x.realisasi_total||0)}</td>`+
-             `<td class="pct-cell-v1654">${p.toFixed(1)}%</td></tr>`;
+             `<td>${real>0?`<span title="${rupiah(real)}">${compact(real)}</span>`:'<span class="nol-v1656">&ndash;</span>'}</td>`+
+             `<td class="pct-cell-v1654">${real>0?p.toFixed(1)+'%':'<span class="nol-v1656">&ndash;</span>'}</td></tr>`;
     }).join('');
 
     const table=document.getElementById('publicBidangTable');
