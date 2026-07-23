@@ -4381,7 +4381,9 @@ function renderManajemenAkunV65(){
   const i=identityV77();
   document.getElementById('contentArea').innerHTML=`
   <section class="panel fade-up premium-panel"><div class="panel-title-row"><div><h3>Identitas Penanggung Jawab</h3><p class="panel-sub">Nama ini tampil pada header dan digunakan sebagai identitas resmi aplikasi.</p></div></div><div class="form-grid"><div class="field"><label>Nama Ketua Umum</label><input id="ketuaUmumV77" value="${esc(i.ketua_umum||'')}" placeholder="Nama lengkap Ketua Umum"></div><div class="field"><label>Nama Verifikator</label><input id="verifikatorUtamaV77" value="${esc(i.verifikator||users[0]?.nama||'')}" placeholder="Nama lengkap Verifikator"></div></div><button onclick="saveIdentityV77()">Simpan Identitas</button><div id="identityMsgV77" class="msg"></div></section>
-  <section class="panel fade-up premium-panel"><div class="panel-title-row"><div><h3>Manajemen Akses dan Akun Verifikator</h3><p class="panel-sub">Satu jenis Verifikator menangani perencanaan, dokumen, dan finalisasi sesuai bidang penugasannya.</p></div><div><button class="btn-mini btn-soft" onclick="migrasiPasswordV165()" title="Ubah password lama yang masih tersimpan sebagai teks biasa menjadi SHA256">Amankan Password Lama</button></div><button class="btn-refresh" onclick="openCreateVerifierV65()">+ Buat Akun</button></div><div class="admin-budget-list">${rows||'<p class="muted">Belum ada akun verifikator.</p>'}</div></section><div id="verifierModalV65" class="modal hidden"></div>`;
+  <section class="panel fade-up premium-panel"><div class="panel-title-row"><div><h3>Manajemen Akses dan Akun Verifikator</h3><p class="panel-sub">Satu jenis Verifikator menangani perencanaan, dokumen, dan finalisasi sesuai bidang penugasannya.</p></div><div><button class="btn-mini btn-soft" onclick="migrasiPasswordV165()" title="Ubah password lama yang masih tersimpan sebagai teks biasa menjadi SHA256">Amankan Password Lama</button></div><button class="btn-refresh" onclick="openCreateVerifierV65()">+ Buat Akun</button></div><div class="admin-budget-list">${rows||'<p class="muted">Belum ada akun verifikator.</p>'}</div></section><div id="verifierModalV65" class="modal hidden"></div>
+  ${typeof panelImporRabV1655==='function'?panelImporRabV1655():''}
+  `;
 }
 function verifierFormModalV65(u){
   const editing=!!u; const selected=String(u?.bidang_akses||'').split(',').map(x=>x.trim()).filter(Boolean); const modal=document.getElementById('verifierModalV65');
@@ -18639,5 +18641,249 @@ window.migrasiPasswordV165=migrasiPasswordV165;
       `<th>Total Realisasi</th><th>Persentase Realisasi</th></tr></thead><tbody>`+
       (rows||'<tr><td colspan="4" class="empty">Belum ada data</td></tr>')+
       `</tbody></table>`;
+  };
+})();
+
+
+/* SIMPROV v165.5 - Impor RAB dari CSV (menu Admin).
+   Pembacaan berkas, pembersihan, dan pratinjau dikerjakan di browser
+   supaya berkas bermasalah langsung ketahuan tanpa menunggu Apps Script.
+   Backend hanya menerima baris yang sudah bersih. */
+(function(){
+
+  /* Pembaca CSV yang menangani tanda kutip, koma di dalam kutip, dan CRLF. */
+  function parseCsvV1655(teks){
+    var s=String(teks||'').replace(/^\uFEFF/,''), baris=[], sel=[], buf='', kutip=false;
+    for(var i=0;i<s.length;i++){
+      var c=s[i];
+      if(kutip){
+        if(c==='"'){ if(s[i+1]==='"'){buf+='"';i++;} else kutip=false; }
+        else buf+=c;
+      }else if(c==='"') kutip=true;
+      else if(c===','||c===';'){ sel.push(buf); buf=''; }
+      else if(c==='\n'){ sel.push(buf); baris.push(sel); sel=[]; buf=''; }
+      else if(c!=='\r') buf+=c;
+    }
+    if(buf.length||sel.length){ sel.push(buf); baris.push(sel); }
+    return baris.filter(function(r){ return r.some(function(x){ return String(x).trim(); }); });
+  }
+
+  var kunci=function(h){ return String(h||'').toLowerCase().replace(/[^a-z0-9]/g,''); };
+
+  /* Nama kolom di berkas RAB bisa berbeda-beda. Cocokkan longgar. */
+  var ALIAS={
+    kode_rab:['koderab','kode','kodekomponen','kd'],
+    id_bidang:['idbidang','kodebidang'],
+    uraian:['rinciankebutuhan','uraian','rincian','namakegiatan','komponen','nama'],
+    keterangan:['keterangan','ket'],
+    volume:['volume','vol'],
+    satuan:['satuan','sat'],
+    harga_satuan:['hargasatuan','harga','hrgsatuan'],
+    pagu:['jumlah','pagu','total','nilai'],
+    kategori:['kategori','kategoripengadaan'],
+    jenis_pengadaan:['jenispengadaan','jenis'],
+    metode_pemilihan:['metodepemilihan','metode'],
+    nama_bidang:['bidang','namabidang']
+  };
+
+  function petakanHeaderV1655(header){
+    var peta={}, dipakai={};
+    header.forEach(function(h,idx){
+      var k=kunci(h);
+      Object.keys(ALIAS).forEach(function(field){
+        if(peta[field]!==undefined||dipakai[idx]) return;
+        if(ALIAS[field].indexOf(k)>=0){ peta[field]=idx; dipakai[idx]=1; }
+      });
+    });
+    return peta;
+  }
+
+  /* "30.000.000" -> 30000000 ; "1.500,50" -> 1500.5 */
+  function angkaV1655(v){
+    var s=String(v==null?'':v).replace(/[^0-9.,\-]/g,'').trim();
+    if(!s) return 0;
+    var neg=/^-/.test(s); s=s.replace(/-/g,'');
+    if(!s) return 0;
+    var pTitik=s.lastIndexOf('.'), pKoma=s.lastIndexOf(','), iDes=-1;
+    if(pTitik>=0 && pKoma>=0){
+      iDes=Math.max(pTitik,pKoma);                 /* yang paling belakang adalah desimal */
+    }else{
+      var p=pTitik>=0?pTitik:pKoma;
+      if(p>=0){
+        var tanda=pTitik>=0?'.':',';
+        var jumlah=s.split(tanda).length-1, belakang=s.length-p-1;
+        /* satu pemisah diikuti tepat tiga angka dianggap pemisah ribuan,
+           sesuai penulisan nilai rupiah pada berkas RAB */
+        if(jumlah===1 && belakang!==3) iDes=p;
+      }
+    }
+    var utuh=iDes>=0?s.slice(0,iDes):s, pecah=iDes>=0?s.slice(iDes+1):'';
+    utuh=utuh.replace(/[.,]/g,''); pecah=pecah.replace(/[.,]/g,'');
+    var n=parseFloat((utuh||'0')+(pecah?'.'+pecah:''));
+    if(!isFinite(n)) return 0;
+    return neg?-n:n;
+  }
+
+  window.rabPreviewStateV1655=null;
+
+  function bacaCsvRabV1655(teks, rabLama){
+    var baris=parseCsvV1655(teks);
+    if(baris.length<2) return {ok:false,pesan:'Berkas kosong atau hanya berisi baris judul.'};
+
+    var peta=petakanHeaderV1655(baris[0]);
+    var wajib=['kode_rab','id_bidang','uraian','pagu'];
+    var hilang=wajib.filter(function(f){ return peta[f]===undefined; });
+    if(hilang.length) return {ok:false,pesan:'Kolom wajib tidak ditemukan: '+hilang.join(', ')+'. Periksa baris judul pada berkas CSV.'};
+
+    var ambil=function(r,f){ return peta[f]===undefined?'':String(r[peta[f]]==null?'':r[peta[f]]).trim(); };
+    var petaLama={};
+    (rabLama||[]).forEach(function(r){
+      if(String(r.status_rab||'AKTIF').toUpperCase()!=='AKTIF') return;
+      var k=String(r.kode_rab||'').trim().toUpperCase(); if(k) petaLama[k]=r;
+    });
+
+    var items=[], induk=0, tolak=[], kodeAda={};
+    var nBaru=0, nUbah=0, nSama=0;
+
+    for(var i=1;i<baris.length;i++){
+      var r=baris[i], noBaris=i+1;
+      var uraian=ambil(r,'uraian'), pagu=angkaV1655(ambil(r,'pagu'));
+      var vol=angkaV1655(ambil(r,'volume')), harga=angkaV1655(ambil(r,'harga_satuan'));
+      if(!pagu && vol && harga) pagu=vol*harga;
+
+      /* Baris induk pada RAB bertingkat: tidak punya nilai sama sekali. */
+      if(!pagu && !vol && !harga){ induk++; continue; }
+
+      var kode=ambil(r,'kode_rab'), idBidang=ambil(r,'id_bidang').toUpperCase();
+      if(!kode){ tolak.push('Baris '+noBaris+': kode_rab kosong'); continue; }
+      if(!uraian){ tolak.push('Baris '+noBaris+': uraian kosong'); continue; }
+      if(!idBidang){ tolak.push('Baris '+noBaris+': id_bidang kosong'); continue; }
+      if(pagu<=0){ tolak.push('Baris '+noBaris+': pagu tidak terbaca'); continue; }
+
+      var ku=kode.toUpperCase();
+      if(kodeAda[ku]){ tolak.push('Baris '+noBaris+': kode_rab ganda dalam berkas ('+kode+')'); continue; }
+      kodeAda[ku]=1;
+
+      if(vol&&harga&&Math.abs(vol*harga-pagu)>1)
+        tolak.push('Baris '+noBaris+': volume x harga ('+rupiah(vol*harga)+') tidak sama dengan jumlah ('+rupiah(pagu)+')');
+
+      var it={kode_rab:kode,id_bidang:idBidang,uraian:uraian,keterangan:ambil(r,'keterangan'),
+        volume:vol,satuan:ambil(r,'satuan'),harga_satuan:harga,pagu:pagu,
+        kategori:ambil(r,'kategori'),jenis_pengadaan:ambil(r,'jenis_pengadaan'),
+        metode_pemilihan:ambil(r,'metode_pemilihan')};
+
+      var lama=petaLama[ku];
+      if(!lama){ it._status='BARU'; nBaru++; }
+      else if(Number(lama.pagu)===pagu && String(lama.uraian||'')===uraian &&
+              String(lama.id_bidang||'').toUpperCase()===idBidang){ it._status='SAMA'; nSama++; }
+      else { it._status='BERUBAH'; it._pagu_lama=Number(lama.pagu)||0; it._dikunci=!!lama.dikunci; nUbah++; }
+      items.push(it);
+    }
+
+    return {ok:true,items:items,baru:nBaru,berubah:nUbah,sama:nSama,
+            induk:induk,tolak:tolak,total:items.reduce(function(t,x){return t+x.pagu;},0)};
+  }
+
+  window.pilihCsvRabV1655=function(input){
+    var file=input&&input.files&&input.files[0];
+    if(!file) return;
+    if(file.size>3*1024*1024){ alert('Berkas terlalu besar. Maksimal 3 MB.'); input.value=''; return; }
+    var fr=new FileReader();
+    fr.onload=async function(){
+      var kotak=document.getElementById('rabPreviewV1655');
+      if(kotak) kotak.innerHTML='<p class="empty">Membaca berkas...</p>';
+      var lama=[];
+      try{
+        var res=await apiPost({action:'getRabV1655',user:currentUser});
+        if(res&&res.success) lama=res.rab||[];
+      }catch(e){}
+      var hasil=bacaCsvRabV1655(String(fr.result||''),lama);
+      if(!hasil.ok){ window.rabPreviewStateV1655=null; if(kotak) kotak.innerHTML='<p class="empty">'+esc(hasil.pesan)+'</p>'; return; }
+      window.rabPreviewStateV1655=hasil;
+      if(kotak) kotak.innerHTML=htmlPratinjauRabV1655(hasil);
+    };
+    fr.onerror=function(){ alert('Berkas gagal dibaca.'); };
+    fr.readAsText(file);
+  };
+
+  function htmlPratinjauRabV1655(h){
+    var kirim=h.baru+h.berubah;
+    var ringkas='<div class="rab-preview-stat-v1655">'+
+      '<span class="rab-chip-v1655 baru">Baru '+h.baru+'</span>'+
+      '<span class="rab-chip-v1655 ubah">Berubah '+h.berubah+'</span>'+
+      '<span class="rab-chip-v1655 sama">Tidak berubah '+h.sama+'</span>'+
+      (h.induk?'<span class="rab-chip-v1655 induk">Baris induk dilewati '+h.induk+'</span>':'')+
+      (h.tolak.length?'<span class="rab-chip-v1655 tolak">Bermasalah '+h.tolak.length+'</span>':'')+
+      '<span class="rab-chip-v1655 total">Total pagu '+rupiah(h.total)+'</span></div>';
+
+    var galat=h.tolak.length?'<div class="rab-error-box-v1655"><b>Baris yang perlu diperiksa</b><ul>'+
+      h.tolak.slice(0,15).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+
+      (h.tolak.length>15?'<li>dan '+(h.tolak.length-15)+' lainnya</li>':'')+'</ul></div>':'';
+
+    var tampil=h.items.filter(function(x){return x._status!=='SAMA';}).slice(0,50);
+    var baris=tampil.map(function(x){
+      var lencana=x._status==='BARU'?'<span class="rab-tag-v1655 baru">Baru</span>':
+        '<span class="rab-tag-v1655 ubah">Berubah</span>';
+      var kunciTag=x._dikunci?' <span class="rab-tag-v1655 kunci">Terkunci</span>':'';
+      var pagu=x._status==='BERUBAH'
+        ? '<s>'+rupiah(x._pagu_lama)+'</s><br>'+rupiah(x.pagu)
+        : rupiah(x.pagu);
+      return '<tr><td>'+esc(x.kode_rab)+kunciTag+'</td><td>'+esc(x.uraian)+'</td><td>'+esc(x.id_bidang)+'</td>'+
+             '<td class="num">'+(x.volume||'')+' '+esc(x.satuan||'')+'</td><td class="num">'+pagu+'</td>'+
+             '<td>'+esc(x.metode_pemilihan||'-')+'</td><td>'+lencana+'</td></tr>';
+    }).join('');
+
+    var tabel=baris?'<div class="table-wrap"><table class="rab-preview-table-v1655"><thead><tr>'+
+      '<th>Kode</th><th>Uraian</th><th>Bidang</th><th>Volume</th><th>Pagu</th><th>Metode</th><th>Status</th>'+
+      '</tr></thead><tbody>'+baris+'</tbody></table></div>'+
+      (h.baru+h.berubah>50?'<p class="panel-sub">Menampilkan 50 baris pertama dari '+kirim+' baris yang akan disimpan.</p>':'')
+      :'<p class="empty">Tidak ada baris baru atau berubah. Berkas ini sama dengan data yang sudah ada.</p>';
+
+    var tombol=kirim?'<button class="btn-refresh" onclick="simpanImporRabV1655()">Simpan '+kirim+' Baris ke Sistem</button>':'';
+    return ringkas+galat+tabel+'<div class="rab-preview-actions-v1655">'+tombol+
+      '<button class="btn-soft" onclick="batalImporRabV1655()">Batal</button></div>';
+  }
+
+  window.batalImporRabV1655=function(){
+    window.rabPreviewStateV1655=null;
+    var k=document.getElementById('rabPreviewV1655');
+    if(k) k.innerHTML='<p class="empty">Belum ada berkas yang dibaca.</p>';
+    var f=document.getElementById('rabFileV1655'); if(f) f.value='';
+  };
+
+  window.simpanImporRabV1655=async function(){
+    var h=window.rabPreviewStateV1655;
+    if(!h||!h.items){ alert('Belum ada berkas yang dibaca.'); return; }
+    var kirim=h.items.filter(function(x){return x._status!=='SAMA';})
+      .map(function(x){ var o={}; Object.keys(x).forEach(function(k){ if(k.charAt(0)!=='_') o[k]=x[k]; }); return o; });
+    if(!kirim.length){ alert('Tidak ada baris yang perlu disimpan.'); return; }
+
+    var ok=await confirmActionV133({title:'Simpan Impor RAB',
+      message:kirim.length+' baris akan disimpan. Baris lama dengan kode yang sama ditandai sebagai versi digantikan, bukan dihapus. Lanjutkan?',
+      confirmText:'Ya, Simpan'});
+    if(!ok) return;
+
+    showLoading('Menyimpan '+kirim.length+' baris RAB...');
+    try{
+      var r=await apiPost({action:'importRabV1655',user:currentUser,data:{items:kirim}});
+      if(!r.success) throw new Error(r.message||'Impor gagal');
+      alert(r.message+(r.errors&&r.errors.length?'\n\nDitolak:\n- '+r.errors.slice(0,10).join('\n- '):''));
+      window.batalImporRabV1655();
+      if(typeof renderAll==='function') renderAll();
+    }catch(e){ alert(e.message||String(e)); }
+    finally{ hideLoading(); }
+  };
+
+  window.panelImporRabV1655=function(){
+    return '<section class="panel fade-up premium-panel rab-import-panel-v1655">'+
+      '<div class="panel-title-row"><div><h3>Impor RAB dari CSV</h3>'+
+      '<p class="panel-sub">Bidang menyusun RAB, Admin mengunggahnya ke sistem. Berkas dibaca di perangkat ini dan ditampilkan lebih dulu sebagai pratinjau sebelum disimpan.</p></div></div>'+
+      '<div class="rab-import-head-v1655">'+
+      '<input type="file" id="rabFileV1655" accept=".csv,text/csv" onchange="pilihCsvRabV1655(this)">'+
+      '<small class="hint-v165">Kolom wajib: kode_rab, id_bidang, uraian, dan jumlah atau pagu. '+
+      'Kolom volume, satuan, harga satuan, kategori, jenis pengadaan, dan metode pemilihan ikut terbaca bila ada. '+
+      'Baris induk tanpa nilai akan dilewati.</small></div>'+
+      '<div id="rabPreviewV1655" class="rab-preview-v1655"><p class="empty">Belum ada berkas yang dibaca.</p></div>'+
+      '</section>';
   };
 })();
