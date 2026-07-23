@@ -3691,3 +3691,54 @@ button.plan-id-link-v161:focus-visible{
 .rab-tag-v1655.kunci{background:#fdeced;color:#a01722}
 .rab-preview-actions-v1655{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
 @media(max-width:720px){.rab-preview-table-v1655{font-size:12px}}
+.rab-rekon-v1655{background:#eef7ff;border:1px solid #cfe3f5;border-radius:10px;padding:9px 14px;margin-bottom:10px;font-size:13px;color:#17365b}
+.rab-rekon-v1655.timpang{background:#fff5f5;border-color:#f3ccd0;color:#8a1220;font-weight:700}
+.rab-skip-box-v1655{background:#f6f8fb;border:1px solid #dde5ee;border-radius:10px;padding:8px 14px;margin-bottom:10px;font-size:13px}
+.rab-skip-box-v1655 summary{cursor:pointer;font-weight:700;color:#3b4a9c}
+.rab-skip-box-v1655 ul{margin:6px 0 0;padding-left:18px;color:#5a6472}
+.rab-ket-v1655{color:#7a8694;font-size:11.5px}
+.rab-row-sama-v1655{opacity:.62}
+.rab-cek-v1655{margin:-4px 0 12px;font-size:12.5px}
+.rab-induk-box-v1655{background:#f5f7ff;border-color:#ccd5f5;color:#3b4a9c}
+.rab-induk-box-v1655 summary{cursor:pointer;font-weight:700}
+.rab-tag-v1655.sama{background:#eef1f5;color:#5a6472}
+
+/* SIMPROV v165.7 - Dashboard publik, tata letak layar lebar
+   Aplikasi ini dipakai dari komputer. Layar lebar jadi acuan utama,
+   ponsel hanya diberi susunan cadangan agar tidak rusak. */
+
+.public-metric:after{display:none}
+.public-metric{border:1px solid #dde8f1;box-shadow:0 2px 8px rgba(11,74,126,.05)}
+.public-belum-v1656{margin:0;color:#667085;font-size:14px;line-height:1.6}
+.nol-v1656{color:#b6bfc9}
+.public-panel{box-shadow:0 2px 10px rgba(11,74,126,.06)}
+.public-table-v82 tbody tr:nth-child(even){background:#fafcfe}
+
+/* Dua kartu mengisi lebar penuh, tidak menyisakan kolom kosong */
+.public-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:18px}
+.public-metric{min-height:132px;padding:24px 26px;display:flex;flex-direction:column;justify-content:center}
+.public-metric small{font-size:12.5px;letter-spacing:.02em}
+.public-metric strong{font-size:38px;letter-spacing:-1px;margin:10px 0 6px;line-height:1}
+.public-metric span{font-size:12.5px}
+
+/* Panel persentase dibuat mendatar agar lebar terpakai */
+.public-chart-single-v1654 .public-panel{padding:26px 28px}
+#publicProgress{display:flex;align-items:center;gap:32px}
+#publicProgress .big-percent{font-size:52px;line-height:1;flex:0 0 auto;min-width:150px}
+#publicProgress .public-progress-track{flex:1;margin:0;height:20px}
+#publicProgress .public-progress-notes{flex:0 0 auto;flex-direction:column;gap:5px;text-align:right;font-size:13px}
+#publicProgress .public-belum-v1656{flex:1}
+
+.public-table-v82 th,.public-table-v82 td{padding:13px 16px}
+.public-table-v82 th{font-size:12px;letter-spacing:.04em}
+.public-table-v82 td{font-size:14px}
+
+/* Susunan cadangan untuk layar sempit */
+@media(max-width:820px){
+  .public-summary-grid{grid-template-columns:1fr !important}
+  .public-metric{min-height:0;padding:18px}
+  .public-metric strong{font-size:28px}
+  #publicProgress{flex-direction:column;align-items:stretch;gap:14px}
+  #publicProgress .big-percent{font-size:36px;min-width:0}
+  #publicProgress .public-progress-notes{flex-direction:row;text-align:left}
+}
