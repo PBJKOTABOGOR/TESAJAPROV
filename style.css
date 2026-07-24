@@ -3750,3 +3750,9 @@ button.plan-id-link-v161:focus-visible{
 .rab-info-v1658{font-size:13px;color:#17365b}
 .rab-info-v1658 .sisa-ada{color:#12633a}
 .rab-info-v1658 .sisa-habis{color:#a01722}
+
+/* SIMPROV v165.8b - Acuan RAB di atas panel sumber biaya */
+.rab-acuan-block-v1658{margin:0 0 16px}
+.rab-acuan-inner-v1658{background:#f7fbff;border:1px solid #cfe6f7;border-radius:12px;padding:16px 18px}
+.rab-acuan-label-v1658{display:block;font-weight:800;color:#0f4c81;margin-bottom:6px;font-size:13px;letter-spacing:.02em}
+.rab-acuan-inner-v1658 select{width:100%;font-weight:600}
