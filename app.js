@@ -19272,6 +19272,11 @@ window.labelPaketV1660=labelPaketV1660;
     try{
       if(typeof grupKeNonV96==='function'&&grupKeNonV96(it.huruf))return 'NON PENGADAAN';
     }catch(e){}
+    /* Sebagian grup bercampur, misalnya grup R berisi honorarium sekaligus
+       barang. Huruf grup saja tidak cukup, jadi nama item ikut diperiksa. */
+    var teks=((it&&it.nama)||'')+' '+((it&&it.grup)||'');
+    if(/honorarium|honor |uang saku|uang harian|perjalanan dinas|hadiah|penghargaan|transport peserta|uang transport|uang lembur|narasumber|moderator/i.test(teks))
+      return 'NON PENGADAAN';
     return 'PENGADAAN';
   }
 
@@ -19286,7 +19291,10 @@ window.labelPaketV1660=labelPaketV1660;
       const html=SB_FLAT_V96.map((it,i)=>{
         const key=(it.nama+' '+it.grup+' '+it.satuan+' '+it.nilai).toLowerCase();
         if(q&&!key.includes(q))return '';
-        if(katRab&&kategoriSbV1662(it)!==katRab){ disaring++; return ''; }
+        const katItem=(typeof kategoriSbSheetV167==='function')
+          ?kategoriSbSheetV167(it,kategoriSbV1662)
+          :kategoriSbV1662(it);
+        if(katRab&&katItem!==katRab){ disaring++; return ''; }
         const nilaiTxt=typeof it.nilai==='number'?rupiah(it.nilai):esc(String(it.nilai));
         return `<div class="sb-card-v96" onclick="pilihSbV96(${i})">
           <div class="sb-huruf-v96">${esc(it.huruf)}</div>
@@ -19319,6 +19327,245 @@ window.labelPaketV1660=labelPaketV1660;
             const jn=document.getElementById('jenisNonPengadaanV79');
             if(jn)jn.value='';
           }
+        }
+      }catch(e){}
+      return hasil;
+    };
+  }
+})();
+
+
+/* SIMPROV v167 - Standar Biaya dibaca dari sheet.
+   SB_FLAT_V96 adalah const, tetapi isinya array yang dapat diganti di tempat.
+   Dengan mengganti isinya, keenam bagian yang sudah memakai array ini tetap
+   bekerja tanpa perubahan, termasuk pemilihan berbasis indeks.
+
+   Data lama tetap disimpan sebagai cadangan. Bila sheet kosong atau gagal
+   dibaca, daftar kembali memakai data lama sehingga pemilih tidak pernah
+   kosong. */
+(function(){
+  const CADANGAN_V167=SB_FLAT_V96.map(x=>({...x}));
+  let sudahMuatV167=false, sedangMuatV167=null;
+  window.sbSumberV167='bawaan';
+
+  function terapkanV167(list){
+    SB_FLAT_V96.length=0;
+    list.forEach(x=>SB_FLAT_V96.push(x));
+  }
+
+  async function muatSbV167(paksa){
+    if(sudahMuatV167&&!paksa)return SB_FLAT_V96;
+    if(sedangMuatV167&&!paksa)return sedangMuatV167;
+    sedangMuatV167=(async()=>{
+      try{
+        const r=await apiPost({action:'getStandarBiayaV167',user:currentUser});
+        const rows=(r&&r.success)?(r.standar_biaya||[]):[];
+        if(rows.length){
+          terapkanV167(rows.map(x=>({
+            huruf:x.huruf||'', grup:x.grup||'', nama:x.nama||'',
+            satuan:x.satuan||'', nilai:Number(x.nilai)||0,
+            kategori:x.kategori||'', jenis_non_pengadaan:x.jenis_non_pengadaan||'',
+            id_sb:x.id_sb||''
+          })));
+          window.sbSumberV167='sheet';
+        }else{
+          terapkanV167(CADANGAN_V167.map(x=>({...x})));
+          window.sbSumberV167='bawaan';
+        }
+        sudahMuatV167=true;
+      }catch(e){
+        terapkanV167(CADANGAN_V167.map(x=>({...x})));
+        window.sbSumberV167='bawaan';
+      }finally{ sedangMuatV167=null; }
+      return SB_FLAT_V96;
+    })();
+    return sedangMuatV167;
+  }
+  window.muatSbV167=muatSbV167;
+  window.invalidasiSbV167=()=>{sudahMuatV167=false;};
+  window.sbCadanganV167=()=>CADANGAN_V167.map(x=>({...x}));
+
+  /* Kategori diambil dari sheet bila ada. Penebakan dari huruf dan nama hanya
+     dipakai untuk data lama yang belum punya kolom kategori. */
+  if(typeof kategoriSbV1662!=='undefined'){}
+  window.kategoriSbSheetV167=function(it,tebak){
+    const k=String((it&&it.kategori)||'').toUpperCase();
+    if(k==='NON PENGADAAN'||k==='PENGADAAN')return k;
+    return typeof tebak==='function'?tebak(it):'PENGADAAN';
+  };
+
+  /* Pemilih memuat daftar saat pertama dibuka, bukan saat login,
+     sehingga waktu masuk aplikasi tidak bertambah. */
+  if(typeof openSbPickerV96==='function'){
+    const dasarBuka=openSbPickerV96;
+    openSbPickerV96=function(){
+      const hasil=dasarBuka.apply(this,arguments);
+      if(!sudahMuatV167){
+        const el=document.getElementById('sbPickerListV96');
+        if(el&&!el.innerHTML.trim())el.innerHTML='<p class="empty">Memuat standar biaya...</p>';
+        muatSbV167().then(()=>{ if(typeof renderSbPickerListV96==='function')renderSbPickerListV96(''); });
+      }
+      return hasil;
+    };
+  }
+})();
+
+
+/* SIMPROV v167.1 - Panel Admin untuk mengelola Standar Biaya. */
+(function(){
+  let daftarV1671=[], filterV1671='';
+
+  window.panelStandarBiayaV1671=function(){
+    return '<section class="panel fade-up premium-panel sb-kelola-panel-v1671">'+
+      '<div class="panel-title-row"><div><h3>Standar Biaya</h3>'+
+      '<p class="panel-sub">Daftar acuan harga satuan. Perubahan langsung dipakai pada Input Perencanaan tanpa penerbitan ulang aplikasi.</p></div>'+
+      '<button class="btn-refresh" onclick="muatKelolaSbV1671(true)">Muat Ulang</button></div>'+
+      '<div id="sbKelolaBodyV1671"><p class="empty">Memuat...</p></div></section>';
+  };
+
+  window.muatKelolaSbV1671=async function(paksa){
+    const box=document.getElementById('sbKelolaBodyV1671');
+    if(!box)return;
+    if(paksa&&typeof invalidasiSbV167==='function')invalidasiSbV167();
+    try{
+      const r=await apiPost({action:'getStandarBiayaV167',user:currentUser});
+      daftarV1671=(r&&r.success)?(r.standar_biaya||[]):[];
+    }catch(e){ daftarV1671=[]; }
+    gambarV1671();
+  };
+
+  window.cariSbV1671=function(v){ filterV1671=String(v||'').toLowerCase(); gambarV1671(true); };
+
+  function gambarV1671(hanyaTabel){
+    const box=document.getElementById('sbKelolaBodyV1671');
+    if(!box)return;
+    if(!daftarV1671.length){
+      box.innerHTML='<div class="sb-kosong-v1671"><p>Sheet STANDAR_BIAYA masih kosong. Aplikasi sementara memakai daftar bawaan.</p>'+
+        '<button class="btn-refresh" onclick="pindahkanSbV1671()">Pindahkan Daftar Bawaan ke Sheet</button>'+
+        '<small class="hint-v165">Sekali klik. Setelah pindah, daftar dapat ditambah dan diubah dari sini.</small></div>';
+      return;
+    }
+    const q=filterV1671;
+    const rows=daftarV1671.filter(x=>!q||((x.nama+' '+x.grup+' '+x.satuan).toLowerCase().includes(q)));
+    const tbody=rows.slice(0,300).map(x=>
+      `<tr><td>${esc(x.huruf||'-')}</td><td>${esc(x.nama)}</td><td>${esc(x.grup||'-')}</td>`+
+      `<td>${esc(x.satuan||'-')}</td><td class="num">${rupiah(x.nilai)}</td>`+
+      `<td><span class="sb-kat-v1671 ${x.kategori==='NON PENGADAAN'?'non':'pgd'}">${esc(x.kategori)}</span></td>`+
+      `<td><button class="btn-mini" onclick="editSbV1671('${esc(x.id_sb)}')">Ubah</button> `+
+      `<button class="btn-mini btn-soft" onclick="nonaktifSbV1671('${esc(x.id_sb)}','${esc(x.nama)}')">Nonaktifkan</button></td></tr>`).join('');
+
+    const tabel='<div class="table-wrap"><table class="sb-kelola-table-v1671"><thead><tr>'+
+      '<th>Grup</th><th>Nama</th><th>Kelompok</th><th>Satuan</th><th>Nilai</th><th>Kategori</th><th>Aksi</th>'+
+      '</tr></thead><tbody>'+(tbody||'<tr><td colspan="7" class="empty">Tidak ada yang cocok</td></tr>')+'</tbody></table></div>'+
+      (rows.length>300?`<p class="panel-sub">Menampilkan 300 dari ${rows.length} baris. Persempit dengan pencarian.</p>`:'');
+
+    if(hanyaTabel){
+      const t=document.getElementById('sbTabelV1671');
+      if(t){ t.innerHTML=tabel; return; }
+    }
+    box.innerHTML='<div class="sb-kelola-head-v1671">'+
+      `<input type="text" placeholder="Cari nama, kelompok, atau satuan..." value="${esc(filterV1671)}" oninput="cariSbV1671(this.value)">`+
+      '<button class="btn-refresh" onclick="editSbV1671(\'\')">Tambah Standar Biaya</button>'+
+      `<span class="sb-jumlah-v1671">${daftarV1671.length} baris aktif</span></div>`+
+      '<div id="sbTabelV1671">'+tabel+'</div>';
+  }
+
+  window.pindahkanSbV1671=async function(){
+    const bawaan=(typeof sbCadanganV167==='function')?sbCadanganV167():[];
+    if(!bawaan.length){ alert('Daftar bawaan tidak ditemukan.'); return; }
+    const ok=await confirmActionV133({title:'Pindahkan Standar Biaya',
+      message:bawaan.length+' baris daftar bawaan akan disalin ke sheet STANDAR_BIAYA. Setelah itu daftar dapat ditambah dan diubah dari aplikasi. Lanjutkan?',
+      confirmText:'Ya, Pindahkan'});
+    if(!ok)return;
+    showLoading('Memindahkan '+bawaan.length+' baris...');
+    try{
+      const items=bawaan.map(x=>({
+        huruf:x.huruf, grup:x.grup, nama:x.nama, satuan:x.satuan, nilai:x.nilai,
+        kategori:(typeof kategoriSbV1662==='function')?kategoriSbV1662(x):'PENGADAAN'
+      }));
+      const r=await apiPost({action:'seedStandarBiayaV167',user:currentUser,data:{items}});
+      if(!r.success)throw new Error(r.message||'Gagal memindahkan');
+      alert(r.message);
+      if(typeof invalidasiSbV167==='function')invalidasiSbV167();
+      await muatKelolaSbV1671(true);
+    }catch(e){ alert(e.message||String(e)); }
+    finally{ hideLoading(); }
+  };
+
+  window.editSbV1671=function(id){
+    const x=id?daftarV1671.find(r=>r.id_sb===id):null;
+    const m=document.getElementById('sbFormModalV1671')||(()=>{
+      const d=document.createElement('div'); d.id='sbFormModalV1671'; d.className='sbv-overlay-v95';
+      document.body.appendChild(d); return d;})();
+    m.classList.remove('hidden');
+    m.innerHTML=`<div class="sbv-box-v95 sb-form-box-v1671"><div class="sbv-head-v95">
+      <h3>${x?'Ubah':'Tambah'} Standar Biaya</h3>
+      <button class="btn-soft" type="button" onclick="tutupSbFormV1671()">Tutup</button></div>
+      <div class="form-grid sb-form-grid-v1671">
+        <div class="field"><label>Huruf Grup</label><input id="sbHurufV1671" maxlength="1" value="${esc(x?.huruf||'')}" placeholder="A"></div>
+        <div class="field"><label>Kelompok</label><input id="sbGrupV1671" value="${esc(x?.grup||'')}" placeholder="Kegiatan Pendidikan dan Pelatihan"></div>
+        <div class="field full"><label>Nama Standar Biaya</label><input id="sbNamaV1671" value="${esc(x?.nama||'')}" placeholder="Honorarium Narasumber"></div>
+        <div class="field"><label>Satuan</label><input id="sbSatuanV1671" value="${esc(x?.satuan||'')}" placeholder="Orang/Kegiatan"></div>
+        <div class="field"><label>Nilai</label><input id="sbNilaiV1671" value="${x?Number(x.nilai).toLocaleString('id-ID'):''}" placeholder="1.000.000"></div>
+        <div class="field"><label>Kategori</label><select id="sbKatV1671">
+          <option value="PENGADAAN"${x?.kategori!=='NON PENGADAAN'?' selected':''}>Pengadaan</option>
+          <option value="NON PENGADAAN"${x?.kategori==='NON PENGADAAN'?' selected':''}>Non Pengadaan</option></select></div>
+      </div>
+      <div class="sb-form-aksi-v1671">
+        <button class="btn-refresh" onclick="simpanSbV1671('${esc(id||'')}')">Simpan</button>
+        <button class="btn-soft" onclick="tutupSbFormV1671()">Batal</button></div></div>`;
+  };
+  window.tutupSbFormV1671=function(){ document.getElementById('sbFormModalV1671')?.classList.add('hidden'); };
+
+  window.simpanSbV1671=async function(id){
+    const data={
+      id_sb:id||'',
+      huruf:document.getElementById('sbHurufV1671')?.value||'',
+      grup:document.getElementById('sbGrupV1671')?.value||'',
+      nama:document.getElementById('sbNamaV1671')?.value||'',
+      satuan:document.getElementById('sbSatuanV1671')?.value||'',
+      nilai:toNumber(document.getElementById('sbNilaiV1671')?.value),
+      kategori:document.getElementById('sbKatV1671')?.value||'PENGADAAN'
+    };
+    if(!data.nama.trim()){ alert('Nama standar biaya wajib diisi.'); return; }
+    if(!(data.nilai>0)){ alert('Nilai harus lebih besar dari nol.'); return; }
+    showLoading('Menyimpan...');
+    try{
+      const r=await apiPost({action:'saveStandarBiayaV167',user:currentUser,data});
+      if(!r.success)throw new Error(r.message||'Gagal menyimpan');
+      tutupSbFormV1671();
+      if(typeof invalidasiSbV167==='function')invalidasiSbV167();
+      await muatKelolaSbV1671(true);
+    }catch(e){ alert(e.message||String(e)); }
+    finally{ hideLoading(); }
+  };
+
+  window.nonaktifSbV1671=async function(id,nama){
+    const ok=await confirmActionV133({title:'Nonaktifkan Standar Biaya',
+      message:'"'+nama+'" tidak akan muncul lagi pada pemilih. Perencanaan lama yang memakainya tetap terbaca. Lanjutkan?',
+      confirmText:'Ya, Nonaktifkan'});
+    if(!ok)return;
+    showLoading('Memproses...');
+    try{
+      const r=await apiPost({action:'deleteStandarBiayaV167',user:currentUser,id_sb:id});
+      if(!r.success)throw new Error(r.message||'Gagal');
+      if(typeof invalidasiSbV167==='function')invalidasiSbV167();
+      await muatKelolaSbV1671(true);
+    }catch(e){ alert(e.message||String(e)); }
+    finally{ hideLoading(); }
+  };
+
+  /* Dipasang pada versi renderManajemenAkunV65 yang aktif. */
+  if(typeof renderManajemenAkunV65==='function'){
+    const dasar=renderManajemenAkunV65;
+    renderManajemenAkunV65=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{
+        if(typeof isSuperAdminV65==='function'&&!isSuperAdminV65())return hasil;
+        const area=document.getElementById('contentArea');
+        if(area&&!document.getElementById('sbKelolaBodyV1671')){
+          area.insertAdjacentHTML('beforeend',panelStandarBiayaV1671());
+          muatKelolaSbV1671(false);
         }
       }catch(e){}
       return hasil;
