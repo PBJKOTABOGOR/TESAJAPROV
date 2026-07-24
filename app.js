@@ -19449,7 +19449,7 @@ window.labelPaketV1660=labelPaketV1660;
     const rows=daftarV1671.filter(x=>!q||((x.nama+' '+x.grup+' '+x.satuan).toLowerCase().includes(q)));
     const tbody=rows.slice(0,300).map(x=>
       `<tr><td>${esc(x.huruf||'-')}</td><td>${esc(x.nama)}</td><td>${esc(x.grup||'-')}</td>`+
-      `<td>${esc(x.satuan||'-')}</td><td class="num">${rupiah(x.nilai)}</td>`+
+      `<td>${esc(x.satuan||'-')}</td><td class="num">${x.at_cost?'<i class="at-cost-v1671">At Cost</i>':rupiah(x.nilai)}</td>`+
       `<td><span class="sb-kat-v1671 ${x.kategori==='NON PENGADAAN'?'non':'pgd'}">${esc(x.kategori)}</span></td>`+
       `<td><button class="btn-mini" onclick="editSbV1671('${esc(x.id_sb)}')">Ubah</button> `+
       `<button class="btn-mini btn-soft" onclick="nonaktifSbV1671('${esc(x.id_sb)}','${esc(x.nama)}')">Nonaktifkan</button></td></tr>`).join('');
@@ -19506,7 +19506,10 @@ window.labelPaketV1660=labelPaketV1660;
         <div class="field"><label>Kelompok</label><input id="sbGrupV1671" value="${esc(x?.grup||'')}" placeholder="Kegiatan Pendidikan dan Pelatihan"></div>
         <div class="field full"><label>Nama Standar Biaya</label><input id="sbNamaV1671" value="${esc(x?.nama||'')}" placeholder="Honorarium Narasumber"></div>
         <div class="field"><label>Satuan</label><input id="sbSatuanV1671" value="${esc(x?.satuan||'')}" placeholder="Orang/Kegiatan"></div>
-        <div class="field"><label>Nilai</label><input id="sbNilaiV1671" value="${x?Number(x.nilai).toLocaleString('id-ID'):''}" placeholder="1.000.000"></div>
+        <div class="field"><label>Sifat</label><select id="sbSifatV1671" onchange="toggleSifatSbV1671()">
+          <option value="BATAS TERTINGGI"${x&&x.at_cost?'':' selected'}>Batas Tertinggi</option>
+          <option value="AT COST"${x&&x.at_cost?' selected':''}>At Cost</option></select></div>
+        <div class="field"><label>Nilai</label><input id="sbNilaiV1671" value="${x&&!x.at_cost?Number(x.nilai).toLocaleString('id-ID'):''}" placeholder="1.000.000"${x&&x.at_cost?' disabled':''}></div>
         <div class="field"><label>Kategori</label><select id="sbKatV1671">
           <option value="PENGADAAN"${x?.kategori!=='NON PENGADAAN'?' selected':''}>Pengadaan</option>
           <option value="NON PENGADAAN"${x?.kategori==='NON PENGADAAN'?' selected':''}>Non Pengadaan</option></select></div>
@@ -19524,11 +19527,12 @@ window.labelPaketV1660=labelPaketV1660;
       grup:document.getElementById('sbGrupV1671')?.value||'',
       nama:document.getElementById('sbNamaV1671')?.value||'',
       satuan:document.getElementById('sbSatuanV1671')?.value||'',
+      sifat:document.getElementById('sbSifatV1671')?.value||'BATAS TERTINGGI',
       nilai:toNumber(document.getElementById('sbNilaiV1671')?.value),
       kategori:document.getElementById('sbKatV1671')?.value||'PENGADAAN'
     };
     if(!data.nama.trim()){ alert('Nama standar biaya wajib diisi.'); return; }
-    if(!(data.nilai>0)){ alert('Nilai harus lebih besar dari nol.'); return; }
+    if(data.sifat!=='AT COST'&&!(data.nilai>0)){ alert('Nilai harus lebih besar dari nol.'); return; }
     showLoading('Menyimpan...');
     try{
       const r=await apiPost({action:'saveStandarBiayaV167',user:currentUser,data});
@@ -19572,3 +19576,95 @@ window.labelPaketV1660=labelPaketV1660;
     };
   }
 })();
+
+
+/* SIMPROV v167.1 - Nilai At Cost tidak dikunci.
+   At Cost berarti biaya mengikuti kebutuhan nyata dan tidak memiliki batas
+   tertinggi, sehingga harga satuan harus tetap dapat diisi pengguna. */
+(function(){
+  window.sbAtCostV1671=function(it){
+    if(!it)return false;
+    if(it.at_cost===true)return true;
+    if(String(it.sifat||'').toUpperCase()==='AT COST')return true;
+    return /at\s*cost/i.test(String(it.nilai==null?'':it.nilai));
+  };
+
+  function sbTerpilihV1671(){
+    try{
+      if(typeof sbPickIdxV96==='undefined'||sbPickIdxV96<0)return null;
+      return SB_FLAT_V96[sbPickIdxV96]||null;
+    }catch(e){ return null; }
+  }
+  window.sbTerpilihV1671=sbTerpilihV1671;
+
+  /* Kunci hanya berlaku untuk standar biaya bernilai tetap. */
+  if(typeof kunciHargaStandarV1661==='function'){
+    kunciHargaStandarV1661=function(){
+      const pakaiSb=document.getElementById('sumberHargaV96')?.value==='SB';
+      const harga=document.getElementById('harga');
+      if(!harga)return;
+      const it=sbTerpilihV1671();
+      const atCost=pakaiSb&&it&&window.sbAtCostV1671(it);
+      const kunci=pakaiSb&&!atCost;
+      harga.readOnly=kunci;
+      harga.classList.toggle('input-terkunci-v1661',kunci);
+      harga.title=kunci?'Harga satuan mengikuti Standar Biaya yang dipilih. Ubah volume bila perlu.':'';
+      const ket=document.getElementById('ketHargaV1661');
+      if(ket)ket.textContent=kunci?'Terkunci mengikuti Standar Biaya'
+        :(atCost?'At Cost, isi sesuai kebutuhan nyata':'');
+    };
+    window.kunciHargaStandarV1661=kunciHargaStandarV1661;
+  }
+
+  /* Nilai At Cost jangan diisikan sebagai nol. */
+  if(typeof pilihSbV96==='function'){
+    const dasar=pilihSbV96;
+    pilihSbV96=function(i){
+      const hasil=dasar.apply(this,arguments);
+      try{
+        const it=SB_FLAT_V96[i];
+        if(it&&window.sbAtCostV1671(it)){
+          const harga=document.getElementById('harga');
+          if(harga){
+            harga.readOnly=false;
+            harga.value='';
+            harga.focus({preventScroll:true});
+          }
+          const total=document.getElementById('totalOtomatis');
+          if(total)total.value='Rp0';
+        }
+        if(typeof kunciHargaStandarV1661==='function')kunciHargaStandarV1661();
+      }catch(e){}
+      return hasil;
+    };
+  }
+
+  /* Tampilkan At Cost pada daftar, bukan Rp 0. */
+  if(typeof renderSbPickerListV96==='function'){
+    const dasarRender=renderSbPickerListV96;
+    renderSbPickerListV96=function(q){
+      const hasil=dasarRender.apply(this,arguments);
+      try{
+        const el=document.getElementById('sbPickerListV96');
+        if(!el)return hasil;
+        el.querySelectorAll('.sb-card-v96').forEach(card=>{
+          const m=(card.getAttribute('onclick')||'').match(/pilihSbV96\((\d+)\)/);
+          if(!m)return;
+          const it=SB_FLAT_V96[Number(m[1])];
+          if(it&&window.sbAtCostV1671(it)){
+            const nilai=card.querySelector('.sb-nilai-v96');
+            if(nilai)nilai.innerHTML='<b>At Cost</b><small>SESUAI KEBUTUHAN</small>';
+          }
+        });
+      }catch(e){}
+      return hasil;
+    };
+  }
+})();
+
+
+window.toggleSifatSbV1671=function(){
+  const atCost=document.getElementById('sbSifatV1671')?.value==='AT COST';
+  const nilai=document.getElementById('sbNilaiV1671');
+  if(nilai){ nilai.disabled=atCost; if(atCost)nilai.value=''; }
+};
