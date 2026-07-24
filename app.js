@@ -11999,7 +11999,9 @@ function printPaymentDocV138(id,type){const {p,activity,bidang,rincian,rekening}
     const template=DOC_TEMPLATE_V149[key];
     if(template)actions.push(helperButtonV149('Buka Template',`openTemplateSourceV123('${esc(template)}')`));
     if(key===dokKeyV94('Spesifikasi Teknis dan HPS'))actions.push(helperButtonV149('Buat di Sistem',`bukaHpsOptionalV121('${id}')`,'system'));
-    if(key===dokKeyV94('SPTJM')&&['BIDANG','ADMIN'].includes(String(actualRoleV133()||'').toUpperCase()))actions.push(helperButtonV149('Buat di Sistem',`openPaymentForActivityV145('${id}')`,'system'));
+    if(key===dokKeyV94('SPTJM')&&['BIDANG','ADMIN'].includes(String(actualRoleV133()||'').toUpperCase())
+       &&!(typeof isBelanjaLangsungV1661==='function'&&isBelanjaLangsungV1661(k)))
+      actions.push(helperButtonV149('Buat di Sistem',`openPaymentForActivityV145('${id}')`,'system'));
     if(actions.length)return `<div class="document-helper-actions-v149">${actions.map((x,i)=>`${i?'<span class="document-helper-separator-v149">/</span>':''}${x}`).join('')}</div>`;
     return currentHtml&&String(currentHtml).trim()!=='-'?currentHtml:'-';
   }
@@ -19159,3 +19161,65 @@ function labelPaketV1660(opts,k){
   return o.aksiLabel||'Lihat Paket';
 }
 window.labelPaketV1660=labelPaketV1660;
+
+
+/* SIMPROV v166.1 - Harga satuan terkunci saat memakai Standar Biaya,
+   dan SPTJM tidak lagi dapat dibuat di sistem untuk Belanja Langsung. */
+(function(){
+
+  /* 1. Harga satuan mengikuti Standar Biaya yang dipilih.
+        Yang boleh diubah pengguna hanya volume. */
+  function kunciHargaStandarV1661(){
+    const pakaiSb=document.getElementById('sumberHargaV96')?.value==='SB';
+    const harga=document.getElementById('harga');
+    if(!harga)return;
+    harga.readOnly=pakaiSb;
+    harga.classList.toggle('input-terkunci-v1661',pakaiSb);
+    harga.title=pakaiSb?'Harga satuan mengikuti Standar Biaya yang dipilih. Ubah volume bila perlu.':'';
+    const ket=document.getElementById('ketHargaV1661');
+    if(ket)ket.textContent=pakaiSb?'Terkunci mengikuti Standar Biaya':'';
+  }
+  window.kunciHargaStandarV1661=kunciHargaStandarV1661;
+
+  function pasangKetHargaV1661(){
+    const harga=document.getElementById('harga');
+    if(!harga||document.getElementById('ketHargaV1661'))return;
+    const s=document.createElement('small');
+    s.id='ketHargaV1661'; s.className='ket-harga-v1661';
+    harga.parentNode&&harga.parentNode.appendChild(s);
+  }
+
+  if(typeof toggleSumberHargaV96==='function'){
+    const dasar=toggleSumberHargaV96;
+    toggleSumberHargaV96=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ pasangKetHargaV1661(); kunciHargaStandarV1661(); }catch(e){}
+      return hasil;
+    };
+  }
+  if(typeof pilihSbV96==='function'){
+    const dasarSb=pilihSbV96;
+    pilihSbV96=function(){
+      const hasil=dasarSb.apply(this,arguments);
+      try{ pasangKetHargaV1661(); kunciHargaStandarV1661(); }catch(e){}
+      return hasil;
+    };
+  }
+  if(typeof renderPerencanaan==='function'){
+    const dasarRender=renderPerencanaan;
+    renderPerencanaan=function(){
+      const hasil=dasarRender.apply(this,arguments);
+      try{ pasangKetHargaV1661(); kunciHargaStandarV1661(); }catch(e){}
+      return hasil;
+    };
+  }
+
+  /* 2. Belanja Langsung tidak memakai SPTJM buatan sistem maupun pengajuan
+        pembayaran di dalam sistem, sesuai keputusan rapat. */
+  window.isBelanjaLangsungV1661=function(k){
+    const m=String((k&&k.metode_pemilihan)||'').toUpperCase();
+    if(m)return m==='BELANJA LANGSUNG';
+    const nilai=Number((k&&k.jumlah)||0)||((Number(k&&k.volume)||0)*(Number(k&&k.harga_satuan)||0));
+    return nilai>0&&nilai<=500000000;
+  };
+})();
