@@ -3777,3 +3777,4 @@ button.plan-id-link-v161:focus-visible{
 .sb-form-grid-v1671{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:4px 0 14px}
 .sb-form-grid-v1671 .field.full{grid-column:1/-1}
 .sb-form-aksi-v1671{display:flex;gap:10px;justify-content:flex-end}
+.at-cost-v1671{color:#8a5a00;font-style:normal;font-weight:700}
