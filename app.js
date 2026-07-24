@@ -13802,7 +13802,7 @@ verifikasiRealisasiNonV112=async function(id,mode){
       <div class="plan-detail-head-v161"><div><small>DETAIL PERENCANAAN</small><h3 id="planDetailTitleV161">${esc(k.nama_kegiatan||'-')}</h3><p>${esc(k.id_kegiatan||'-')} • ${esc(bidangName(k.id_bidang))}</p></div><button class="btn-soft" type="button" onclick="closePerencanaanDetailV161()">Tutup</button></div>
       <div class="plan-detail-scroll-v161">
         <h4>Identitas Paket</h4><div class="plan-detail-grid-v161">
-          ${detailRowV161('ID Kegiatan',k.id_kegiatan)}${detailRowV161('Bidang',bidangName(k.id_bidang))}${detailRowV161('Kategori',k.kategori||'-')}${detailRowV161('Jenis Non Pengadaan',k.jenis_non_pengadaan||'-')}${detailRowV161('Status Perencanaan',displayStatusText(k.status_perencanaan||'-'))}${detailRowV161('Status Paket',paketStatusV95(k))}
+          ${detailRowV161('Kode RAB',k.kode_rab||'-')}${detailRowV161('Uraian RAB',uraianRabV1662(k),true)}${detailRowV161('ID Kegiatan',k.id_kegiatan)}${detailRowV161('Bidang',bidangName(k.id_bidang))}${detailRowV161('Kategori',k.kategori||'-')}${detailRowV161('Jenis Non Pengadaan',k.jenis_non_pengadaan||'-')}${detailRowV161('Status Perencanaan',displayStatusText(k.status_perencanaan||'-'))}${detailRowV161('Status Paket',paketStatusV95(k))}
         </div>
         <h4>Dasar dan Cara Pelaksanaan</h4><div class="plan-detail-grid-v161">
           ${detailRowV161('Sumber Harga',sourcePriceLabelV161(k))}${detailRowV161('Jenis Pengadaan',k.jenis_pengadaan||k.jenis_non_pengadaan||'-')}${detailRowV161('Cara Pelaksanaan',k.cara_pelaksanaan||'-')}${detailRowV161('Metode Pemilihan',k.metode_pemilihan||'-')}${detailRowV161('Waktu Pemilihan',k.waktu_pemilihan?formatTanggalID(k.waktu_pemilihan):'-')}${detailRowV161('Satuan',k.satuan||'-')}
@@ -17404,7 +17404,9 @@ verifikasiRealisasiNonV112=async function(id,mode){
   }
   function paymentButtonStateV16422(activityId){
     const payment=latestPaymentForActivityV16422(activityId);
-    if(!payment)return {label:'Buat di Sistem',mode:'CREATE',payment:null};
+    /* v166.2: Belanja Langsung tidak lagi membuat pengajuan di dalam sistem.
+       Pengajuan yang sudah ada tetap dapat dilanjutkan atau dilihat. */
+    if(!payment)return {label:'',mode:'NONE',payment:null};
     const status=upperV16422(payment.status_pengajuan||'DRAFT');
     if(EDITABLE_PAYMENT_STATUS_V16422.has(status))return {label:'Lanjutkan Draft',mode:'EDIT',payment};
     return {label:'Lihat Pengajuan',mode:'VIEW',payment};
@@ -17425,6 +17427,14 @@ verifikasiRealisasiNonV112=async function(id,mode){
       if(!isSptjm)return;
       const actionCell=cells[3];
       let button=[...actionCell.querySelectorAll('button')].find(btn=>/BUAT DI SISTEM|BUAT SPTJM|LANJUTKAN DRAFT|LIHAT PENGAJUAN/i.test(btn.textContent||''));
+      if(state.mode==='NONE'){
+        if(button){
+          const pemisah=button.previousElementSibling;
+          if(pemisah&&pemisah.classList&&pemisah.classList.contains('document-helper-separator-v149'))pemisah.remove();
+          button.remove();
+        }
+        return;
+      }
       if(!button){
         const wrap=actionCell.querySelector('.document-helper-actions-v149')||actionCell;
         button=document.createElement('button');wrap.appendChild(button);
@@ -19222,4 +19232,96 @@ window.labelPaketV1660=labelPaketV1660;
     const nilai=Number((k&&k.jumlah)||0)||((Number(k&&k.volume)||0)*(Number(k&&k.harga_satuan)||0));
     return nilai>0&&nilai<=500000000;
   };
+})();
+
+
+/* SIMPROV v166.2 - Standar Biaya disaring mengikuti kategori RAB,
+   dan uraian RAB ditampilkan pada detail perencanaan. */
+(function(){
+
+  /* Uraian diambil dari daftar RAB yang sudah dimuat. Tidak ada permintaan
+     tambahan ke server saat membuka detail. */
+  window.uraianRabV1662=function(k){
+    const kode=String((k&&k.kode_rab)||'').trim();
+    if(!kode)return '-';
+    try{
+      const rab=(typeof rabTerpilihV1658==='function')?null:null;
+      const list=window.__rabListV1662||[];
+      const found=list.find(r=>String(r.kode_rab||'').trim().toUpperCase()===kode.toUpperCase());
+      if(found&&found.uraian)return found.uraian;
+    }catch(e){}
+    return '-';
+  };
+
+  /* Simpan salinan daftar RAB terakhir agar detail dapat menampilkan uraian. */
+  if(typeof apiPost==='function'){
+    const dasarPost=apiPost;
+    apiPost=async function(payload){
+      const hasil=await dasarPost(payload);
+      try{
+        if(payload&&payload.action==='getRabV1655'&&hasil&&hasil.success)
+          window.__rabListV1662=hasil.rab||[];
+      }catch(e){}
+      return hasil;
+    };
+  }
+
+  /* Standar Biaya yang ditampilkan disaring mengikuti kategori baris RAB.
+     Indeks asli dipertahankan supaya pilihSbV96 tetap menunjuk item yang benar. */
+  function kategoriSbV1662(it){
+    try{
+      if(typeof grupKeNonV96==='function'&&grupKeNonV96(it.huruf))return 'NON PENGADAAN';
+    }catch(e){}
+    return 'PENGADAAN';
+  }
+
+  if(typeof renderSbPickerListV96==='function'){
+    renderSbPickerListV96=function(q){
+      q=String(q||'').toLowerCase();
+      const el=document.getElementById('sbPickerListV96');
+      if(!el)return;
+      const rab=(typeof rabTerpilihV1658==='function')?rabTerpilihV1658():null;
+      const katRab=rab?String(rab.kategori||'').toUpperCase():'';
+      let disaring=0;
+      const html=SB_FLAT_V96.map((it,i)=>{
+        const key=(it.nama+' '+it.grup+' '+it.satuan+' '+it.nilai).toLowerCase();
+        if(q&&!key.includes(q))return '';
+        if(katRab&&kategoriSbV1662(it)!==katRab){ disaring++; return ''; }
+        const nilaiTxt=typeof it.nilai==='number'?rupiah(it.nilai):esc(String(it.nilai));
+        return `<div class="sb-card-v96" onclick="pilihSbV96(${i})">
+          <div class="sb-huruf-v96">${esc(it.huruf)}</div>
+          <div class="sb-info-v96"><b>${esc(it.nama)}</b><small>${esc(it.grup)} &middot; ${esc(it.satuan)}</small></div>
+          <div class="sb-nilai-v96"><b>${nilaiTxt}</b><small>BATAS TERTINGGI</small></div></div>`;
+      }).join('');
+      const ket=katRab
+        ?`<p class="sb-filter-ket-v1662">Menampilkan standar biaya kategori <b>${esc(katRab)}</b> mengikuti ${esc(rab.kode_rab)}.${disaring?' '+disaring+' tidak sesuai kategori disembunyikan.':''}</p>`
+        :'';
+      el.innerHTML=ket+(html||'<p class="empty">Tidak ada yang cocok dengan kategori RAB yang dipilih.</p>');
+    };
+  }
+
+  /* Kategori tetap mengikuti RAB meski standar biaya yang dipilih
+     berasal dari kelompok lain. */
+  if(typeof pilihSbV96==='function'){
+    const dasarPilih=pilihSbV96;
+    pilihSbV96=function(){
+      const hasil=dasarPilih.apply(this,arguments);
+      try{
+        const rab=(typeof rabTerpilihV1658==='function')?rabTerpilihV1658():null;
+        const kat=rab?String(rab.kategori||'').toUpperCase():'';
+        if(kat==='PENGADAAN'||kat==='NON PENGADAAN'){
+          const sel=document.getElementById('kategoriPerencanaanV79');
+          if(sel&&sel.value!==kat){
+            sel.value=kat;
+            if(typeof toggleKategoriV79==='function')toggleKategoriV79();
+          }
+          if(kat==='PENGADAAN'){
+            const jn=document.getElementById('jenisNonPengadaanV79');
+            if(jn)jn.value='';
+          }
+        }
+      }catch(e){}
+      return hasil;
+    };
+  }
 })();
