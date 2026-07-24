@@ -3759,3 +3759,21 @@ button.plan-id-link-v161:focus-visible{
 .input-terkunci-v1661{background:#f2f5f8;color:#41505f;cursor:not-allowed}
 .ket-harga-v1661{display:block;margin-top:4px;font-size:11.5px;color:#667085}
 .sb-filter-ket-v1662{margin:0 0 10px;font-size:12.5px;color:#41505f;background:#f3f8fc;border:1px solid #dce9f4;border-radius:8px;padding:8px 12px}
+
+/* SIMPROV v167 - Kelola Standar Biaya */
+.sb-kelola-head-v1671{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.sb-kelola-head-v1671 input{flex:1;min-width:220px}
+.sb-jumlah-v1671{font-size:12.5px;color:#667085}
+.sb-kelola-table-v1671{width:100%;border-collapse:collapse;font-size:13px}
+.sb-kelola-table-v1671 th{background:#f4f8fc;text-align:left;padding:10px;font-weight:800;color:#17365b;white-space:nowrap}
+.sb-kelola-table-v1671 td{padding:9px 10px;border-top:1px solid #eef2f6;vertical-align:middle}
+.sb-kelola-table-v1671 td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sb-kat-v1671{padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:800;white-space:nowrap}
+.sb-kat-v1671.pgd{background:#eaf4fd;color:#0f4c81}
+.sb-kat-v1671.non{background:#fff4e6;color:#8a5a00}
+.sb-kosong-v1671{padding:18px;text-align:center;background:#f7fbff;border:1px dashed #cfe2f2;border-radius:10px}
+.sb-kosong-v1671 p{margin:0 0 10px;color:#41505f}
+.sb-form-box-v1671{max-width:640px}
+.sb-form-grid-v1671{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:4px 0 14px}
+.sb-form-grid-v1671 .field.full{grid-column:1/-1}
+.sb-form-aksi-v1671{display:flex;gap:10px;justify-content:flex-end}
