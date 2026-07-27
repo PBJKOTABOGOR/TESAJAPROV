@@ -19683,9 +19683,22 @@ window.toggleSifatSbV1671=function(){
   function pctV168(real,pagu){ const p=angkaV168(pagu); return p?Math.max(0,Math.min(100,angkaV168(real)/p*100)):0; }
 
   /* Kartu Persentase Realisasi pada ringkasan atas. */
+  /* Buang kartu yang tidak diinginkan pada ringkasan Dashboard Monitoring.
+     Kartu ini dilabel ulang oleh beberapa patch, jadi dicocokkan dari teksnya
+     setelah seluruh patch selesai berjalan. */
+  function buangKartuTakDipakaiV168(){
+    if(String(activeMenu||'')!=='Dashboard Monitoring')return;
+    const wrap=document.getElementById('summaryCards'); if(!wrap)return;
+    [...wrap.querySelectorAll('.summary-card')].forEach(card=>{
+      const label=(card.querySelector('span')?.textContent||'').trim().toUpperCase();
+      if(label==='TOTAL PERENCANAAN'||label.indexOf('SISA PAGU')===0)card.remove();
+    });
+  }
+
   function tambahKartuPersenV168(){
     if(String(activeMenu||'')!=='Dashboard Monitoring')return;
     const wrap=document.getElementById('summaryCards'); if(!wrap)return;
+    buangKartuTakDipakaiV168();
     const rekap=Array.isArray(dashboard?.rekap)?dashboard.rekap:[];
     const totalPagu=rekap.reduce((t,r)=>t+angkaV168(r.pagu),0);
     const totalReal=rekap.reduce((t,r)=>t+angkaV168(r.total_realisasi),0);
