@@ -19668,3 +19668,113 @@ window.toggleSifatSbV1671=function(){
   const nilai=document.getElementById('sbNilaiV1671');
   if(nilai){ nilai.disabled=atCost; if(atCost)nilai.value=''; }
 };
+
+
+/* SIMPROV v168 - Dashboard Monitoring diselaraskan dengan dashboard publik.
+   - Ringkasan atas menambah kartu Persentase Realisasi.
+   - Kartu kerja (Perlu Persetujuan, Dokumen Perlu Dicek, Bidang Melebihi Pagu)
+     tetap ada, hanya diseragamkan gayanya.
+   - Rincian per bidang diringkas KHUSUS untuk Pimpinan menjadi Pagu, Realisasi,
+     dan Persentase. Admin tetap melihat rincian lengkap. */
+(function(){
+  function angkaV168(v){ const n=Number(String(v==null?'':v).replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function roleV168(){ try{return String(currentUser?.role||'').toUpperCase();}catch(e){return '';} }
+  function isPimpinanMurniV168(){ return roleV168()==='PIMPINAN'; }
+  function pctV168(real,pagu){ const p=angkaV168(pagu); return p?Math.max(0,Math.min(100,angkaV168(real)/p*100)):0; }
+
+  /* Kartu Persentase Realisasi pada ringkasan atas. */
+  function tambahKartuPersenV168(){
+    if(String(activeMenu||'')!=='Dashboard Monitoring')return;
+    const wrap=document.getElementById('summaryCards'); if(!wrap)return;
+    const rekap=Array.isArray(dashboard?.rekap)?dashboard.rekap:[];
+    const totalPagu=rekap.reduce((t,r)=>t+angkaV168(r.pagu),0);
+    const totalReal=rekap.reduce((t,r)=>t+angkaV168(r.total_realisasi),0);
+    const pct=pctV168(totalReal,totalPagu);
+    let kartu=wrap.querySelector('.summary-card-persen-v168');
+    if(!kartu){
+      kartu=document.createElement('div');
+      kartu.className='summary-card summary-card-v159 summary-card-persen-v168';
+      wrap.appendChild(kartu);
+    }
+    kartu.innerHTML=`<span>Persentase Realisasi</span><b>${pct.toFixed(1)}%</b>`;
+  }
+
+  if(typeof renderSummary==='function'){
+    const dasar=renderSummary;
+    renderSummary=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ tambahKartuPersenV168(); }catch(e){}
+      return hasil;
+    };
+  }
+
+  /* Rincian per bidang diringkas untuk Pimpinan. */
+  if(typeof renderMonitoring==='function'){
+    const dasar=renderMonitoring;
+    renderMonitoring=function(){
+      const hasil=dasar.apply(this,arguments);
+      if(!isPimpinanMurniV168())return hasil;
+      try{
+        const target=document.getElementById('contentArea');
+        const grid=target&&target.querySelector('.monitor-grid')?.parentElement?.parentElement;
+        const rekap=Array.isArray(dashboard?.rekap)?dashboard.rekap:[];
+        const kartu=(target?target.querySelectorAll('.monitor-card'):[]);
+        rekap.forEach((r,i)=>{
+          const el=kartu[i]; if(!el)return;
+          const g=el.querySelector('.monitor-grid'); if(!g)return;
+          const real=angkaV168(r.total_realisasi), pct=pctV168(real,r.pagu);
+          g.innerHTML=
+            `<div><span>Pagu</span><strong>${rupiah(angkaV168(r.pagu))}</strong></div>`+
+            `<div><span>Total Realisasi</span><strong>${rupiah(real)}</strong></div>`+
+            `<div><span>Persentase Realisasi</span><strong>${pct.toFixed(1)}%</strong></div>`;
+        });
+      }catch(e){}
+      return hasil;
+    };
+  }
+
+  /* Ringkas juga tabel Cetak Laporan PDF untuk Pimpinan. */
+  window.isPimpinanRingkasV168=isPimpinanMurniV168;
+})();
+
+
+/* SIMPROV v168.1 - Laporan PDF untuk Pimpinan diringkas.
+   Pimpinan menerima rekap anggaran ringkas: Pagu, Realisasi, Persentase.
+   Tabel rincian perencanaan dan dokumen tidak disertakan, karena Pimpinan
+   memantau serapan, bukan memeriksa berkas. Admin dan verifikator tetap
+   menerima laporan lengkap. */
+(function(){
+  if(typeof downloadDashboardPDF!=='function')return;
+  const dasar=downloadDashboardPDF;
+
+  function angkaV1681(v){ const n=Number(String(v==null?'':v).replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+
+  downloadDashboardPDF=function(){
+    const pimpinan=(typeof window.isPimpinanRingkasV168==='function')&&window.isPimpinanRingkasV168();
+    if(!pimpinan)return dasar.apply(this,arguments);
+
+    const rekap=(typeof filterAssignedV66==='function')
+      ? filterAssignedV66(dashboard.rekap||[])
+      : (dashboard.rekap||[]);
+    const totalPagu=rekap.reduce((s,r)=>s+angkaV1681(r.pagu),0);
+    const totalReal=rekap.reduce((s,r)=>s+angkaV1681(r.total_realisasi),0);
+    const persen=totalPagu?Math.max(0,Math.min(100,totalReal/totalPagu*100)):0;
+
+    const baris=rekap.map((r,i)=>{
+      const pagu=angkaV1681(r.pagu),real=angkaV1681(r.total_realisasi);
+      const p=pagu?Math.max(0,Math.min(100,real/pagu*100)):0;
+      return `<tr><td>${i+1}</td><td>${plainText(r.nama_bidang)}<br><span class="small">${plainText(r.id_bidang)}</span></td>`+
+        `<td>${rupiah(pagu)}</td><td>${rupiah(real)}</td><td>${p.toFixed(1)}%</td></tr>`;
+    }).join('');
+
+    const body=`<div class="summary">`+
+      `<div class="card"><span>Total Pagu</span><b>${rupiah(totalPagu)}</b></div>`+
+      `<div class="card"><span>Total Realisasi</span><b>${rupiah(totalReal)}</b></div>`+
+      `<div class="card"><span>Persentase Realisasi</span><b>${persen.toFixed(1)}%</b></div></div>`+
+      `<h3>Rekapitulasi Realisasi Anggaran per Bidang</h3>`+
+      `<table><thead><tr><th>No</th><th>Bidang</th><th>Pagu</th><th>Total Realisasi</th><th>Persentase</th></tr></thead>`+
+      `<tbody>${baris||'<tr><td colspan="5">Belum ada data</td></tr>'}</tbody></table>`;
+
+    openReportWindow('Laporan Realisasi Anggaran - Pimpinan',body);
+  };
+})();
