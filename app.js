@@ -19978,3 +19978,133 @@ window.toggleSifatSbV1671=function(){
   };
   window.openReportWindow=openReportWindow;
 })();
+
+
+/* SIMPROV v168.6 - Daftar RAB tersimpan pada panel Admin.
+   Sebelumnya panel Impor RAB hanya menampilkan ringkasan jumlah baris, tanpa
+   daftar isinya, sehingga Admin tidak dapat memeriksa RAB yang sudah masuk.
+
+   Daftar dibuat berpaging 25 baris seperti tabel Standar Biaya. Pemenggalan
+   dan pencarian dikerjakan di memori, sehingga berpindah halaman tidak
+   memanggil server. */
+(function(){
+  if(typeof renderManajemenAkunV65!=='function')return;
+  const dasar=renderManajemenAkunV65;
+  const PER_HAL=25;
+  let daftar=[], filter='', halaman=1, sudahMuat=false;
+
+  /* Permintaan getRabV1655 yang bersamaan berbagi satu panggilan, supaya
+     membuka panel tidak memicu dua kali baca sheet. */
+  if(typeof apiPost==='function' && !window.__rabDedupV1686){
+    window.__rabDedupV1686=true;
+    const dasarPost=apiPost;
+    let jalan=null;
+    apiPost=function(payload){
+      if(!payload||payload.action!=='getRabV1655')return dasarPost(payload);
+      if(jalan)return jalan.then(r=>({...r,rab:(r.rab||[]).slice()}));
+      jalan=dasarPost(payload).finally(()=>{ setTimeout(()=>{jalan=null;},0); });
+      return jalan;
+    };
+  }
+
+  function panelDaftarRabV1686(){
+    return '<section class="panel fade-up premium-panel rab-daftar-panel-v1686">'+
+      '<div class="panel-title-row"><div><h3>Daftar RAB Tersimpan</h3></div>'+
+      '<button class="btn-refresh" onclick="muatDaftarRabV1686(true)">Muat Ulang</button></div>'+
+      '<div id="rabDaftarBodyV1686"><p class="empty">Memuat...</p></div></section>';
+  }
+
+  window.cariRabV1686=function(v){ filter=String(v||'').toLowerCase(); halaman=1; gambar(true); };
+  window.pindahHalamanRabV1686=function(h){ halaman=Math.max(1,h); gambar(true); };
+
+  window.muatDaftarRabV1686=async function(paksa){
+    const box=document.getElementById('rabDaftarBodyV1686');
+    if(!box)return;
+    if(sudahMuat&&!paksa){ gambar(); return; }
+    try{
+      const r=await apiPost({action:'getRabV1655',user:currentUser});
+      daftar=(r&&r.success)?(r.rab||[]).filter(x=>String(x.status_rab||'AKTIF').toUpperCase()==='AKTIF'):[];
+      sudahMuat=true;
+    }catch(e){ daftar=[]; }
+    gambar();
+  };
+
+  function gambar(hanyaTabel){
+    const box=document.getElementById('rabDaftarBodyV1686');
+    if(!box)return;
+    if(!daftar.length){
+      box.innerHTML='<p class="empty">Belum ada RAB tersimpan. Unggah berkas CSV pada panel di atas.</p>';
+      return;
+    }
+    const q=filter;
+    const rows=daftar.filter(x=>!q||((x.kode_rab+' '+x.uraian+' '+x.id_bidang+' '+(x.nama_bidang||'')).toLowerCase().includes(q)));
+    const totalHal=Math.max(1,Math.ceil(rows.length/PER_HAL));
+    if(halaman>totalHal)halaman=totalHal;
+    const mulai=(halaman-1)*PER_HAL;
+    const tampil=rows.slice(mulai,mulai+PER_HAL);
+
+    const tbody=tampil.map(x=>{
+      const pagu=Number(x.pagu)||0, pakai=Number(x.terpakai)||0;
+      const sisa=(x.sisa!=null?Number(x.sisa):pagu-pakai)||0;
+      return `<tr><td>${esc(x.kode_rab)}${x.dikunci?' <span class="rab-tag-v1655 kunci">Terkunci</span>':''}</td>`+
+        `<td>${esc(x.uraian)}</td><td>${esc(x.nama_bidang||x.id_bidang)}</td>`+
+        `<td class="num">${x.volume||''} ${esc(x.satuan||'')}</td>`+
+        `<td class="num">${rupiah(pagu)}</td>`+
+        `<td class="num">${pakai?rupiah(pakai):'<span class="nol-v1656">&ndash;</span>'}</td>`+
+        `<td class="num"><b class="${sisa>0?'sisa-ada':'sisa-habis'}">${rupiah(sisa)}</b></td>`+
+        `<td><span class="sb-kat-v1671 ${String(x.kategori).toUpperCase()==='NON PENGADAAN'?'non':'pgd'}">${esc(x.kategori||'-')}</span></td>`+
+        `<td>${esc(x.metode_pemilihan||'-')}</td></tr>`;
+    }).join('');
+
+    const dari=rows.length?mulai+1:0, sampai=Math.min(mulai+PER_HAL,rows.length);
+    const nav=rows.length>PER_HAL
+      ? `<div class="sb-paging-v1671"><span>Menampilkan ${dari}\u2013${sampai} dari ${rows.length}</span>`+
+        `<div class="sb-paging-nav-v1671">`+
+        `<button class="btn-mini" ${halaman<=1?'disabled':''} onclick="pindahHalamanRabV1686(${halaman-1})">Sebelumnya</button>`+
+        `<span class="sb-paging-info-v1671">Halaman ${halaman} / ${totalHal}</span>`+
+        `<button class="btn-mini" ${halaman>=totalHal?'disabled':''} onclick="pindahHalamanRabV1686(${halaman+1})">Berikutnya</button>`+
+        `</div></div>`
+      : (rows.length?`<div class="sb-paging-v1671"><span>Menampilkan ${dari}\u2013${sampai} dari ${rows.length}</span></div>`:'');
+
+    const totalPagu=rows.reduce((t,x)=>t+(Number(x.pagu)||0),0);
+    const tabel='<div class="table-wrap"><table class="sb-kelola-table-v1671 rab-daftar-table-v1686"><thead><tr>'+
+      '<th>Kode RAB</th><th>Uraian</th><th>Bidang</th><th>Volume</th><th>Pagu</th><th>Terpakai</th><th>Sisa</th><th>Kategori</th><th>Metode</th>'+
+      '</tr></thead><tbody>'+(tbody||'<tr><td colspan="9" class="empty">Tidak ada yang cocok</td></tr>')+'</tbody></table></div>'+nav;
+
+    if(hanyaTabel){
+      const t=document.getElementById('rabTabelV1686');
+      if(t){ t.innerHTML=tabel; return; }
+    }
+    box.innerHTML='<div class="sb-kelola-head-v1671">'+
+      `<input type="text" placeholder="Cari kode, uraian, atau bidang..." value="${esc(filter)}" oninput="cariRabV1686(this.value)">`+
+      `<span class="sb-jumlah-v1671">${daftar.length} baris aktif &middot; total pagu ${rupiah(totalPagu)}</span></div>`+
+      '<div id="rabTabelV1686">'+tabel+'</div>';
+  }
+
+  renderManajemenAkunV65=function(){
+    const hasil=dasar.apply(this,arguments);
+    try{
+      if(typeof isSuperAdminV65==='function'&&!isSuperAdminV65())return hasil;
+      const area=document.getElementById('contentArea');
+      if(area&&!document.getElementById('rabDaftarBodyV1686')){
+        const panelImpor=area.querySelector('.rab-import-panel-v1655');
+        if(panelImpor)panelImpor.insertAdjacentHTML('afterend',panelDaftarRabV1686());
+        else area.insertAdjacentHTML('beforeend',panelDaftarRabV1686());
+        sudahMuat=false; halaman=1;
+        muatDaftarRabV1686(false);
+      }
+    }catch(e){}
+    return hasil;
+  };
+
+  /* Setelah impor berhasil, daftar dimuat ulang agar angkanya ikut berubah. */
+  if(typeof simpanImporRabV1655==='function'){
+    const dasarSimpan=simpanImporRabV1655;
+    simpanImporRabV1655=async function(){
+      const hasil=await dasarSimpan.apply(this,arguments);
+      try{ if(document.getElementById('rabDaftarBodyV1686'))muatDaftarRabV1686(true); }catch(e){}
+      return hasil;
+    };
+    window.simpanImporRabV1655=simpanImporRabV1655;
+  }
+})();
