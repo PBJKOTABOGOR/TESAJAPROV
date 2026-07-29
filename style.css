@@ -3794,3 +3794,6 @@ button.plan-id-link-v161:focus-visible{
 .sb-paging-nav-v1671{display:flex;align-items:center;gap:10px}
 .sb-paging-info-v1671{font-weight:700;color:#17365b}
 .sb-paging-nav-v1671 .btn-mini[disabled]{opacity:.45;cursor:not-allowed}
+.rab-daftar-table-v1686 td:nth-child(2){max-width:280px}
+.rab-daftar-table-v1686 .sisa-ada{color:#12633a}
+.rab-daftar-table-v1686 .sisa-habis{color:#a01722}
