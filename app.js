@@ -20017,6 +20017,7 @@ window.toggleSifatSbV1671=function(){
   window.cariRabV1686=function(v){ filter=String(v||'').toLowerCase(); halaman=1; gambar(true); };
   window.pindahHalamanRabV1686=function(h){ halaman=Math.max(1,h); gambar(true); };
 
+  window.__rabDaftarV1687=()=>daftar;
   window.muatDaftarRabV1686=async function(paksa){
     const box=document.getElementById('rabDaftarBodyV1686');
     if(!box)return;
@@ -20053,7 +20054,11 @@ window.toggleSifatSbV1671=function(){
         `<td class="num">${pakai?rupiah(pakai):'<span class="nol-v1656">&ndash;</span>'}</td>`+
         `<td class="num"><b class="${sisa>0?'sisa-ada':'sisa-habis'}">${rupiah(sisa)}</b></td>`+
         `<td><span class="sb-kat-v1671 ${String(x.kategori).toUpperCase()==='NON PENGADAAN'?'non':'pgd'}">${esc(x.kategori||'-')}</span></td>`+
-        `<td>${esc(x.metode_pemilihan||'-')}</td></tr>`;
+        `<td>${esc(x.metode_pemilihan||'-')}</td>`+
+        `<td class="rab-aksi-v1687">${x.dikunci
+          ? '<span class="rab-kunci-ket-v1687">Terkunci</span>'
+          : `<button class="btn-mini" onclick="editRabV1687('${esc(x.id_rab)}')">Ubah</button> `+
+            `<button class="btn-mini btn-soft" onclick="hapusRabV1687('${esc(x.id_rab)}','${esc(x.kode_rab)}')">Hapus</button>`}</td></tr>`;
     }).join('');
 
     const dari=rows.length?mulai+1:0, sampai=Math.min(mulai+PER_HAL,rows.length);
@@ -20068,8 +20073,8 @@ window.toggleSifatSbV1671=function(){
 
     const totalPagu=rows.reduce((t,x)=>t+(Number(x.pagu)||0),0);
     const tabel='<div class="table-wrap"><table class="sb-kelola-table-v1671 rab-daftar-table-v1686"><thead><tr>'+
-      '<th>Kode RAB</th><th>Uraian</th><th>Bidang</th><th>Volume</th><th>Pagu</th><th>Terpakai</th><th>Sisa</th><th>Kategori</th><th>Metode</th>'+
-      '</tr></thead><tbody>'+(tbody||'<tr><td colspan="9" class="empty">Tidak ada yang cocok</td></tr>')+'</tbody></table></div>'+nav;
+      '<th>Kode RAB</th><th>Uraian</th><th>Bidang</th><th>Volume</th><th>Pagu</th><th>Terpakai</th><th>Sisa</th><th>Kategori</th><th>Metode</th><th>Aksi</th>'+
+      '</tr></thead><tbody>'+(tbody||'<tr><td colspan="10" class="empty">Tidak ada yang cocok</td></tr>')+'</tbody></table></div>'+nav;
 
     if(hanyaTabel){
       const t=document.getElementById('rabTabelV1686');
@@ -20077,6 +20082,7 @@ window.toggleSifatSbV1671=function(){
     }
     box.innerHTML='<div class="sb-kelola-head-v1671">'+
       `<input type="text" placeholder="Cari kode, uraian, atau bidang..." value="${esc(filter)}" oninput="cariRabV1686(this.value)">`+
+      '<button class="btn-refresh" onclick="editRabV1687(\'\')">Tambah Baris RAB</button>'+
       `<span class="sb-jumlah-v1671">${daftar.length} baris aktif &middot; total pagu ${rupiah(totalPagu)}</span></div>`+
       '<div id="rabTabelV1686">'+tabel+'</div>';
   }
@@ -20107,4 +20113,148 @@ window.toggleSifatSbV1671=function(){
     };
     window.simpanImporRabV1655=simpanImporRabV1655;
   }
+})();
+
+
+/* SIMPROV v168.7 - Form tambah, ubah, dan hapus baris RAB.
+   Nilai diperiksa lagi di server, jadi pemeriksaan di sini hanya untuk
+   memberi tahu lebih cepat tanpa menunggu permintaan. */
+(function(){
+  function daftarRabV1687(){
+    try{ return (typeof window.__rabDaftarV1687==='function')?window.__rabDaftarV1687():[]; }
+    catch(e){ return []; }
+  }
+
+  function opsiBidangV1687(terpilih){
+    const src=(typeof dashboard!=='undefined'&&dashboard)?(dashboard.bidang||dashboard.bidangs||[]):[];
+    const sel=String(terpilih||'').trim().toUpperCase();
+    return '<option value="">-- Pilih bidang --</option>'+(Array.isArray(src)?src:[]).map(b=>{
+      const id=String(b.id_bidang||'').trim(); if(!id)return '';
+      const induk=String(b.id_parent||'').trim();
+      return `<option value="${esc(id)}"${sel===id.toUpperCase()?' selected':''}>${esc(id)} - ${esc(b.nama_bidang||'')}${induk?' (Panpel)':''}</option>`;
+    }).join('');
+  }
+
+  const METODE_V1687=['Belanja Langsung','Pengadaan Langsung','Pengadaan Langsung Jasa Konsultansi','Swakelola','-'];
+  const JENIS_V1687=['Barang','Jasa Lainnya','Jasa Konsultansi','Pekerjaan Konstruksi','Honorarium','Uang Saku','Perjalanan Dinas'];
+
+  window.editRabV1687=function(id){
+    const x=id?daftarRabV1687().find(r=>r.id_rab===id):null;
+    if(id&&!x){ alert('Baris RAB tidak ditemukan. Coba Muat Ulang.'); return; }
+    if(x&&x.dikunci){ alert('Baris RAB ini terkunci dan tidak dapat diubah.'); return; }
+
+    let m=document.getElementById('rabFormModalV1687');
+    if(!m){ m=document.createElement('div'); m.id='rabFormModalV1687'; m.className='sbv-overlay-v95'; document.body.appendChild(m); }
+    m.classList.remove('hidden');
+
+    const terpakai=Number(x?.terpakai)||0;
+    const ket=terpakai>0
+      ? `<p class="rab-form-ket-v1687">Baris ini sudah dipakai kegiatan senilai <b>${rupiah(terpakai)}</b>. Pagu tidak boleh lebih kecil dari nilai itu, dan bidang tidak dapat diubah.</p>`
+      : '';
+
+    m.innerHTML=`<div class="sbv-box-v95 rab-form-box-v1687"><div class="sbv-head-v95">
+      <h3>${x?'Ubah':'Tambah'} Baris RAB</h3>
+      <button class="btn-soft" type="button" onclick="tutupRabFormV1687()">Tutup</button></div>
+      ${ket}
+      <div class="form-grid rab-form-grid-v1687">
+        <div class="field"><label>Kode RAB</label><input id="rabKodeV1687" value="${esc(x?.kode_rab||'')}" placeholder="RAB-SEK-001"></div>
+        <div class="field"><label>Bidang</label><select id="rabBidangV1687"${terpakai>0?' disabled':''}>${opsiBidangV1687(x?.id_bidang||'')}</select></div>
+        <div class="field full"><label>Uraian</label><input id="rabUraianV1687" value="${esc(x?.uraian||'')}" placeholder="Dokumentasi Kegiatan Porprov"></div>
+        <div class="field full"><label>Keterangan</label><input id="rabKetV1687" value="${esc(x?.keterangan||'')}" placeholder="Opsional, contoh: 30 Org x 30 Hr"></div>
+        <div class="field"><label>Volume</label><input id="rabVolV1687" value="${x?.volume||''}" placeholder="1" oninput="hitungPaguRabV1687()"></div>
+        <div class="field"><label>Satuan</label><input id="rabSatuanV1687" value="${esc(x?.satuan||'')}" placeholder="Paket / O/H / H/O"></div>
+        <div class="field"><label>Harga Satuan</label><input id="rabHargaV1687" value="${x&&x.harga_satuan?Number(x.harga_satuan).toLocaleString('id-ID'):''}" placeholder="30.000.000" oninput="hitungPaguRabV1687()"></div>
+        <div class="field"><label>Pagu</label><input id="rabPaguV1687" value="${x&&x.pagu?Number(x.pagu).toLocaleString('id-ID'):''}" placeholder="30.000.000"></div>
+        <div class="field"><label>Kategori</label><select id="rabKatV1687" onchange="ubahKategoriRabV1687()">
+          <option value="PENGADAAN"${String(x?.kategori).toUpperCase()==='NON PENGADAAN'?'':' selected'}>Pengadaan</option>
+          <option value="NON PENGADAAN"${String(x?.kategori).toUpperCase()==='NON PENGADAAN'?' selected':''}>Non Pengadaan</option></select></div>
+        <div class="field"><label>Jenis Pengadaan</label><select id="rabJenisV1687">
+          <option value="">-</option>${JENIS_V1687.map(j=>`<option value="${esc(j)}"${x?.jenis_pengadaan===j?' selected':''}>${esc(j)}</option>`).join('')}</select></div>
+        <div class="field"><label>Metode Pemilihan</label><select id="rabMetodeV1687">
+          ${METODE_V1687.map(mm=>`<option value="${esc(mm)}"${(x?.metode_pemilihan||'-')===mm?' selected':''}>${esc(mm)}</option>`).join('')}</select></div>
+      </div>
+      <div class="rab-form-aksi-v1687">
+        <button class="btn-refresh" onclick="simpanRabV1687('${esc(id||'')}')">Simpan</button>
+        <button class="btn-soft" onclick="tutupRabFormV1687()">Batal</button></div></div>`;
+  };
+
+  window.tutupRabFormV1687=function(){ document.getElementById('rabFormModalV1687')?.classList.add('hidden'); };
+
+  /* Pagu terisi sendiri dari volume x harga, tetapi tetap boleh disunting. */
+  window.hitungPaguRabV1687=function(){
+    const v=toNumber(document.getElementById('rabVolV1687')?.value);
+    const h=toNumber(document.getElementById('rabHargaV1687')?.value);
+    const p=document.getElementById('rabPaguV1687');
+    if(p&&v>0&&h>0)p.value=(v*h).toLocaleString('id-ID');
+  };
+
+  window.ubahKategoriRabV1687=function(){
+    const non=document.getElementById('rabKatV1687')?.value==='NON PENGADAAN';
+    const metode=document.getElementById('rabMetodeV1687');
+    if(metode&&non)metode.value='-';
+  };
+
+  window.simpanRabV1687=async function(id){
+    const data={
+      id_rab:id||'',
+      kode_rab:(document.getElementById('rabKodeV1687')?.value||'').trim(),
+      id_bidang:(document.getElementById('rabBidangV1687')?.value||'').trim(),
+      uraian:(document.getElementById('rabUraianV1687')?.value||'').trim(),
+      keterangan:(document.getElementById('rabKetV1687')?.value||'').trim(),
+      volume:toNumber(document.getElementById('rabVolV1687')?.value),
+      satuan:(document.getElementById('rabSatuanV1687')?.value||'').trim(),
+      harga_satuan:toNumber(document.getElementById('rabHargaV1687')?.value),
+      pagu:toNumber(document.getElementById('rabPaguV1687')?.value),
+      kategori:document.getElementById('rabKatV1687')?.value||'PENGADAAN',
+      jenis_pengadaan:document.getElementById('rabJenisV1687')?.value||'',
+      metode_pemilihan:document.getElementById('rabMetodeV1687')?.value||'-'
+    };
+    /* Bidang dikunci saat baris sudah dipakai, sehingga nilainya diambil ulang. */
+    if(!data.id_bidang&&id){
+      const lama=daftarRabV1687().find(r=>r.id_rab===id);
+      if(lama)data.id_bidang=lama.id_bidang;
+    }
+    if(!data.kode_rab){ alert('Kode RAB wajib diisi.'); return; }
+    if(!data.uraian){ alert('Uraian wajib diisi.'); return; }
+    if(!data.id_bidang){ alert('Bidang wajib dipilih.'); return; }
+    if(!(data.pagu>0)){ alert('Pagu harus lebih besar dari nol.'); return; }
+
+    const lama=id?daftarRabV1687().find(r=>r.id_rab===id):null;
+    const terpakai=Number(lama?.terpakai)||0;
+    if(terpakai>data.pagu){
+      alert('Pagu '+rupiah(data.pagu)+' lebih kecil dari yang sudah terpakai kegiatan '+rupiah(terpakai)+'.');
+      return;
+    }
+
+    showLoading('Menyimpan baris RAB...');
+    try{
+      const r=await apiPost({action:'saveRabRowV1687',user:currentUser,data});
+      if(!r.success)throw new Error(r.message||'Gagal menyimpan');
+      tutupRabFormV1687();
+      if(typeof invalidasiRabV1658==='function')invalidasiRabV1658();
+      await muatDaftarRabV1686(true);
+    }catch(e){ alert(e.message||String(e)); }
+    finally{ hideLoading(); }
+  };
+
+  window.hapusRabV1687=async function(id,kode){
+    const x=daftarRabV1687().find(r=>r.id_rab===id);
+    const terpakai=Number(x?.terpakai)||0;
+    if(terpakai>0){
+      alert('Baris '+kode+' sudah dipakai kegiatan senilai '+rupiah(terpakai)+'.\nHapus atau pindahkan kegiatannya lebih dulu.');
+      return;
+    }
+    const ok=await confirmActionV133({title:'Hapus Baris RAB',
+      message:'Baris '+kode+' akan dihapus permanen dari sheet RAB. Lanjutkan?',
+      confirmText:'Ya, Hapus'});
+    if(!ok)return;
+    showLoading('Menghapus...');
+    try{
+      const r=await apiPost({action:'deleteRabRowV1687',user:currentUser,id_rab:id});
+      if(!r.success)throw new Error(r.message||'Gagal menghapus');
+      if(typeof invalidasiRabV1658==='function')invalidasiRabV1658();
+      await muatDaftarRabV1686(true);
+    }catch(e){ alert(e.message||String(e)); }
+    finally{ hideLoading(); }
+  };
 })();
