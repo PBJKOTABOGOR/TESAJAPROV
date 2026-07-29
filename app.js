@@ -424,8 +424,8 @@ function renderLaporanUser(){
       </div>
       <div class="report-summary-grid">
         <div><span>Pagu Bidang</span><strong>${rupiah(r.pagu)}</strong></div>
-        <div><span>Total Perencanaan</span><strong>${rupiah(r.total_perencanaan)}</strong></div>
-        <div><span>Sisa Pagu</span><strong>${rupiah(r.sisa_pagu)}</strong></div>
+        <div><span>Total Realisasi</span><strong>${rupiah(toNumber(r.total_realisasi))}</strong></div>
+        <div><span>Persentase Realisasi</span><strong>${(toNumber(r.pagu)?Math.max(0,Math.min(100,toNumber(r.total_realisasi)/toNumber(r.pagu)*100)):0).toFixed(1)}%</strong></div>
         <div><span>Dokumen Valid</span><strong>${dokValid}/${totalDokumen}</strong></div>
       </div>
       <div class="report-card-main">
@@ -6138,8 +6138,8 @@ function renderPencatatanPengadaanV95(){
     paketAktifV95 = null;
   }
   document.getElementById('contentArea').innerHTML = paketListHtmlV95(all, {
-    judul:'Pencatatan Pengadaan – Belanja Langsung (≤ Rp500 juta)',
-    sub:'Daftar paket Belanja Langsung yang telah dibuat dari perencanaan.',
+    judul:'Pencatatan Pengadaan',
+    sub:'',
     aksiLabel:'Paket Pencatatan', butuhSetuju:true,
     info:(dashboard?.perencanaan || []).some(k => isProcurementV83(k) && isPipelineV94(k)) ? '<p class="small">Paket Pengadaan Langsung dan Tender tersedia pada menu Pengadaan Langsung.</p>' : ''
   });
@@ -6307,7 +6307,7 @@ function renderNonPengadaanV95(){
   }
   document.getElementById('contentArea').innerHTML = paketListHtmlV95(all, {
     judul:'Pencatatan Non Pengadaan',
-    sub:'Paket anggaran non pengadaan (honorarium, insentif, uang saku, dsb. sesuai Standar Biaya SK 040.2/2026). Dokumen yang diupload: Tanda Terima dan Bukti Potong Pajak. Klik paket untuk mengelola penerima honor dan dokumen.',
+    sub:'',
     aksiLabel:'Paket Pencatatan', butuhSetuju:true
   });
 }
@@ -8839,7 +8839,7 @@ renderDetailPengadaanLangsungV95 = function(k){return renderDetailPengadaanLangs
 renderPengadaanLangsungV95 = function(){
   const all=(dashboard?.perencanaan||[]).filter(k=>isProcurementV83(k)&&isPipelineV94(k)&&String(k.status_perencanaan||'').toUpperCase()==='DISETUJUI');
   if(paketAktifV95){const k=all.find(x=>String(x.id_kegiatan)===String(paketAktifV95));if(k)return renderDetailPengadaanLangsungV123(k);paketAktifV95=null;}
-  document.getElementById('contentArea').innerHTML=paketListHtmlV95(all,{judul:'Pengadaan Langsung',sub:'Paket yang telah disetujui diproses melalui tahapan dokumen, pemeriksaan, pembayaran, dan realisasi.',aksiLabel:'Buka Paket',butuhSetuju:true});
+  document.getElementById('contentArea').innerHTML=paketListHtmlV95(all,{judul:'Pengadaan Langsung',sub:'',aksiLabel:'Buka Paket',butuhSetuju:true});
 };
 
 /* HPS Pengadaan Langsung memakai modal cetak lokal yang sama, tetapi jalur
@@ -19413,7 +19413,8 @@ window.labelPaketV1660=labelPaketV1660;
 
 /* SIMPROV v167.1 - Panel Admin untuk mengelola Standar Biaya. */
 (function(){
-  let daftarV1671=[], filterV1671='';
+  let daftarV1671=[], filterV1671='', halamanV1671=1;
+  const PER_HAL_V1671=25;
 
   window.panelStandarBiayaV1671=function(){
     return '<section class="panel fade-up premium-panel sb-kelola-panel-v1671">'+
@@ -19434,7 +19435,8 @@ window.labelPaketV1660=labelPaketV1660;
     gambarV1671();
   };
 
-  window.cariSbV1671=function(v){ filterV1671=String(v||'').toLowerCase(); gambarV1671(true); };
+  window.cariSbV1671=function(v){ filterV1671=String(v||'').toLowerCase(); halamanV1671=1; gambarV1671(true); };
+  window.pindahHalamanSbV1671=function(h){ halamanV1671=Math.max(1,h); gambarV1671(true); };
 
   function gambarV1671(hanyaTabel){
     const box=document.getElementById('sbKelolaBodyV1671');
@@ -19447,17 +19449,32 @@ window.labelPaketV1660=labelPaketV1660;
     }
     const q=filterV1671;
     const rows=daftarV1671.filter(x=>!q||((x.nama+' '+x.grup+' '+x.satuan).toLowerCase().includes(q)));
-    const tbody=rows.slice(0,300).map(x=>
+
+    const totalHal=Math.max(1,Math.ceil(rows.length/PER_HAL_V1671));
+    if(halamanV1671>totalHal)halamanV1671=totalHal;
+    const mulai=(halamanV1671-1)*PER_HAL_V1671;
+    const tampil=rows.slice(mulai,mulai+PER_HAL_V1671);
+
+    const tbody=tampil.map(x=>
       `<tr><td>${esc(x.huruf||'-')}</td><td>${esc(x.nama)}</td><td>${esc(x.grup||'-')}</td>`+
       `<td>${esc(x.satuan||'-')}</td><td class="num">${x.at_cost?'<i class="at-cost-v1671">At Cost</i>':rupiah(x.nilai)}</td>`+
       `<td><span class="sb-kat-v1671 ${x.kategori==='NON PENGADAAN'?'non':'pgd'}">${esc(x.kategori)}</span></td>`+
       `<td><button class="btn-mini" onclick="editSbV1671('${esc(x.id_sb)}')">Ubah</button> `+
       `<button class="btn-mini btn-soft" onclick="nonaktifSbV1671('${esc(x.id_sb)}','${esc(x.nama)}')">Nonaktifkan</button></td></tr>`).join('');
 
+    const dari=rows.length?mulai+1:0, sampai=Math.min(mulai+PER_HAL_V1671,rows.length);
+    const nav=rows.length>PER_HAL_V1671
+      ? `<div class="sb-paging-v1671"><span>Menampilkan ${dari}\u2013${sampai} dari ${rows.length}</span>`+
+        `<div class="sb-paging-nav-v1671">`+
+        `<button class="btn-mini" ${halamanV1671<=1?'disabled':''} onclick="pindahHalamanSbV1671(${halamanV1671-1})">Sebelumnya</button>`+
+        `<span class="sb-paging-info-v1671">Halaman ${halamanV1671} / ${totalHal}</span>`+
+        `<button class="btn-mini" ${halamanV1671>=totalHal?'disabled':''} onclick="pindahHalamanSbV1671(${halamanV1671+1})">Berikutnya</button>`+
+        `</div></div>`
+      : (rows.length?`<div class="sb-paging-v1671"><span>Menampilkan ${dari}\u2013${sampai} dari ${rows.length}</span></div>`:'');
+
     const tabel='<div class="table-wrap"><table class="sb-kelola-table-v1671"><thead><tr>'+
       '<th>Grup</th><th>Nama</th><th>Kelompok</th><th>Satuan</th><th>Nilai</th><th>Kategori</th><th>Aksi</th>'+
-      '</tr></thead><tbody>'+(tbody||'<tr><td colspan="7" class="empty">Tidak ada yang cocok</td></tr>')+'</tbody></table></div>'+
-      (rows.length>300?`<p class="panel-sub">Menampilkan 300 dari ${rows.length} baris. Persempit dengan pencarian.</p>`:'');
+      '</tr></thead><tbody>'+(tbody||'<tr><td colspan="7" class="empty">Tidak ada yang cocok</td></tr>')+'</tbody></table></div>'+nav;
 
     if(hanyaTabel){
       const t=document.getElementById('sbTabelV1671');
@@ -19790,4 +19807,174 @@ window.toggleSifatSbV1671=function(){
 
     openReportWindow('Laporan Realisasi Anggaran - Pimpinan',body);
   };
+})();
+
+
+/* SIMPROV v168.2 - Ringkasan User Bidang diselaraskan dengan Pimpinan.
+   - Kartu ringkasan atas: buang Total Perencanaan dan Sisa Pagu, tambah
+     Persentase Realisasi. Kartu status paket (Total Paket, Disetujui,
+     Menunggu, Perlu Perbaikan) di menu Perencanaan tidak disentuh.
+   - Tabel Ringkasan Bidang pada Struktur Anggaran menampilkan Pagu,
+     Realisasi, Persentase.
+   - Laporan cetak untuk User Bidang diringkas menjadi pagu dan realisasi. */
+(function(){
+  function angkaV1682(v){ const n=Number(String(v==null?'':v).replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+  function roleV1682(){ try{return String(currentUser?.role||'').toUpperCase();}catch(e){return '';} }
+  function isBidangMurniV1682(){ return roleV1682()==='BIDANG'; }
+  function pctV1682(real,pagu){ const p=angkaV1682(pagu); return p?Math.max(0,Math.min(100,angkaV1682(real)/p*100)):0; }
+
+  function rekapBidangV1682(){
+    const rows=Array.isArray(dashboard?.rekap)?dashboard.rekap:[];
+    return rows.find(x=>String(x.id_bidang||'')===String(currentUser?.id_bidang||''))||{};
+  }
+
+  /* Ringkasan atas: hanya baris kartu anggaran (Total Pagu ... Total Realisasi)
+     yang disesuaikan. Baris status paket dibiarkan. */
+  function sesuaikanKartuBidangV1682(){
+    if(!isBidangMurniV1682())return;
+    const wrap=document.getElementById('summaryCards'); if(!wrap)return;
+    const punyaPagu=[...wrap.querySelectorAll('.summary-card')].some(c=>{
+      const l=(c.querySelector('span')?.textContent||'').trim().toUpperCase();
+      return l==='TOTAL PAGU'||l==='PAGU BIDANG';
+    });
+    if(!punyaPagu)return;   /* ini baris status paket, bukan baris anggaran */
+
+    [...wrap.querySelectorAll('.summary-card')].forEach(card=>{
+      const l=(card.querySelector('span')?.textContent||'').trim().toUpperCase();
+      if(l==='TOTAL PERENCANAAN'||l.indexOf('SISA PAGU')===0)card.remove();
+    });
+    if(!wrap.querySelector('.summary-card-persen-bidang-v1682')){
+      const r=rekapBidangV1682();
+      const pct=pctV1682(r.total_realisasi,r.pagu);
+      const kartu=document.createElement('div');
+      kartu.className='summary-card summary-card-v159 summary-card-persen-bidang-v1682';
+      kartu.innerHTML=`<span>Persentase Realisasi</span><b>${pct.toFixed(1)}%</b>`;
+      wrap.appendChild(kartu);
+    }
+  }
+
+  if(typeof renderSummary==='function'){
+    const dasar=renderSummary;
+    renderSummary=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ sesuaikanKartuBidangV1682(); }catch(e){}
+      return hasil;
+    };
+  }
+
+  /* Tabel Ringkasan Bidang pada Struktur Anggaran. */
+  if(typeof renderStruktur==='function'){
+    const dasar=renderStruktur;
+    renderStruktur=function(){
+      const hasil=dasar.apply(this,arguments);
+      if(!isBidangMurniV1682())return hasil;
+      try{
+        const target=document.getElementById('contentArea');
+        const tabel=target&&target.querySelector('table');
+        if(!tabel)return hasil;
+        const r=rekapBidangV1682();
+        const pagu=angkaV1682(r.pagu), real=angkaV1682(r.total_realisasi), pct=pctV1682(real,pagu);
+        const nama=esc(r.nama_bidang||currentUser?.nama||'-');
+        tabel.innerHTML=
+          `<thead><tr><th>Bidang</th><th>Pagu</th><th>Total Realisasi</th><th>Persentase Realisasi</th><th>Akses</th><th>Progress</th></tr></thead>`+
+          `<tbody><tr><td>${nama}</td><td>${rupiah(pagu)}</td><td>${rupiah(real)}</td>`+
+          `<td>${pct.toFixed(1)}%</td><td>${badge(r.status_akses||'BUKA')}</td>`+
+          `<td>${badge(r.status_progress||'BELUM INPUT')}</td></tr></tbody>`;
+      }catch(e){}
+      return hasil;
+    };
+  }
+
+  /* Laporan cetak untuk User Bidang. */
+  if(typeof downloadDashboardPDF==='function'){
+    const dasar=downloadDashboardPDF;
+    downloadDashboardPDF=function(){
+      if(!isBidangMurniV1682())return dasar.apply(this,arguments);
+      try{
+        const r=rekapBidangV1682();
+        const pagu=angkaV1682(r.pagu), real=angkaV1682(r.total_realisasi), pct=pctV1682(real,pagu);
+        const nama=plainText(r.nama_bidang||currentUser?.nama||'-');
+        const body=`<div class="summary">`+
+          `<div class="card"><span>Total Pagu</span><b>${rupiah(pagu)}</b></div>`+
+          `<div class="card"><span>Total Realisasi</span><b>${rupiah(real)}</b></div>`+
+          `<div class="card"><span>Persentase Realisasi</span><b>${pct.toFixed(1)}%</b></div></div>`+
+          `<h3>Realisasi Anggaran Bidang</h3>`+
+          `<table><thead><tr><th>Bidang</th><th>Pagu</th><th>Total Realisasi</th><th>Persentase</th></tr></thead>`+
+          `<tbody><tr><td>${nama}</td><td>${rupiah(pagu)}</td><td>${rupiah(real)}</td><td>${pct.toFixed(1)}%</td></tr></tbody></table>`;
+        openReportWindow('Laporan Realisasi Anggaran - '+nama,body);
+      }catch(e){ return dasar.apply(this,arguments); }
+    };
+  }
+})();
+
+
+/* SIMPROV v168.3 - Rapikan kartu, hapus menu Surat, dan pastikan laporan
+   bidang benar-benar ringkas.
+   - Menu Surat dihapus dari seluruh role.
+   - Baris ringkasan atas dibuat rata dan seragam untuk semua role.
+   - Laporan cetak keseluruhan (renderLaporan) tidak lagi memuat Total
+     Perencanaan dan Sisa Pagu Perencanaan pada kartu ringkasannya. */
+(function(){
+  /* 1. Hapus menu Surat dari semua role. */
+  if(typeof menuListV133==='function'){
+    const dasar=menuListV133;
+    menuListV133=function(){
+      const menus=dasar.apply(this,arguments);
+      return Array.isArray(menus)?menus.filter(m=>String(m)!=='Surat'):menus;
+    };
+  }
+  if(typeof setMenu==='function'){
+    const dasarSet=setMenu;
+    setMenu=function(m){
+      if(String(m)==='Surat'){
+        const daftar=(typeof menuListV133==='function')?menuListV133():[];
+        m=daftar[0]||'Dashboard Monitoring';
+      }
+      return dasarSet.call(this,m);
+    };
+  }
+
+  /* 2. Kerapian baris kartu ringkasan: jarak seragam dan rata penuh. */
+  function rapikanKartuV1683(){
+    const wrap=document.getElementById('summaryCards');
+    if(!wrap)return;
+    const n=wrap.querySelectorAll('.summary-card').length;
+    if(n>0)wrap.style.setProperty('--kartu-v1683',String(n));
+    wrap.classList.add('summary-grid-rapi-v1683');
+  }
+  ['renderSummary','setMenu','renderMenu'].forEach(fn=>{
+    if(typeof window[fn]==='function'){
+      const dasar=window[fn];
+      window[fn]=function(){
+        const hasil=dasar.apply(this,arguments);
+        try{ requestAnimationFrame(rapikanKartuV1683); }catch(e){}
+        return hasil;
+      };
+    }
+  });
+
+})();
+
+
+/* SIMPROV v168.4 - Laporan cetak: buang kartu Total Perencanaan dan Sisa Pagu.
+   Laporan dibuat oleh beberapa generator berbeda (downloadDashboardPDF,
+   buildMonitoringReportBodyV55, dan lainnya) yang semuanya bermuara pada
+   openReportWindow. Menyaring di openReportWindow menjamin kedua kartu terbuang
+   apa pun jalur pemanggilnya, tanpa harus menambal setiap generator. */
+(function(){
+  if(typeof openReportWindow!=='function')return;
+  const dasar=openReportWindow;
+  openReportWindow=function(judul,body){
+    try{
+      let b=String(body||'');
+      /* Buang <div class="card">...Total Perencanaan...</div> dan Sisa Pagu.
+         Pencocokan dibatasi pada satu kartu terdekat agar tidak melahap
+         kartu di sebelahnya. */
+      b=b.replace(/<div class="card">\s*<span>\s*Total Perencanaan\s*<\/span>.*?<\/div>/gis,'');
+      b=b.replace(/<div class="card">\s*<span>\s*Sisa Pagu(?:\s+Perencanaan)?\s*<\/span>.*?<\/div>/gis,'');
+      body=b;
+    }catch(e){}
+    return dasar.call(this,judul,body);
+  };
+  window.openReportWindow=openReportWindow;
 })();
