@@ -3778,3 +3778,19 @@ button.plan-id-link-v161:focus-visible{
 .sb-form-grid-v1671 .field.full{grid-column:1/-1}
 .sb-form-aksi-v1671{display:flex;gap:10px;justify-content:flex-end}
 .at-cost-v1671{color:#8a5a00;font-style:normal;font-weight:700}
+
+/* SIMPROV v168.3 - Kerapian kartu ringkasan */
+.summary-grid-rapi-v1683{display:grid;gap:14px;align-items:stretch}
+.summary-grid-rapi-v1683 .summary-card{margin:0;min-height:96px;display:flex;flex-direction:column;justify-content:center}
+@media(min-width:900px){
+  .summary-grid-rapi-v1683{grid-template-columns:repeat(var(--kartu-v1683,4),minmax(0,1fr))}
+}
+@media(max-width:899px){
+  .summary-grid-rapi-v1683{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* SIMPROV v168.5 - Paging tabel Standar Biaya */
+.sb-paging-v1671{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:13px;color:#5a6472}
+.sb-paging-nav-v1671{display:flex;align-items:center;gap:10px}
+.sb-paging-info-v1671{font-weight:700;color:#17365b}
+.sb-paging-nav-v1671 .btn-mini[disabled]{opacity:.45;cursor:not-allowed}
