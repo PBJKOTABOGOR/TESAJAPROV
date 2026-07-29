@@ -3797,3 +3797,12 @@ button.plan-id-link-v161:focus-visible{
 .rab-daftar-table-v1686 td:nth-child(2){max-width:280px}
 .rab-daftar-table-v1686 .sisa-ada{color:#12633a}
 .rab-daftar-table-v1686 .sisa-habis{color:#a01722}
+
+/* SIMPROV v168.7 - Form kelola RAB */
+.rab-form-box-v1687{max-width:760px}
+.rab-form-grid-v1687{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:4px 0 14px}
+.rab-form-grid-v1687 .field.full{grid-column:1/-1}
+.rab-form-aksi-v1687{display:flex;gap:10px;justify-content:flex-end}
+.rab-form-ket-v1687{margin:0 0 10px;padding:9px 13px;background:#fff7e8;border:1px solid #f0dcb4;border-radius:8px;font-size:13px;color:#7a5312}
+.rab-aksi-v1687{white-space:nowrap}
+.rab-kunci-ket-v1687{font-size:12px;color:#a01722;font-weight:700}
