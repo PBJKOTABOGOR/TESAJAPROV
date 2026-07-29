@@ -20156,9 +20156,9 @@ window.toggleSifatSbV1671=function(){
       <h3>${x?'Ubah':'Tambah'} Baris RAB</h3>
       <button class="btn-soft" type="button" onclick="tutupRabFormV1687()">Tutup</button></div>
       ${ket}
-      <div class="form-grid rab-form-grid-v1687">
+      <div class="rab-form-isi-v1687"><div class="form-grid rab-form-grid-v1687">
         <div class="field"><label>Kode RAB</label><input id="rabKodeV1687" value="${esc(x?.kode_rab||'')}" placeholder="RAB-SEK-001"></div>
-        <div class="field"><label>Bidang</label><select id="rabBidangV1687"${terpakai>0?' disabled':''}>${opsiBidangV1687(x?.id_bidang||'')}</select></div>
+        <div class="field span2-v1687"><label>Bidang</label><select id="rabBidangV1687"${terpakai>0?' disabled':''}>${opsiBidangV1687(x?.id_bidang||'')}</select></div>
         <div class="field full"><label>Uraian</label><input id="rabUraianV1687" value="${esc(x?.uraian||'')}" placeholder="Dokumentasi Kegiatan Porprov"></div>
         <div class="field full"><label>Keterangan</label><input id="rabKetV1687" value="${esc(x?.keterangan||'')}" placeholder="Opsional, contoh: 30 Org x 30 Hr"></div>
         <div class="field"><label>Volume</label><input id="rabVolV1687" value="${x?.volume||''}" placeholder="1" oninput="hitungPaguRabV1687()"></div>
@@ -20170,9 +20170,9 @@ window.toggleSifatSbV1671=function(){
           <option value="NON PENGADAAN"${String(x?.kategori).toUpperCase()==='NON PENGADAAN'?' selected':''}>Non Pengadaan</option></select></div>
         <div class="field"><label>Jenis Pengadaan</label><select id="rabJenisV1687">
           <option value="">-</option>${JENIS_V1687.map(j=>`<option value="${esc(j)}"${x?.jenis_pengadaan===j?' selected':''}>${esc(j)}</option>`).join('')}</select></div>
-        <div class="field"><label>Metode Pemilihan</label><select id="rabMetodeV1687">
+        <div class="field full"><label>Metode Pemilihan</label><select id="rabMetodeV1687">
           ${METODE_V1687.map(mm=>`<option value="${esc(mm)}"${(x?.metode_pemilihan||'-')===mm?' selected':''}>${esc(mm)}</option>`).join('')}</select></div>
-      </div>
+      </div></div>
       <div class="rab-form-aksi-v1687">
         <button class="btn-refresh" onclick="simpanRabV1687('${esc(id||'')}')">Simpan</button>
         <button class="btn-soft" onclick="tutupRabFormV1687()">Batal</button></div></div>`;
