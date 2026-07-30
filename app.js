@@ -205,7 +205,10 @@ async function apiPost(payload){
   for(let attempt=1; attempt<=maxTry; attempt++){
     const controller = new AbortController();
     const actionName = String(payload?.action || "");
-    const longWriteActions = new Set(["saveAndSubmitPaymentV16420","submitPaymentFastV16420","savePaymentDraftV138","submitPaymentV138","uploadDokumenBatchV16424","verifyPaymentFastV16424"]);
+    const longWriteActions = new Set(["saveAndSubmitPaymentV16420","submitPaymentFastV16420","savePaymentDraftV138","submitPaymentV138","uploadDokumenBatchV16424","verifyPaymentFastV16424",
+      /* v170: pemeriksaan dokumen membaca banyak sheet, batas 45 detik terlalu pendek. */
+      "verifyNonHonorRealizationDocV158","verifyNonProcDocV103","verifyDokumenV94","verifyDocumentV133",
+      "validateDocsBatchV16413","finishNonHonorPackageV157","uploadNonHonorRealizationDocsV156"]);
     const timeoutMs = actionName === "getDashboard" ? 40000 : (longWriteActions.has(actionName) ? 120000 : (isReadOnly ? 24000 : 45000));
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try{
@@ -17884,7 +17887,7 @@ verifikasiRealisasiNonV112=async function(id,mode){
       });
       if(typeof writeDashboardCache==='function')writeDashboardCache(dashboard);
       setProcUploadProgressV16423(100,'Upload selesai');
-      await new Promise(resolve=>setTimeout(resolve,180));
+      /* v169.1: jeda buatan dibuang. */
       const activity=typeof kegiatanById==='function'?kegiatanById(idKegiatan):null;
       if(activeMenu==='Pencatatan Pengadaan'&&activity&&typeof renderDetailPencatatanV95==='function')renderDetailPencatatanV95(activity);
       else if(typeof refreshActivePLStageV135==='function')refreshActivePLStageV135(idKegiatan);
@@ -17989,16 +17992,20 @@ verifikasiRealisasiNonV112=async function(id,mode){
     showLoading(`Menyiapkan ${rows.length} dokumen...`);setUploadProgressV16424(0,'Membaca file yang dipilih...');
     let stopPulse=()=>{};
     try{
-      const payloadItems=[];
-      for(let i=0;i<rows.length;i++){
-        const row=rows[i];
-        setUploadProgressV16424(Math.round(((i+1)/rows.length)*22),`Membaca ${i+1}/${rows.length}: ${row.file.name}`);
-        payloadItems.push({
-          jenis_dokumen:row.jenis,file_name:row.file.name,mime_type:row.file.type,
-          file_base64:await fileToBase64(row.file),id_dokumen:row.id_dokumen,
-          is_revision:row.is_revision?'1':'0'
-        });
-      }
+      /* v169.1: seluruh berkas dibaca bersamaan, bukan satu per satu. */
+      setUploadProgressV16424(8,`Membaca ${rows.length} berkas...`);
+      let terbaca=0;
+      const base64List=await Promise.all(rows.map(row=>
+        fileToBase64(row.file).then(b64=>{
+          terbaca++;
+          setUploadProgressV16424(8+Math.round((terbaca/rows.length)*14),`Membaca ${terbaca}/${rows.length} berkas`);
+          return b64;
+        })));
+      const payloadItems=rows.map((row,i)=>({
+        jenis_dokumen:row.jenis,file_name:row.file.name,mime_type:row.file.type,
+        file_base64:base64List[i],id_dokumen:row.id_dokumen,
+        is_revision:row.is_revision?'1':'0'
+      }));
       const loadingText=document.getElementById('loadingText');
       if(loadingText)loadingText.textContent=`Mengunggah ${rows.length} dokumen dalam satu proses...`;
       stopPulse=startUploadPulseV16424(25,90);
@@ -18013,7 +18020,7 @@ verifikasiRealisasiNonV112=async function(id,mode){
       renderProcDetailV16424(idKegiatan);
       if(typeof renderSummary==='function')renderSummary();
       setUploadProgressV16424(100,'Seluruh dokumen berhasil dimuat ke tampilan');
-      await new Promise(resolve=>setTimeout(resolve,180));
+      /* v169.1: jeda buatan dibuang. */
       const failed=Array.isArray(result.failures)?result.failures:[];
       const message=result.message+(failed.length?'\n\nGagal:\n- '+failed.map(x=>`${x.jenis_dokumen}: ${x.message}`).join('\n- '):'');
       if(typeof showFastCacheNotice==='function'&&!failed.length)showFastCacheNotice(result.message||'Dokumen berhasil diunggah.');
@@ -19413,8 +19420,7 @@ window.labelPaketV1660=labelPaketV1660;
 
 /* SIMPROV v167.1 - Panel Admin untuk mengelola Standar Biaya. */
 (function(){
-  let daftarV1671=[], filterV1671='', halamanV1671=1;
-  const PER_HAL_V1671=25;
+  let daftarV1671=[], filterV1671='', halamanV1671=1, perHalV1671=10;
 
   window.panelStandarBiayaV1671=function(){
     return '<section class="panel fade-up premium-panel sb-kelola-panel-v1671">'+
@@ -19436,6 +19442,7 @@ window.labelPaketV1660=labelPaketV1660;
   };
 
   window.cariSbV1671=function(v){ filterV1671=String(v||'').toLowerCase(); halamanV1671=1; gambarV1671(true); };
+  window.ubahPerHalSbV1671=function(v){ perHalV1671=Number(v)||0; halamanV1671=1; gambarV1671(true); };
   window.pindahHalamanSbV1671=function(h){ halamanV1671=Math.max(1,h); gambarV1671(true); };
 
   function gambarV1671(hanyaTabel){
@@ -19450,10 +19457,12 @@ window.labelPaketV1660=labelPaketV1660;
     const q=filterV1671;
     const rows=daftarV1671.filter(x=>!q||((x.nama+' '+x.grup+' '+x.satuan).toLowerCase().includes(q)));
 
-    const totalHal=Math.max(1,Math.ceil(rows.length/PER_HAL_V1671));
+    /* 0 berarti tampilkan seluruh baris. */
+    const perHal=perHalV1671>0?perHalV1671:Math.max(1,rows.length);
+    const totalHal=Math.max(1,Math.ceil(rows.length/perHal));
     if(halamanV1671>totalHal)halamanV1671=totalHal;
-    const mulai=(halamanV1671-1)*PER_HAL_V1671;
-    const tampil=rows.slice(mulai,mulai+PER_HAL_V1671);
+    const mulai=(halamanV1671-1)*perHal;
+    const tampil=rows.slice(mulai,mulai+perHal);
 
     const tbody=tampil.map(x=>
       `<tr><td>${esc(x.huruf||'-')}</td><td>${esc(x.nama)}</td><td>${esc(x.grup||'-')}</td>`+
@@ -19462,8 +19471,8 @@ window.labelPaketV1660=labelPaketV1660;
       `<td><button class="btn-mini" onclick="editSbV1671('${esc(x.id_sb)}')">Ubah</button> `+
       `<button class="btn-mini btn-soft" onclick="nonaktifSbV1671('${esc(x.id_sb)}','${esc(x.nama)}')">Nonaktifkan</button></td></tr>`).join('');
 
-    const dari=rows.length?mulai+1:0, sampai=Math.min(mulai+PER_HAL_V1671,rows.length);
-    const nav=rows.length>PER_HAL_V1671
+    const dari=rows.length?mulai+1:0, sampai=Math.min(mulai+perHal,rows.length);
+    const nav=rows.length>perHal
       ? `<div class="sb-paging-v1671"><span>Menampilkan ${dari}\u2013${sampai} dari ${rows.length}</span>`+
         `<div class="sb-paging-nav-v1671">`+
         `<button class="btn-mini" ${halamanV1671<=1?'disabled':''} onclick="pindahHalamanSbV1671(${halamanV1671-1})">Sebelumnya</button>`+
@@ -19483,6 +19492,7 @@ window.labelPaketV1660=labelPaketV1660;
     box.innerHTML='<div class="sb-kelola-head-v1671">'+
       `<input type="text" placeholder="Cari nama, kelompok, atau satuan..." value="${esc(filterV1671)}" oninput="cariSbV1671(this.value)">`+
       '<button class="btn-refresh" onclick="editSbV1671(\'\')">Tambah Standar Biaya</button>'+
+      pilihPerHalV1687('ubahPerHalSbV1671',perHalV1671)+
       `<span class="sb-jumlah-v1671">${daftarV1671.length} baris aktif</span></div>`+
       '<div id="sbTabelV1671">'+tabel+'</div>';
   }
@@ -19990,8 +20000,7 @@ window.toggleSifatSbV1671=function(){
 (function(){
   if(typeof renderManajemenAkunV65!=='function')return;
   const dasar=renderManajemenAkunV65;
-  const PER_HAL=25;
-  let daftar=[], filter='', halaman=1, sudahMuat=false;
+  let daftar=[], filter='', halaman=1, sudahMuat=false, perHalRab=10;
 
   /* Permintaan getRabV1655 yang bersamaan berbagi satu panggilan, supaya
      membuka panel tidak memicu dua kali baca sheet. */
@@ -20015,6 +20024,7 @@ window.toggleSifatSbV1671=function(){
   }
 
   window.cariRabV1686=function(v){ filter=String(v||'').toLowerCase(); halaman=1; gambar(true); };
+  window.ubahPerHalRabV1686=function(v){ perHalRab=Number(v)||0; halaman=1; gambar(true); };
   window.pindahHalamanRabV1686=function(h){ halaman=Math.max(1,h); gambar(true); };
 
   window.__rabDaftarV1687=()=>daftar;
@@ -20039,10 +20049,11 @@ window.toggleSifatSbV1671=function(){
     }
     const q=filter;
     const rows=daftar.filter(x=>!q||((x.kode_rab+' '+x.uraian+' '+x.id_bidang+' '+(x.nama_bidang||'')).toLowerCase().includes(q)));
-    const totalHal=Math.max(1,Math.ceil(rows.length/PER_HAL));
+    const perHal=perHalRab>0?perHalRab:Math.max(1,rows.length);
+    const totalHal=Math.max(1,Math.ceil(rows.length/perHal));
     if(halaman>totalHal)halaman=totalHal;
-    const mulai=(halaman-1)*PER_HAL;
-    const tampil=rows.slice(mulai,mulai+PER_HAL);
+    const mulai=(halaman-1)*perHal;
+    const tampil=rows.slice(mulai,mulai+perHal);
 
     const tbody=tampil.map(x=>{
       const pagu=Number(x.pagu)||0, pakai=Number(x.terpakai)||0;
@@ -20061,8 +20072,8 @@ window.toggleSifatSbV1671=function(){
             `<button class="btn-mini btn-soft" onclick="hapusRabV1687('${esc(x.id_rab)}','${esc(x.kode_rab)}')">Hapus</button>`}</td></tr>`;
     }).join('');
 
-    const dari=rows.length?mulai+1:0, sampai=Math.min(mulai+PER_HAL,rows.length);
-    const nav=rows.length>PER_HAL
+    const dari=rows.length?mulai+1:0, sampai=Math.min(mulai+perHal,rows.length);
+    const nav=rows.length>perHal
       ? `<div class="sb-paging-v1671"><span>Menampilkan ${dari}\u2013${sampai} dari ${rows.length}</span>`+
         `<div class="sb-paging-nav-v1671">`+
         `<button class="btn-mini" ${halaman<=1?'disabled':''} onclick="pindahHalamanRabV1686(${halaman-1})">Sebelumnya</button>`+
@@ -20083,6 +20094,7 @@ window.toggleSifatSbV1671=function(){
     box.innerHTML='<div class="sb-kelola-head-v1671">'+
       `<input type="text" placeholder="Cari kode, uraian, atau bidang..." value="${esc(filter)}" oninput="cariRabV1686(this.value)">`+
       '<button class="btn-refresh" onclick="editRabV1687(\'\')">Tambah Baris RAB</button>'+
+      pilihPerHalV1687('ubahPerHalRabV1686',perHalRab)+
       `<span class="sb-jumlah-v1671">${daftar.length} baris aktif &middot; total pagu ${rupiah(totalPagu)}</span></div>`+
       '<div id="rabTabelV1686">'+tabel+'</div>';
   }
@@ -20257,4 +20269,326 @@ window.toggleSifatSbV1671=function(){
     }catch(e){ alert(e.message||String(e)); }
     finally{ hideLoading(); }
   };
+})();
+
+
+/* SIMPROV v168.9 - Pemilih jumlah baris per halaman.
+   Dipakai bersama oleh tabel Standar Biaya dan Daftar RAB. Nilai 0 berarti
+   seluruh baris ditampilkan. */
+function pilihPerHalV1687(fungsi,nilai){
+  const opsi=[[10,'10'],[20,'20'],[0,'Semua']];
+  return '<span class="per-hal-v1687"><label>Tampil</label>'+
+    `<select onchange="${fungsi}(this.value)">`+
+    opsi.map(([v,t])=>`<option value="${v}"${Number(nilai)===v?' selected':''}>${t}</option>`).join('')+
+    '</select></span>';
+}
+window.pilihPerHalV1687=pilihPerHalV1687;
+
+
+/* SIMPROV v169 - Empat perbaikan.
+   1. Form penerima honorarium dibuang. Keputusan ini sudah diambil sejak awal
+      perombakan, tetapi baru dokumennya yang diperbarui, kodenya belum.
+   2. Pemuatan ulang berkala ditunda selama pengguna sedang bekerja.
+   3. Penyimpanan dan unggahan dipercepat dengan membuang pemeriksaan ulang
+      yang tidak diperlukan.
+   4. Penolakan unggah lampiran menampilkan alasan yang jelas. */
+(function(){
+
+  /* ---------- 1. Form penerima honorarium dibuang ---------- */
+  const PESAN_HONOR_V169='Daftar Honorarium tidak lagi dibuat oleh sistem. '+
+    'Susun dokumennya di luar aplikasi, tanda tangani, lalu unggah sebagai dokumen wajib pada paket ini.';
+
+  if(typeof openHonorModalV79==='function'){
+    openHonorModalV79=function(){ alert(PESAN_HONOR_V169); };
+    window.openHonorModalV79=openHonorModalV79;
+  }
+  ['generateHonorPdfV79','cetakHonorV79','simpanHonorV79'].forEach(fn=>{
+    if(typeof window[fn]==='function')window[fn]=function(){ alert(PESAN_HONOR_V169); };
+  });
+
+  /* Tombol pembuka form dibuang dari tampilan setelah render, apa pun
+     jalur yang menghasilkannya. */
+  function buangTombolHonorV169(){
+    try{
+      document.querySelectorAll('button').forEach(b=>{
+        const aksi=String(b.getAttribute('onclick')||'');
+        if(/openHonorModalV79|generateHonorPdf/.test(aksi))b.remove();
+      });
+      document.getElementById('honorModalV79')?.classList.add('hidden');
+    }catch(e){}
+  }
+  ['renderNonPengadaanDetailV103','renderNonHonorMultiV156','renderAll'].forEach(fn=>{
+    if(typeof window[fn]==='function'){
+      const dasar=window[fn];
+      window[fn]=function(){
+        const hasil=dasar.apply(this,arguments);
+        try{ requestAnimationFrame(buangTombolHonorV169); }catch(e){}
+        return hasil;
+      };
+    }
+  });
+
+  /* ---------- 2. Jangan memuat ulang saat pengguna sedang bekerja ---------- */
+  window.sedangBekerjaV169=function(){
+    try{
+      /* Modal atau panel isian sedang terbuka. */
+      const modal=[...document.querySelectorAll('.modal-card,.sbv-box-v95,.modal-backdrop')]
+        .some(el=>el.offsetParent!==null);
+      if(modal)return true;
+
+      /* Kursor sedang berada di isian. */
+      const a=document.activeElement;
+      if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.type!=='button')return true;
+
+      /* Ada isian yang sudah diisi tetapi belum disimpan. */
+      const adaIsi=[...document.querySelectorAll('#contentArea input,#contentArea textarea')]
+        .some(el=>el.type!=='file'&&el.type!=='search'&&String(el.value||'').trim()&&!el.readOnly&&!el.disabled);
+      if(adaIsi)return true;
+
+      /* Ada berkas yang sudah dipilih tetapi belum diunggah. */
+      const adaBerkas=[...document.querySelectorAll('#contentArea input[type=file]')]
+        .some(el=>el.files&&el.files.length);
+      if(adaBerkas)return true;
+
+      /* Sedang mengunggah atau menyimpan. */
+      const overlay=document.getElementById('loadingOverlay');
+      if(overlay&&!overlay.classList.contains('hidden'))return true;
+
+      return false;
+    }catch(e){ return false; }
+  };
+
+  /* setInterval dibungkus supaya seluruh pemuatan berkala menghormati
+     keadaan sedang bekerja, termasuk yang sudah terpasang sebelumnya. */
+  const intervalAsli=window.setInterval;
+  window.setInterval=function(fn,ms){
+    if(typeof fn!=='function'||!ms||ms<5000)return intervalAsli.apply(this,arguments);
+    return intervalAsli.call(this,function(){
+      if(window.sedangBekerjaV169&&window.sedangBekerjaV169())return;  /* tunda, bukan batal */
+      try{ fn(); }catch(e){}
+    },ms);
+  };
+
+  /* Tombol Refresh manual tetap jalan, tetapi memperingatkan bila ada
+     isian yang belum disimpan. */
+  if(typeof refreshData==='function'){
+    const dasarRefresh=refreshData;
+    refreshData=async function(){
+      if(window.sedangBekerjaV169()&&!confirm('Ada isian yang belum disimpan. Muat ulang tetap dilanjutkan?'))return;
+      return dasarRefresh.apply(this,arguments);
+    };
+    window.refreshData=refreshData;
+  }
+
+  /* ---------- 4. Pesan penolakan unggah lampiran ---------- */
+  if(typeof uploadNonHonorDocsV156==='function'){
+    const dasarUpload=uploadNonHonorDocsV156;
+    uploadNonHonorDocsV156=async function(idRealisasi,idKegiatan,input){
+      const k=(typeof kegiatanById==='function')?kegiatanById(idKegiatan):null;
+      const tahap=String(k?.status_pencairan||'').toUpperCase().replace(/_/g,' ');
+      if(tahap==='MENUNGGU PEMERIKSAAN PBJ'){
+        alert('Paket sedang menunggu pemeriksaan Verifikator PBJ, sehingga lampiran tidak dapat ditambah.\n\n'+
+              'Minta Verifikator PBJ membuka kembali akses edit bila masih ada lampiran yang perlu diunggah.');
+        if(input)input.value='';
+        return;
+      }
+      if(tahap==='SELESAI'){ alert('Paket sudah selesai. Lampiran tidak dapat diubah.'); if(input)input.value=''; return; }
+      return dasarUpload.apply(this,arguments);
+    };
+    window.uploadNonHonorDocsV156=uploadNonHonorDocsV156;
+  }
+})();
+
+
+/* SIMPROV v169.1 - Mempercepat unggah dan simpan.
+   Tiga pemborosan yang dibuang:
+
+   1. Berkas dibaca menjadi base64 satu per satu secara berurutan. Untuk lima
+      berkas, waktunya lima kali lipat padahal pembacaan dapat berjalan
+      bersamaan.
+   2. Setelah unggah selesai, ada permintaan pemeriksaan ulang
+      getPackageDocumentsV16423 yang membaca seluruh sheet dokumen. Padahal
+      hasil unggah sudah berisi data terbaru dan sudah ditampilkan.
+   3. Ada jeda buatan 180 milidetik sebelum pesan berhasil muncul. */
+(function(){
+
+  /* Pembacaan berkas dijalankan bersamaan. */
+  if(typeof fileToBase64==='function'){
+    window.bacaBerkasParalelV1691=function(files){
+      return Promise.all([...files].map(f=>fileToBase64(f)));
+    };
+  }
+
+  if(typeof uploadSemuaDokV96!=='function')return;
+  const dasar=uploadSemuaDokV96;
+
+  uploadSemuaDokV96=async function(idKegiatan){
+    /* Pemeriksaan ulang setelah unggah dilewati. Data terbaru sudah dikirim
+       bersama respons unggah, sehingga membacanya ulang tidak menambah
+       kebenaran, hanya menambah waktu tunggu. */
+    const postAsli=apiPost;
+    let selesai=false;
+    apiPost=function(payload){
+      if(selesai&&payload&&payload.action==='getPackageDocumentsV16423'&&payload.id_kegiatan===idKegiatan){
+        return Promise.resolve({success:false, _dilewati:true});
+      }
+      return postAsli(payload);
+    };
+    try{
+      const hasil=await dasar.apply(this,arguments);
+      selesai=true;
+      /* Pembungkus dilepas setelah jeda pemeriksaan lewat. */
+      setTimeout(()=>{ apiPost=postAsli; }, 1500);
+      return hasil;
+    }catch(e){
+      apiPost=postAsli;
+      throw e;
+    }
+  };
+  window.uploadSemuaDokV96=uploadSemuaDokV96;
+})();
+
+
+/* SIMPROV v170 - Empat perbaikan tampilan dan alur.
+   1. Hasil Survey Harga tidak diwajibkan bila memakai Standar Biaya.
+   2. Unggah Non Pengadaan memakai bar kemajuan seperti Pencatatan Pengadaan.
+   3. Pencatatan Realisasi menampilkan pagu dan sisa.
+   4. Pemeriksaan dokumen dipercepat dan tidak lagi kehabisan waktu. */
+(function(){
+
+  /* ---------- 1. Survey harga mengikuti sumber harga ---------- */
+  window.pakaiStandarBiayaV170=function(k){
+    const s=String(k?.sumber_harga||'').toUpperCase();
+    return s==='SB'||s==='STANDAR BIAYA'||s==='STANDAR_BIAYA';
+  };
+
+  function kegiatanAktifV170(){
+    try{
+      const id=String(window.__paketAktifV170||'');
+      if(id&&typeof kegiatanById==='function')return kegiatanById(id);
+    }catch(e){}
+    return null;
+  }
+
+  /* Baris Hasil Survey Harga dibuang dari tabel Dokumen Wajib setelah render,
+     karena daftar jenis dokumen dibangun di banyak tempat. */
+  function saringSurveiHargaV170(){
+    try{
+      const k=kegiatanAktifV170();
+      if(!k||!window.pakaiStandarBiayaV170(k))return;
+      document.querySelectorAll('#contentArea table tbody tr').forEach(tr=>{
+        const sel=tr.querySelector('td');
+        if(sel&&/hasil survey harga/i.test(sel.textContent||''))tr.remove();
+      });
+    }catch(e){}
+  }
+  window.saringSurveiHargaV170=saringSurveiHargaV170;
+
+  /* Paket yang sedang dibuka dicatat, supaya penyaringan tahu konteksnya. */
+  ['renderDetailPencatatanV95','renderProcDetailV16424','openTahapPLV123','bukaPaketV95'].forEach(fn=>{
+    if(typeof window[fn]==='function'){
+      const dasar=window[fn];
+      window[fn]=function(arg){
+        try{
+          const id=(arg&&typeof arg==='object')?arg.id_kegiatan:arg;
+          if(id)window.__paketAktifV170=String(id);
+        }catch(e){}
+        const hasil=dasar.apply(this,arguments);
+        try{ requestAnimationFrame(saringSurveiHargaV170); }catch(e){}
+        return hasil;
+      };
+    }
+  });
+
+  /* ---------- 2. Bar kemajuan untuk unggah Non Pengadaan ---------- */
+  function barNonV170(persen,teks){
+    try{
+      if(typeof setUploadProgressV16424==='function')return setUploadProgressV16424(persen,teks);
+      const t=document.getElementById('loadingText');
+      if(t)t.textContent=teks||'';
+    }catch(e){}
+  }
+
+  function mulaiDenyutNonV170(awal,batas){
+    let p=awal;
+    barNonV170(p,'Menyimpan lampiran ke sistem...');
+    const timer=setInterval(()=>{
+      p=Math.min(batas,p+(p<55?3:p<75?2:1));
+      barNonV170(p,'Menyimpan dan memastikan lampiran tersimpan...');
+      if(p>=batas)clearInterval(timer);
+    },260);
+    return ()=>clearInterval(timer);
+  }
+
+  if(typeof uploadNonHonorDocsV156==='function'){
+    const dasarUnggah=uploadNonHonorDocsV156;
+    uploadNonHonorDocsV156=async function(idRealisasi,idKegiatan,input){
+      if(!input?.files?.length)return dasarUnggah.apply(this,arguments);
+      const jumlah=input.files.length;
+      try{ document.getElementById('loadingOverlay')?.classList.add('upload-mode-v135'); }catch(e){}
+      barNonV170(6,`Membaca ${jumlah} berkas...`);
+      const berhenti=mulaiDenyutNonV170(24,88);
+      try{
+        const hasil=await dasarUnggah.apply(this,arguments);
+        berhenti(); barNonV170(100,'Lampiran berhasil diunggah');
+        return hasil;
+      }catch(e){ berhenti(); throw e; }
+      finally{
+        berhenti();
+        setTimeout(()=>{ try{ document.getElementById('loadingOverlay')?.classList.remove('upload-mode-v135'); }catch(e){} },250);
+      }
+    };
+    window.uploadNonHonorDocsV156=uploadNonHonorDocsV156;
+  }
+
+  /* Berkas lampiran juga dibaca bersamaan, bukan berurutan. */
+  if(typeof nonHonorFilesPayloadV156==='function'&&typeof fileToBase64==='function'){
+    nonHonorFilesPayloadV156=async function(input){
+      const files=[...(input?.files||[])];
+      let terbaca=0;
+      const b64=await Promise.all(files.map(f=>fileToBase64(f).then(x=>{
+        terbaca++; barNonV170(6+Math.round((terbaca/files.length)*16),`Membaca ${terbaca}/${files.length} berkas`);
+        return x;
+      })));
+      return files.map((f,i)=>({file_name:f.name,mime_type:f.type||'application/pdf',file_base64:b64[i]}));
+    };
+    window.nonHonorFilesPayloadV156=nonHonorFilesPayloadV156;
+  }
+
+  /* ---------- 3. Pagu dan sisa pada Pencatatan Realisasi ---------- */
+  function infoPaguRealisasiV170(){
+    try{
+      const k=kegiatanAktifV170(); if(!k)return;
+      const kotak=document.getElementById('npNilaiV96')||document.getElementById('realNilaiV96');
+      const form=kotak&&kotak.closest('.form-grid');
+      if(!form||document.getElementById('infoPaguRealV170'))return;
+
+      const pagu=Number(k.jumlah)||0;
+      const tercatat=(dashboard?.realisasi||[])
+        .filter(r=>String(r.id_kegiatan)===String(k.id_kegiatan)&&String(r.status||'').toUpperCase()!=='DIBATALKAN')
+        .reduce((t,r)=>t+(Number(r.nilai_realisasi)||0),0);
+      const sisa=Math.max(0,pagu-tercatat);
+
+      const el=document.createElement('div');
+      el.id='infoPaguRealV170';
+      el.className='info-pagu-real-v170';
+      el.innerHTML=`<span>Pagu kegiatan <b>${rupiah(pagu)}</b></span>`+
+        `<span>Sudah dicatat <b>${rupiah(tercatat)}</b></span>`+
+        `<span>Sisa yang dapat dicatat <b class="${sisa>0?'sisa-ada':'sisa-habis'}">${rupiah(sisa)}</b></span>`;
+      form.parentNode.insertBefore(el,form);
+    }catch(e){}
+  }
+  window.infoPaguRealisasiV170=infoPaguRealisasiV170;
+
+  ['renderDetailPencatatanV95','renderProcDetailV16424','renderNonHonorMultiV158','renderNonHonorMultiV156']
+    .forEach(fn=>{
+      if(typeof window[fn]==='function'){
+        const dasar=window[fn];
+        window[fn]=function(){
+          const hasil=dasar.apply(this,arguments);
+          try{ requestAnimationFrame(()=>{ saringSurveiHargaV170(); infoPaguRealisasiV170(); }); }catch(e){}
+          return hasil;
+        };
+      }
+    });
 })();
