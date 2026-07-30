@@ -20721,3 +20721,96 @@ window.pilihPerHalV1687=pilihPerHalV1687;
     window.renderPerencanaanRow=renderPerencanaanRow;
   }
 })();
+
+
+/* SIMPROV v172 - Tiga perbaikan lanjutan.
+   1. Cache dashboard publik tidak lagi menampilkan angka basi berjam-jam.
+   2. Tombol Buka Pencatatan benar-benar membuka pencatatan, bukan pesan.
+   3. Panel dan tombol honorarium dibuang dari halaman yang benar.
+      Perbaikan v171 menempel pada renderNonPengadaanDetailV103, sedangkan
+      halaman yang dipakai adalah renderDetailNonPengadaanV95. */
+(function(){
+
+  /* ---------- 1. Batas umur cache dashboard publik ----------
+     Cache berguna agar halaman langsung terisi, tetapi angka anggaran yang
+     sudah berjam-jam tidak layak ditampilkan seolah masih berlaku. */
+  const UMUR_MAKS_V172=10*60*1000;   /* 10 menit */
+
+  if(typeof readPublicCacheV82==='function'){
+    const dasarBaca=readPublicCacheV82;
+    readPublicCacheV82=function(){
+      const c=dasarBaca.apply(this,arguments);
+      if(!c||!c.savedAt)return c;
+      if(Date.now()-c.savedAt>UMUR_MAKS_V172)return null;   /* terlalu lama, muat baru */
+      return c;
+    };
+    window.readPublicCacheV82=readPublicCacheV82;
+  }
+
+  /* ---------- 2. Buka Pencatatan membuka pencatatan ----------
+     openHonorModalV79 dipanggil dari beberapa jalur render. Mengarahkannya
+     langsung ke pembuka pencatatan menyelesaikan seluruh jalur sekaligus,
+     tanpa harus menambal tiap tombol. */
+  window.openHonorModalV79=function(idKegiatan){
+    try{
+      if(idKegiatan&&typeof bukaPaketV95==='function')return bukaPaketV95(idKegiatan);
+      if(typeof bukaPaketV95==='function'&&window.__paketAktifV170)return bukaPaketV95(window.__paketAktifV170);
+    }catch(e){}
+    alert('Buka paket dari daftar perencanaan untuk mencatat realisasi.');
+  };
+
+  /* ---------- 3. Bersihkan panel honorarium pada halaman yang benar ---------- */
+  function bersihkanHonorV172(){
+    try{
+      const area=document.getElementById('contentArea'); if(!area)return;
+
+      /* Panel Riwayat Versi Dokumen. */
+      area.querySelectorAll('section').forEach(sec=>{
+        const h=sec.querySelector('h3');
+        if(h&&/riwayat versi dokumen/i.test(h.textContent||''))sec.remove();
+      });
+
+      /* Tombol cetak dokumen honorarium, termasuk Cetak Versi Aktif. */
+      area.querySelectorAll('button').forEach(b=>{
+        const aksi=String(b.getAttribute('onclick')||'');
+        const teks=String(b.textContent||'').replace(/\s+/g,' ').trim();
+        if(/generateHonorPdf|printNonProcV155/.test(aksi)
+           ||/^Simpan Data\s*&\s*Cetak Dokumen$/i.test(teks)
+           ||/^Cetak Versi Aktif$/i.test(teks))b.remove();
+      });
+
+      /* Kolom ringkasan yang hanya berarti bila sistem mencetak dokumen. */
+      const buang=['TOTAL BRUTO VERSI AKTIF','TOTAL PAJAK','TOTAL NETTO','VERSI AKTIF'];
+      area.querySelectorAll('div').forEach(el=>{
+        const label=(el.querySelector(':scope > span, :scope > small')?.textContent||'').replace(/\s+/g,' ').trim().toUpperCase();
+        if(buang.includes(label))el.remove();
+      });
+
+      /* Subjudul yang menyuruh mengisi data penerima. */
+      area.querySelectorAll('.panel-sub').forEach(el=>{
+        if(/isi data penerima/i.test(el.textContent||''))el.remove();
+      });
+
+      /* Langkah pipeline yang menyebut penyimpanan data honorarium. */
+      area.querySelectorAll('*').forEach(el=>{
+        if(el.children.length)return;
+        const t=String(el.textContent||'').replace(/\s+/g,' ').trim();
+        if(/^Data Honorarium Disimpan$/i.test(t))el.textContent='Dokumen Disiapkan';
+      });
+    }catch(e){}
+  }
+  window.bersihkanHonorV172=bersihkanHonorV172;
+
+  /* Dipasang di akhir berkas, sehingga membungkus definisi renderDetailNonPengadaanV95
+     yang aktif, berapa pun jumlah definisinya. */
+  ['renderDetailNonPengadaanV95','renderNonPengadaanDetailV103',
+   'renderNonHonorMultiV156','renderNonHonorMultiV158','renderAll'].forEach(fn=>{
+    if(typeof window[fn]!=='function')return;
+    const dasar=window[fn];
+    window[fn]=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ requestAnimationFrame(bersihkanHonorV172); }catch(e){}
+      return hasil;
+    };
+  });
+})();
