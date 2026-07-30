@@ -20814,3 +20814,50 @@ window.pilihPerHalV1687=pilihPerHalV1687;
     };
   });
 })();
+
+
+/* SIMPROV v173 - Buka Pencatatan masuk ke halaman yang benar.
+   v172 mengarahkan openHonorModalV79 ke bukaPaketV95, padahal fungsi itu
+   membuka paket Pengadaan. Untuk Non Pengadaan, halamannya berada di menu
+   Non Pengadaan, dibuka lewat alur yang sama seperti jenis Non Pengadaan lain. */
+(function(){
+
+  function bukaPencatatanNonV173(id){
+    const k=(typeof kegiatanById==='function')
+      ? kegiatanById(id)
+      : (dashboard?.perencanaan||[]).find(x=>String(x.id_kegiatan)===String(id));
+    if(!k)return alert('Data kegiatan tidak ditemukan.');
+    try{
+      window.__paketAktifV170=String(id);
+      if(typeof paketAktifV95!=='undefined')paketAktifV95=String(id);
+      if(typeof paketSearchV95!=='undefined')paketSearchV95='';
+      activeMenu='Non Pengadaan';
+      renderMenu();
+      if(typeof renderSummary==='function')renderSummary();
+      renderContent();
+      if(typeof updateIdentityHeaderV77==='function')updateIdentityHeaderV77();
+      window.scrollTo({top:0,behavior:'smooth'});
+    }catch(e){ alert('Halaman pencatatan belum dapat dibuka: '+(e.message||e)); }
+  }
+  window.bukaPencatatanNonV173=bukaPencatatanNonV173;
+
+  /* Honorarium memakai jalur yang sama, bukan pembuat dokumen. */
+  window.openHonorModalV79=function(id){
+    const target=id||window.__paketAktifV170;
+    if(!target)return alert('Buka paket dari daftar perencanaan untuk mencatat realisasi.');
+    return bukaPencatatanNonV173(target);
+  };
+
+  /* Cabang honorarium pada pembuka Non Pengadaan tidak lagi dialihkan,
+     sehingga langsung memakai alur normal. */
+  if(typeof buatDokumenNonPengadaanV150==='function'){
+    const dasar=buatDokumenNonPengadaanV150;
+    window.buatDokumenNonPengadaanV150=function(id){
+      const k=(typeof kegiatanById==='function')?kegiatanById(id):null;
+      if(k&&String(k.jenis_non_pengadaan||'').toUpperCase().includes('HONOR')){
+        return bukaPencatatanNonV173(id);
+      }
+      return dasar.apply(this,arguments);
+    };
+  }
+})();
