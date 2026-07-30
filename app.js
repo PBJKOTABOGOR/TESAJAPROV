@@ -20592,3 +20592,132 @@ window.pilihPerHalV1687=pilihPerHalV1687;
       }
     });
 })();
+
+
+/* SIMPROV v171 - Menuntaskan penghapusan alur dokumen honorarium.
+   Perbaikan v169 baru menutup modalnya. Panel, tombol, dan syarat dokumennya
+   masih berjalan, sehingga pencatatan realisasi tetap terhalang.
+
+   Yang diselesaikan di sini:
+   1. Panel Riwayat Versi Dokumen dibuang.
+   2. Tombol Simpan Data & Cetak Dokumen dibuang dari panel ringkasan.
+   3. Tombol pada Data Perencanaan menjadi Buka Pencatatan.
+   4. Dokumen Honorarium TTD menjadi baris unggah biasa, tidak lagi menunggu
+      cetakan sistem, sehingga realisasi dapat dicatat. */
+(function(){
+
+  function isHonorV171(k){
+    return String(k?.jenis_non_pengadaan||'').trim().toUpperCase().includes('HONOR');
+  }
+
+  /* ---------- 4. Dokumen Honorarium TTD dapat diunggah langsung ----------
+     Dokumennya tetap wajib, tetapi disusun di luar aplikasi lalu diunggah.
+     Penantian versi cetak sistem dihapus. */
+  if(typeof nonDocTableV155==='function'){
+    const dasarTabel=nonDocTableV155;
+    nonDocTableV155=function(k){
+      let html=dasarTabel.apply(this,arguments);
+      try{
+        if(!isHonorV171(k))return html;
+        /* Keterangan versi cetak tidak lagi relevan. */
+        html=html.replace(/<br><small>Versi cetak aktif V[^<]*<\/small>/g,'');
+        /* Baris yang masih menunggu cetakan diganti kotak unggah biasa. */
+        const owner=actualRoleV133()==='BIDANG'
+          &&String(k.id_bidang)===String(currentUser?.id_bidang||'')
+          &&String(k.status_perencanaan||'').toUpperCase()==='DISETUJUI'
+          &&String(k.status_pencairan||'').toUpperCase()!=='SELESAI';
+        if(owner){
+          html=html.replace(/<span class="small">Buat dan cetak dokumen Honorarium[^<]*<\/span>/g,
+            '<input type="file" accept="application/pdf" class="non-doc-file-v155" '+
+            'data-jenis="Dokumen Honorarium TTD" onchange="toggleNonUploadV155()">');
+        }else{
+          html=html.replace(/<span class="small">Buat dan cetak dokumen Honorarium[^<]*<\/span>/g,
+            '<span class="small">Belum diunggah</span>');
+        }
+      }catch(e){}
+      return html;
+    };
+    window.nonDocTableV155=nonDocTableV155;
+  }
+
+  /* Penjaga pencatatan realisasi tetap memeriksa kelengkapan, tetapi
+     pesannya tidak lagi menyebut cetakan sistem. */
+  if(typeof honorDocsCompleteV162==='function'){
+    const dasarLengkap=honorDocsCompleteV162;
+    honorDocsCompleteV162=function(id){
+      try{
+        const k=(typeof kegiatanById==='function')?kegiatanById(id):null;
+        if(!k)return dasarLengkap.apply(this,arguments);
+        const wajib=['Dokumen Honorarium TTD','Tanda Terima','Bukti Potong Pajak'];
+        const ada=(dashboard?.dokumenNonPengadaan||[])
+          .filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan)
+            &&String(d.status_verifikasi||'').toUpperCase()!=='DIBATALKAN')
+          .map(d=>String(d.jenis_dokumen||'').toUpperCase());
+        return wajib.every(j=>ada.includes(j.toUpperCase()));
+      }catch(e){ return dasarLengkap.apply(this,arguments); }
+    };
+    window.honorDocsCompleteV162=honorDocsCompleteV162;
+  }
+
+  /* ---------- 1 dan 2. Panel riwayat versi dan tombol cetak dibuang ---------- */
+  function bersihkanPanelHonorV171(){
+    try{
+      const area=document.getElementById('contentArea'); if(!area)return;
+
+      /* Panel Riwayat Versi Dokumen. */
+      area.querySelectorAll('section.panel').forEach(sec=>{
+        const h=sec.querySelector('h3');
+        if(h&&/riwayat versi dokumen/i.test(h.textContent||''))sec.remove();
+      });
+
+      /* Tombol pembuat dokumen honorarium, apa pun tulisannya. */
+      area.querySelectorAll('button').forEach(b=>{
+        const aksi=String(b.getAttribute('onclick')||'');
+        const teks=String(b.textContent||'');
+        if(/openHonorModalV79|generateHonorPdf/.test(aksi)||/Simpan Data\s*&\s*Cetak Dokumen/i.test(teks))b.remove();
+      });
+
+      /* Kolom ringkasan yang hanya berarti bila sistem mencetak dokumen. */
+      area.querySelectorAll('.panel').forEach(sec=>{
+        const h=sec.querySelector('h3');
+        if(!h||!/ringkasan paket non pengadaan/i.test(h.textContent||''))return;
+        const sub=sec.querySelector('.panel-sub');
+        if(sub&&/isi data penerima/i.test(sub.textContent||''))sub.remove();
+        sec.querySelectorAll('.field,.stat-box,.kpi-box,div').forEach(el=>{
+          const label=(el.querySelector('span,small')?.textContent||'').trim().toUpperCase();
+          if(['TOTAL BRUTO VERSI AKTIF','TOTAL PAJAK','TOTAL NETTO','VERSI AKTIF'].includes(label))el.remove();
+        });
+      });
+    }catch(e){}
+  }
+  window.bersihkanPanelHonorV171=bersihkanPanelHonorV171;
+
+  ['renderNonPengadaanDetailV103','renderNonHonorMultiV156','renderNonHonorMultiV158',
+   'renderDetailPencatatanV95','renderProcDetailV16424','renderAll'].forEach(fn=>{
+    if(typeof window[fn]==='function'){
+      const dasar=window[fn];
+      window[fn]=function(){
+        const hasil=dasar.apply(this,arguments);
+        try{ requestAnimationFrame(bersihkanPanelHonorV171); }catch(e){}
+        return hasil;
+      };
+    }
+  });
+
+  /* ---------- 3. Tombol pada Data Perencanaan ---------- */
+  if(typeof renderPerencanaanRow==='function'){
+    const dasarBaris=renderPerencanaanRow;
+    renderPerencanaanRow=function(k){
+      let html=dasarBaris.apply(this,arguments);
+      try{
+        if(String(k?.kategori||'').toUpperCase()!=='NON PENGADAAN')return html;
+        /* Honorarium kini sama dengan Non Pengadaan lain: membuka pencatatan. */
+        html=html.replace(/>(?:Buat Dokumen|Simpan Data &amp; Cetak Dokumen|Simpan Data & Cetak Dokumen)</g,'>Buka Pencatatan<');
+        html=html.replace(/onclick="openHonorModalV79\('([^']+)'\)"/g,
+          (m,id)=>`onclick="bukaPaketV95('${id}')"`);
+      }catch(e){}
+      return html;
+    };
+    window.renderPerencanaanRow=renderPerencanaanRow;
+  }
+})();
