@@ -20861,3 +20861,44 @@ window.pilihPerHalV1687=pilihPerHalV1687;
     };
   }
 })();
+
+
+/* SIMPROV v174 - Paket Non Pengadaan yang sudah selesai menampilkan penanda
+   SELESAI pada Data Perencanaan, sama seperti Belanja Langsung.
+
+   Penanda ini sebenarnya sudah dipasang v74, tetapi pembungkus setelahnya
+   menimpa kolom aksi dengan tombol Buka Pencatatan. Pemasangan diulang di
+   akhir berkas agar menjadi yang terakhir berlaku. */
+(function(){
+  if(typeof renderPerencanaanRow!=='function')return;
+  const dasar=renderPerencanaanRow;
+
+  function sudahSelesaiV174(k){
+    const norm=v=>String(v||'').trim().toUpperCase().replace(/_/g,' ');
+    if(norm(k?.status_pencairan)==='SELESAI')return true;
+    try{
+      if(typeof getPencairanStatus==='function'&&norm(getPencairanStatus(k?.id_kegiatan))==='SELESAI')return true;
+    }catch(e){}
+    return false;
+  }
+
+  renderPerencanaanRow=function(k){
+    let html=dasar.apply(this,arguments);
+    try{
+      if(!sudahSelesaiV174(k))return html;
+      /* Verifikator dan pemeriksa tetap melihat tombolnya, karena masih
+         perlu membuka paket untuk memeriksa. */
+      const pemeriksa=(typeof canVerifyPBJ==='function'&&canVerifyPBJ())
+        ||(typeof isReviewer==='function'&&isReviewer());
+      if(pemeriksa)return html;
+
+      const penanda='<td class="nowrap aksi-perencanaan-v63"><span class="status-done-pill">SELESAI</span></td>';
+      if(/<td class="nowrap aksi-perencanaan-v63">[\s\S]*?<\/td>/.test(html))
+        return html.replace(/<td class="nowrap aksi-perencanaan-v63">[\s\S]*?<\/td>/,penanda);
+      /* Sebagian jalur render memakai kelas berbeda pada kolom aksi. */
+      return html.replace(/<td class="nowrap[^"]*">[\s\S]*?<\/td>\s*<\/tr>\s*$/,penanda+'</tr>');
+    }catch(e){}
+    return html;
+  };
+  window.renderPerencanaanRow=renderPerencanaanRow;
+})();
