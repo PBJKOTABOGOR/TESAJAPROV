@@ -3857,3 +3857,9 @@ button.plan-id-link-v161:focus-visible{
 .konteks-angka-v176 b{color:#17365b}
 .konteks-angka-v176 .sisa-ada{color:#12633a}
 .konteks-angka-v176 .sisa-habis{color:#a01722}
+
+/* SIMPROV v178 - Pencarian bidang pada Dashboard Pemeriksaan */
+.cari-bidang-v178{display:flex;align-items:center;gap:12px;margin:14px 0 10px}
+.cari-bidang-v178 input{flex:1;max-width:420px;padding:9px 12px;border:1px solid #d7e4ef;
+  border-radius:9px;font-size:13.5px;background:#fff}
+.hasil-cari-v178{font-size:12.5px;color:#667085;white-space:nowrap}
