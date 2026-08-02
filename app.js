@@ -21450,3 +21450,68 @@ window.pilihPerHalV1687=pilihPerHalV1687;
     };
   });
 })();
+
+
+/* SIMPROV v185 - Unggah ulang dokumen berstatus perbaikan.
+   Dokumen berstatus PERBAIKAN DOKUMEN ditolak server dengan pesan bahwa
+   dokumennya sudah pernah diunggah. Penyebabnya tabel dokumen pada jalur
+   Pencatatan Pengadaan tidak menuliskan penanda revisi pada kolom unggah.
+
+   Server menganggap unggahan itu sebagai dokumen baru, lalu menolaknya karena
+   dokumen dengan jenis yang sama sudah ada.
+
+   Penanda dipasang setelah tabel jadi, sehingga rantai pembungkus yang sudah
+   ada tidak perlu disentuh. */
+(function(){
+  if(typeof dokumenTableV95!=='function')return;
+  const dasar=dokumenTableV95;
+
+  const PERBAIKAN=['PERBAIKAN','PERBAIKAN DOKUMEN'];
+
+  function dokumenPaketV185(k,ctx){
+    const isNon=(ctx||'PGD')==='NON';
+    const src=isNon?(dashboard?.dokumenNonPengadaan||[]):(dashboard?.dokumen||[]);
+    return src.filter(d=>String(d.id_kegiatan)===String(k?.id_kegiatan));
+  }
+
+  dokumenTableV95=function(k,jenisList,ctx){
+    const html=dasar.apply(this,arguments);
+    try{
+      if(!k)return html;
+      const isNon=(ctx||'PGD')==='NON';
+      const docs=dokumenPaketV185(k,ctx);
+      if(!docs.length)return html;
+
+      const kotak=document.createElement('div');
+      kotak.innerHTML=html;
+      let diubah=false;
+
+      kotak.querySelectorAll('input.dok-file-v96').forEach(inp=>{
+        /* Yang sudah membawa penanda berasal dari jalur lain, jangan disentuh. */
+        if(inp.dataset.repair==='1'&&inp.dataset.idd)return;
+        const jenis=inp.dataset.jenis||'';
+        if(!jenis)return;
+
+        const d=[...docs].reverse().find(x=>
+          (typeof dokKeyV94==='function')
+            ? dokKeyV94(x.jenis_dokumen)===dokKeyV94(jenis)
+            : String(x.jenis_dokumen||'').toUpperCase()===String(jenis).toUpperCase());
+        if(!d)return;                                   /* memang dokumen baru */
+
+        const st=String(d.status_verifikasi||'').trim().toUpperCase();
+        if(!PERBAIKAN.includes(st))return;               /* bukan perbaikan */
+
+        const idd=isNon?(d.id_dokumen_non||''):(d.id_dokumen||'');
+        if(!idd)return;
+        inp.dataset.repair='1';
+        inp.dataset.idd=idd;
+        inp.title='Dokumen ini sedang diminta perbaikan. Berkas baru akan menggantikan versi sebelumnya.';
+        diubah=true;
+      });
+
+      return diubah?kotak.innerHTML:html;
+    }catch(e){}
+    return html;
+  };
+  window.dokumenTableV95=dokumenTableV95;
+})();
