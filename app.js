@@ -20969,7 +20969,7 @@ window.pilihPerHalV1687=pilihPerHalV1687;
        form yang sedang tampil, bukan dari paket terakhir yang dibuka. */
     try{
       const tombol=[...document.querySelectorAll('#contentArea button')]
-        .find(b=>/^Catat Realisasi$|^Simpan Realisasi$/i.test(String(b.textContent||'').trim()));
+        .find(b=>/^Catat Realisasi$|^Simpan Realisasi$|^Setujui Nilai/i.test(String(b.textContent||'').trim()));
       const m=String(tombol?.getAttribute('onclick')||'').match(/'([^']+)'/);
       if(m&&typeof kegiatanById==='function'){
         const k=kegiatanById(m[1]);
@@ -20992,9 +20992,13 @@ window.pilihPerHalV1687=pilihPerHalV1687;
 
   function pasangKonteksV176(){
     try{
+      /* Kolom nilai berbeda antar peran dan antar jalur. Pemilik memakai kolom
+         input realisasi, Verifikator memakai kolom koreksi nilai. */
       const nilai=document.getElementById('blNilaiV94')
         ||document.getElementById('npNilaiV96')
-        ||document.getElementById('realNilaiV96');
+        ||document.getElementById('realNilaiV96')
+        ||document.getElementById('npKoreksiNilaiV110')
+        ||document.getElementById('pgKoreksiNilaiV119');
       if(!nilai)return;
       const grid=nilai.closest('.form-grid');
       if(!grid)return;
@@ -21007,16 +21011,32 @@ window.pilihPerHalV1687=pilihPerHalV1687;
       const sudah=tercatatV176(k.id_kegiatan);
       const sisa=Math.max(0,pagu-sudah);
 
+      /* Verifikator memeriksa nilai yang sudah diajukan, bukan mengisi baru,
+         sehingga angka yang ditampilkan berbeda. */
+      const memeriksa=nilai.id==='npKoreksiNilaiV110'||nilai.id==='pgKoreksiNilaiV119';
+      const diajukan=(dashboard?.realisasi||[])
+        .filter(r=>String(r.id_kegiatan)===String(k.id_kegiatan)
+          &&String(r.status||'').toUpperCase()!=='DIBATALKAN')
+        .reduce((t,r)=>Math.max(t,angkaV176(r.nilai_realisasi)),0);
+      const bidang=(typeof bidangName==='function')?bidangName(k.id_bidang):(k.id_bidang||'');
+
+      const angka=memeriksa
+        ? `<span>Pagu paket <b>${rupiah(pagu)}</b></span>`+
+          `<span>Diajukan bidang <b>${rupiah(diajukan)}</b></span>`+
+          `<span>Selisih terhadap pagu <b class="${pagu-diajukan>=0?'sisa-ada':'sisa-habis'}">`+
+          `${pagu-diajukan>=0?rupiah(pagu-diajukan):'melebihi '+rupiah(diajukan-pagu)}</b></span>`
+        : `<span>Pagu paket <b>${rupiah(pagu)}</b></span>`+
+          `<span>Sudah dicatat <b>${rupiah(sudah)}</b></span>`+
+          `<span>Sisa dapat dicatat <b class="${sisa>0?'sisa-ada':'sisa-habis'}">${rupiah(sisa)}</b></span>`;
+
       const el=document.createElement('div');
       el.className='konteks-paket-v176';
       el.innerHTML=
         `<div class="konteks-judul-v176">${esc(k.nama_kegiatan||'-')}</div>`+
-        `<div class="konteks-kode-v176">${esc(k.id_kegiatan||'')}${k.satuan?' &middot; '+esc(k.volume||'')+' '+esc(k.satuan):''}</div>`+
-        `<div class="konteks-angka-v176">`+
-        `<span>Pagu paket <b>${rupiah(pagu)}</b></span>`+
-        `<span>Sudah dicatat <b>${rupiah(sudah)}</b></span>`+
-        `<span>Sisa dapat dicatat <b class="${sisa>0?'sisa-ada':'sisa-habis'}">${rupiah(sisa)}</b></span>`+
-        `</div>`;
+        `<div class="konteks-kode-v176">${esc(k.id_kegiatan||'')}`+
+        `${bidang?' &middot; '+esc(bidang):''}`+
+        `${k.satuan?' &middot; '+esc(k.volume||'')+' '+esc(k.satuan):''}</div>`+
+        `<div class="konteks-angka-v176">${angka}</div>`;
       grid.parentNode.insertBefore(el,grid);
     }catch(e){}
   }
