@@ -21054,3 +21054,88 @@ window.pilihPerHalV1687=pilihPerHalV1687;
     };
   });
 })();
+
+
+/* SIMPROV v178 - Dashboard Pemeriksaan dirapikan.
+   - Kotak pencarian bidang, menyaring seketika tanpa memanggil server.
+   - Kolom Perencanaan dan Sisa Pagu Perencanaan dibuang, menyisakan Pagu dan
+     Total Realisasi.
+   - Daftar kartu dibuang karena isinya sama persis dengan tabel di bawahnya.
+     Empat belas kartu lalu empat belas baris tabel membuat halaman panjang
+     tanpa menambah keterangan apa pun. */
+(function(){
+  if(typeof renderMonitoring!=='function')return;
+  const dasar=renderMonitoring;
+  let cariV178='';
+
+  window.cariBidangPemeriksaanV178=function(v){
+    cariV178=String(v||'').toLowerCase();
+    saringBarisV178();
+  };
+
+  function saringBarisV178(){
+    try{
+      const tabel=document.querySelector('#contentArea .dashboard-table table');
+      if(!tabel)return;
+      let tampil=0;
+      tabel.querySelectorAll('tbody tr').forEach(tr=>{
+        if(tr.querySelector('.empty'))return;
+        const teks=(tr.querySelector('td')?.textContent||'').toLowerCase();
+        const cocok=!cariV178||teks.includes(cariV178);
+        tr.style.display=cocok?'':'none';
+        if(cocok)tampil++;
+      });
+      const info=document.getElementById('hasilCariV178');
+      if(info)info.textContent=cariV178?`${tampil} bidang cocok`:`${tampil} bidang`;
+    }catch(e){}
+  }
+
+  function rapikanV178(){
+    try{
+      const target=document.getElementById('contentArea'); if(!target)return;
+      const tabel=target.querySelector('.dashboard-table table'); if(!tabel)return;
+
+      /* Kartu per bidang dibuang, tabel sudah memuat isinya. */
+      target.querySelector('.monitor-card-list')?.remove();
+      [...target.querySelectorAll('.table-hint')].forEach(el=>el.remove());
+
+      /* Kolom Perencanaan dan Sisa Pagu Perencanaan dibuang beserta selnya. */
+      const kepala=[...tabel.querySelectorAll('thead th')];
+      const buang=[];
+      kepala.forEach((th,i)=>{
+        const t=(th.textContent||'').trim().toLowerCase();
+        if(t==='perencanaan'||t.startsWith('sisa'))buang.push(i);
+      });
+      if(buang.length){
+        buang.slice().reverse().forEach(i=>{
+          kepala[i]?.remove();
+          tabel.querySelectorAll('tbody tr').forEach(tr=>{
+            const sel=tr.children[i];
+            if(sel&&!sel.classList.contains('empty'))sel.remove();
+          });
+        });
+        tabel.querySelectorAll('tbody td.empty').forEach(td=>
+          td.setAttribute('colspan',String(kepala.length-buang.length)));
+      }
+
+      /* Kotak pencarian dipasang tepat di atas tabel. */
+      const wrap=tabel.closest('.table-wrap');
+      if(wrap&&!document.getElementById('cariBidangV178')){
+        const bar=document.createElement('div');
+        bar.className='cari-bidang-v178';
+        bar.innerHTML='<input type="text" id="cariBidangV178" placeholder="Cari nama atau kode bidang..." '+
+          `value="${esc(cariV178)}" oninput="cariBidangPemeriksaanV178(this.value)">`+
+          '<span id="hasilCariV178" class="hasil-cari-v178"></span>';
+        wrap.parentNode.insertBefore(bar,wrap);
+      }
+      saringBarisV178();
+    }catch(e){}
+  }
+
+  renderMonitoring=function(){
+    const hasil=dasar.apply(this,arguments);
+    try{ requestAnimationFrame(rapikanV178); }catch(e){}
+    return hasil;
+  };
+  window.renderMonitoring=renderMonitoring;
+})();
