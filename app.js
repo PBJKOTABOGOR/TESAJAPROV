@@ -20928,3 +20928,109 @@ window.pilihPerHalV1687=pilihPerHalV1687;
   };
   window.dokumenKetentuanByMetode=dokumenKetentuanByMetode;
 })();
+
+
+/* SIMPROV v176 - Konteks paket pada Pencatatan Realisasi.
+   Form realisasi tidak menyebut paket mana yang sedang diisi. Pengguna yang
+   membuka beberapa paket berurutan mudah salah kolom, dan angka pagu hanya
+   tersirat pada teks bayangan kolom nilai.
+
+   Ditambahkan panel di atas form berisi nama kegiatan, kode paket, pagu, nilai
+   yang sudah dicatat, dan sisa yang masih dapat dicatat. */
+(function(){
+
+  /* Nilai dapat berupa angka murni dari data-max, atau teks berformat rupiah.
+     Titik yang diikuti tepat tiga angka adalah pemisah ribuan, bukan desimal. */
+  function angkaV176(v){
+    if(typeof v==='number')return isFinite(v)?v:0;
+    let s=String(v==null?'':v).replace(/[^0-9.,-]/g,'').trim();
+    if(!s)return 0;
+    const neg=/^-/.test(s); s=s.replace(/-/g,'');
+    const pTitik=s.lastIndexOf('.'), pKoma=s.lastIndexOf(',');
+    let iDes=-1;
+    if(pTitik>=0&&pKoma>=0)iDes=Math.max(pTitik,pKoma);
+    else{
+      const p=pTitik>=0?pTitik:pKoma;
+      if(p>=0){
+        const tanda=pTitik>=0?'.':',';
+        const jumlah=s.split(tanda).length-1, belakang=s.length-p-1;
+        if(jumlah===1&&belakang!==3)iDes=p;
+      }
+    }
+    const utuh=(iDes>=0?s.slice(0,iDes):s).replace(/[.,]/g,'');
+    const pecah=(iDes>=0?s.slice(iDes+1):'').replace(/[.,]/g,'');
+    const n=parseFloat((utuh||'0')+(pecah?'.'+pecah:''));
+    if(!isFinite(n))return 0;
+    return neg?-n:n;
+  }
+
+  function kegiatanFormV176(){
+    /* Paket ditentukan dari tombol Catat Realisasi, agar selalu cocok dengan
+       form yang sedang tampil, bukan dari paket terakhir yang dibuka. */
+    try{
+      const tombol=[...document.querySelectorAll('#contentArea button')]
+        .find(b=>/^Catat Realisasi$|^Simpan Realisasi$/i.test(String(b.textContent||'').trim()));
+      const m=String(tombol?.getAttribute('onclick')||'').match(/'([^']+)'/);
+      if(m&&typeof kegiatanById==='function'){
+        const k=kegiatanById(m[1]);
+        if(k)return k;
+      }
+    }catch(e){}
+    try{
+      if(window.__paketAktifV170&&typeof kegiatanById==='function')
+        return kegiatanById(window.__paketAktifV170);
+    }catch(e){}
+    return null;
+  }
+
+  function tercatatV176(idKegiatan){
+    return (dashboard?.realisasi||[])
+      .filter(r=>String(r.id_kegiatan)===String(idKegiatan)
+        &&String(r.status||'').toUpperCase()!=='DIBATALKAN')
+      .reduce((t,r)=>t+angkaV176(r.nilai_realisasi),0);
+  }
+
+  function pasangKonteksV176(){
+    try{
+      const nilai=document.getElementById('blNilaiV94')
+        ||document.getElementById('npNilaiV96')
+        ||document.getElementById('realNilaiV96');
+      if(!nilai)return;
+      const grid=nilai.closest('.form-grid');
+      if(!grid)return;
+      if(grid.previousElementSibling?.classList?.contains('konteks-paket-v176'))return;
+
+      const k=kegiatanFormV176(); if(!k)return;
+      /* data-max sudah berisi pagu yang dipakai penjaga, jadi dipakai ulang
+         supaya angka di layar sama persis dengan yang divalidasi. */
+      const pagu=angkaV176(nilai.getAttribute('data-max'))||angkaV176(k.jumlah);
+      const sudah=tercatatV176(k.id_kegiatan);
+      const sisa=Math.max(0,pagu-sudah);
+
+      const el=document.createElement('div');
+      el.className='konteks-paket-v176';
+      el.innerHTML=
+        `<div class="konteks-judul-v176">${esc(k.nama_kegiatan||'-')}</div>`+
+        `<div class="konteks-kode-v176">${esc(k.id_kegiatan||'')}${k.satuan?' &middot; '+esc(k.volume||'')+' '+esc(k.satuan):''}</div>`+
+        `<div class="konteks-angka-v176">`+
+        `<span>Pagu paket <b>${rupiah(pagu)}</b></span>`+
+        `<span>Sudah dicatat <b>${rupiah(sudah)}</b></span>`+
+        `<span>Sisa dapat dicatat <b class="${sisa>0?'sisa-ada':'sisa-habis'}">${rupiah(sisa)}</b></span>`+
+        `</div>`;
+      grid.parentNode.insertBefore(el,grid);
+    }catch(e){}
+  }
+  window.pasangKonteksV176=pasangKonteksV176;
+
+  ['renderDetailPencatatanV95','renderProcDetailV16424','renderDetailNonPengadaanV95',
+   'renderNonPengadaanDetailV103','renderNonHonorMultiV156','renderNonHonorMultiV158',
+   'bukaPaketV95','renderAll'].forEach(fn=>{
+    if(typeof window[fn]!=='function')return;
+    const dasar=window[fn];
+    window[fn]=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ requestAnimationFrame(pasangKonteksV176); }catch(e){}
+      return hasil;
+    };
+  });
+})();
