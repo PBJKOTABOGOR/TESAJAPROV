@@ -13973,8 +13973,13 @@ verifikasiRealisasiNonV112=async function(id,mode){
       jenis_pengadaan:document.getElementById('jenisPengadaanV96')?.value||(kategori==='NON PENGADAAN'?'NON PENGADAAN':'Barang'),
       cara_pelaksanaan:document.getElementById('caraPelaksanaanV96')?.value||'Penyedia',
       sumber_harga:sumber,
-      id_standar_biaya:'',
-      nama_standar_biaya:sb?.nama||''
+      id_standar_biaya:sb?.id_sb||'',
+      nama_standar_biaya:sb?.nama||'',
+      /* v182: sifat dikirim dari pilihan pengguna, karena pencarian di sheet
+         lama tidak mengenali id dari daftar standar biaya yang baru. */
+      sifat_standar:(sb&&typeof sbAtCostV1671==='function'&&sbAtCostV1671(sb))
+        ?'AT COST':(sb?'BATAS TERTINGGI':''),
+      nilai_standar:sb?(Number(sb.nilai)||0):0
     };
     if(!data.nama_kegiatan.trim()){alert('Nama kegiatan wajib diisi.');return;}
     if(!data.waktu_pemilihan){alert(kategori==='NON PENGADAAN'?'Waktu pelaksanaan wajib diisi.':'Waktu pemilihan wajib diisi.');return;}
