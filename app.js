@@ -21515,3 +21515,234 @@ window.pilihPerHalV1687=pilihPerHalV1687;
   };
   window.dokumenTableV95=dokumenTableV95;
 })();
+
+
+/* SIMPROV v186 - Menyetujui sekaligus menyelesaikan, membuka kembali hanya Admin.
+   Empat perubahan yang satu arah: mengurangi langkah dan menegaskan siapa yang
+   berwenang membuka paket yang sudah selesai.
+
+   1. Buka Kembali Paket hanya untuk Admin, pada seluruh jalur.
+   2. Perencanaan mendapat persetujuan sekaligus untuk banyak kegiatan.
+   3. Menyetujui nilai realisasi sekaligus menyelesaikan paket.
+   4. Non Pengadaan selain honorarium memakai Simpan & Selesaikan Paket. */
+(function(){
+  const isAdminV186=()=>String(actualRoleV133()||'').toUpperCase()==='ADMIN';
+
+  /* ---------- 1. Buka Kembali Paket hanya Admin ---------- */
+  function saringBukaKembaliV186(){
+    try{
+      if(isAdminV186())return;
+      document.querySelectorAll('#contentArea button').forEach(b=>{
+        const teks=String(b.textContent||'').replace(/\s+/g,' ').trim();
+        if(/^Buka Kembali Paket$/i.test(teks))b.remove();
+      });
+    }catch(e){}
+  }
+  window.saringBukaKembaliV186=saringBukaKembaliV186;
+
+  /* ---------- 3 dan 4. Persetujuan sekaligus menyelesaikan ---------- */
+  function isHonorV186(k){
+    return String(k?.jenis_non_pengadaan||'').trim().toUpperCase().includes('HONOR');
+  }
+
+  /* Verifikator menyetujui nilai lalu paket langsung diselesaikan, sehingga
+     tidak perlu dua kali menunggu. Bila penyelesaian gagal, persetujuannya
+     tetap tersimpan dan pengguna diberi tahu. */
+  if(typeof verifikasiRealisasiPengadaanV119==='function'){
+    const dasar=verifikasiRealisasiPengadaanV119;
+    verifikasiRealisasiPengadaanV119=async function(idKegiatan,keputusan){
+      const hasil=await dasar.apply(this,arguments);
+      if(String(keputusan||'').toUpperCase()!=='SETUJU')return hasil;
+      try{
+        const r=await apiPost({action:'updateStatusPencairan',user:currentUser,
+          id_kegiatan:idKegiatan,status_pencairan:'SELESAI',
+          catatan:'Diselesaikan bersamaan dengan persetujuan nilai realisasi'});
+        if(!r||!r.success){
+          alert('Nilai realisasi sudah disetujui, tetapi paket belum dapat diselesaikan.\n'+
+                ((r&&r.message)||'')+'\nCoba selesaikan paket dari daftar paket.');
+        }else{
+          if(typeof loadDashboard==='function')await loadDashboard(false);
+          if(typeof renderAll==='function')renderAll();
+        }
+      }catch(e){
+        alert('Nilai realisasi sudah disetujui, tetapi paket belum dapat diselesaikan: '+(e.message||e));
+      }
+      return hasil;
+    };
+    window.verifikasiRealisasiPengadaanV119=verifikasiRealisasiPengadaanV119;
+  }
+
+  /* Non Pengadaan: menyetujui paket langsung dilanjutkan penyelesaian. */
+  if(typeof approveNonHonorReviewV157==='function'){
+    const dasar=approveNonHonorReviewV157;
+    approveNonHonorReviewV157=async function(idKegiatan){
+      const hasil=await dasar.apply(this,arguments);
+      try{
+        if(typeof finishNonHonorV156==='function')await finishNonHonorV156(idKegiatan);
+      }catch(e){
+        alert('Paket sudah disetujui, tetapi belum dapat diselesaikan: '+(e.message||e));
+      }
+      return hasil;
+    };
+    window.approveNonHonorReviewV157=approveNonHonorReviewV157;
+  }
+
+  /* Label tombol disesuaikan agar sesuai dengan yang benar-benar terjadi. */
+  function ubahLabelV186(){
+    try{
+      const area=document.getElementById('contentArea'); if(!area)return;
+      const k=(typeof kegiatanById==='function'&&window.__paketAktifV170)
+        ? kegiatanById(window.__paketAktifV170) : null;
+      const nonHonor=k&&String(k.kategori||'').toUpperCase()==='NON PENGADAAN'&&!isHonorV186(k);
+
+      area.querySelectorAll('button').forEach(b=>{
+        const teks=String(b.textContent||'').replace(/\s+/g,' ').trim();
+        const aksi=String(b.getAttribute('onclick')||'');
+
+        if(/^Setujui Nilai Realisasi$/i.test(teks))
+          b.textContent='Setujui & Selesaikan Paket';
+
+        if(/approveNonHonorReviewV157/.test(aksi)&&/^Setujui Paket$/i.test(teks))
+          b.textContent=nonHonor?'Simpan & Selesaikan Paket':'Setujui & Selesaikan Paket';
+
+        /* Tombol Selesaikan Paket terpisah tidak lagi diperlukan bagi
+           Verifikator, karena penyelesaian sudah menyatu. */
+        if(/finishNonHonorV156/.test(aksi)&&/^Selesaikan Paket$/i.test(teks)
+           &&!isAdminV186()&&String(actualRoleV133()||'').toUpperCase()!=='BIDANG')
+          b.remove();
+      });
+    }catch(e){}
+  }
+  window.ubahLabelV186=ubahLabelV186;
+
+  ['renderDetailPencatatanV95','renderProcDetailV16424','renderDetailNonPengadaanV95',
+   'renderNonPengadaanDetailV103','renderNonHonorMultiV156','renderNonHonorMultiV158',
+   'renderAll'].forEach(fn=>{
+    if(typeof window[fn]!=='function')return;
+    const dasar=window[fn];
+    window[fn]=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ requestAnimationFrame(()=>{ saringBukaKembaliV186(); ubahLabelV186(); }); }catch(e){}
+      return hasil;
+    };
+  });
+})();
+
+
+/* SIMPROV v186.1 - Persetujuan perencanaan sekaligus.
+   Menyetujui satu per satu berarti satu permintaan per kegiatan, dan setiap
+   permintaan diikuti pemuatan ulang seluruh dashboard. Untuk sembilan kegiatan
+   berarti sembilan kali menunggu.
+
+   Dengan penandaan, seluruh kegiatan terpilih dikirim berurutan tanpa memuat
+   ulang di tengah, lalu dashboard dimuat sekali di akhir. */
+(function(){
+  let pilihV1861=new Set();
+
+  function bisaSetujuiV1861(){
+    const r=String(actualRoleV133()||'').toUpperCase();
+    return r==='ADMIN'||r.indexOf('VERIFIKATOR')===0;
+  }
+
+  window.togglePilihRencanaV1861=function(id,cek){
+    if(cek)pilihV1861.add(String(id)); else pilihV1861.delete(String(id));
+    perbaruiBarV1861();
+  };
+
+  window.pilihSemuaRencanaV1861=function(cek){
+    document.querySelectorAll('.cek-rencana-v1861').forEach(c=>{
+      c.checked=cek;
+      const id=c.dataset.id;
+      if(cek)pilihV1861.add(String(id)); else pilihV1861.delete(String(id));
+    });
+    perbaruiBarV1861();
+  };
+
+  function perbaruiBarV1861(){
+    const bar=document.getElementById('barRencanaV1861');
+    if(!bar)return;
+    const n=pilihV1861.size;
+    bar.classList.toggle('hidden',n===0);
+    const info=document.getElementById('infoRencanaV1861');
+    if(info)info.textContent=n+' kegiatan dipilih';
+  }
+
+  window.setujuiTerpilihV1861=async function(){
+    const ids=[...pilihV1861];
+    if(!ids.length)return alert('Pilih kegiatan yang akan disetujui.');
+    if(!confirm(ids.length+' kegiatan akan disetujui sekaligus. Lanjutkan?'))return;
+
+    showLoading('Menyetujui '+ids.length+' kegiatan...');
+    let berhasil=0; const gagal=[];
+    try{
+      for(let i=0;i<ids.length;i++){
+        if(typeof setLoadingProgressV133==='function')
+          setLoadingProgressV133(Math.round(((i+1)/ids.length)*100),
+            'Menyetujui '+(i+1)+' dari '+ids.length+'...');
+        try{
+          const r=await apiPost({action:'setujuiPerencanaan',user:currentUser,id_kegiatan:ids[i]});
+          if(r&&r.success)berhasil++; else gagal.push(ids[i]+': '+((r&&r.message)||'gagal'));
+        }catch(e){ gagal.push(ids[i]+': '+(e.message||e)); }
+      }
+      /* Dashboard dimuat sekali di akhir, bukan setiap kegiatan. */
+      if(typeof loadDashboard==='function')await loadDashboard(false);
+      pilihV1861.clear();
+      if(typeof renderAll==='function')renderAll();
+      alert(berhasil+' kegiatan disetujui'+
+        (gagal.length?'.\n\n'+gagal.length+' gagal:\n- '+gagal.slice(0,10).join('\n- '):'.'));
+    }finally{ hideLoading(); }
+  };
+
+  /* Kotak centang dipasang setelah tabel dirender. */
+  function pasangCekV1861(){
+    try{
+      if(!bisaSetujuiV1861())return;
+      const area=document.getElementById('contentArea'); if(!area)return;
+      const tabel=[...area.querySelectorAll('table')]
+        .find(t=>/NAMA KEGIATAN/i.test(t.querySelector('thead')?.textContent||''));
+      if(!tabel)return;
+      if(tabel.dataset.cekV1861)return;
+
+      const baris=[...tabel.querySelectorAll('tbody tr')].filter(tr=>{
+        /* Hanya kegiatan yang masih menunggu persetujuan. */
+        return /DIAJUKAN/i.test(tr.textContent||'')&&tr.querySelector('button[onclick*="setujui("]');
+      });
+      if(!baris.length)return;
+      tabel.dataset.cekV1861='1';
+
+      const th=document.createElement('th');
+      th.innerHTML='<input type="checkbox" onchange="pilihSemuaRencanaV1861(this.checked)" title="Pilih semua yang menunggu">';
+      tabel.querySelector('thead tr')?.prepend(th);
+
+      [...tabel.querySelectorAll('tbody tr')].forEach(tr=>{
+        const td=document.createElement('td');
+        if(baris.includes(tr)){
+          const m=String(tr.querySelector('button[onclick*="setujui("]')?.getAttribute('onclick')||'').match(/'([^']+)'/);
+          td.innerHTML=m?`<input type="checkbox" class="cek-rencana-v1861" data-id="${esc(m[1])}" onchange="togglePilihRencanaV1861('${esc(m[1])}',this.checked)">`:'';
+        }else td.textContent='';
+        tr.prepend(td);
+      });
+
+      if(!document.getElementById('barRencanaV1861')){
+        const bar=document.createElement('div');
+        bar.id='barRencanaV1861';
+        bar.className='bar-rencana-v1861 hidden';
+        bar.innerHTML='<span id="infoRencanaV1861"></span>'+
+          '<button class="btn-green" type="button" onclick="setujuiTerpilihV1861()">Setujui Terpilih</button>';
+        tabel.closest('.table-wrap')?.parentNode?.insertBefore(bar,tabel.closest('.table-wrap'));
+      }
+      perbaruiBarV1861();
+    }catch(e){}
+  }
+  window.pasangCekV1861=pasangCekV1861;
+
+  ['renderPerencanaan','renderAll'].forEach(fn=>{
+    if(typeof window[fn]!=='function')return;
+    const dasar=window[fn];
+    window[fn]=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ requestAnimationFrame(pasangCekV1861); }catch(e){}
+      return hasil;
+    };
+  });
+})();
