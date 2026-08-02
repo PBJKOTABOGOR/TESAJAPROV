@@ -21622,7 +21622,9 @@ window.pilihPerHalV1687=pilihPerHalV1687;
     const dasar=window[fn];
     window[fn]=function(){
       const hasil=dasar.apply(this,arguments);
-      try{ requestAnimationFrame(()=>{ saringBukaKembaliV186(); ubahLabelV186(); }); }catch(e){}
+      /* v187: penataan tombol dipindah ke rapikanTombolV187, yang mengenali
+         paket dari halaman sehingga tidak bergantung keadaan di luar. */
+      try{ requestAnimationFrame(saringBukaKembaliV186); }catch(e){}
       return hasil;
     };
   });
@@ -21742,6 +21744,128 @@ window.pilihPerHalV1687=pilihPerHalV1687;
     window[fn]=function(){
       const hasil=dasar.apply(this,arguments);
       try{ requestAnimationFrame(pasangCekV1861); }catch(e){}
+      return hasil;
+    };
+  });
+})();
+
+
+/* SIMPROV v187 - Menuntaskan penggabungan setujui dan selesaikan.
+   Perbaikan v186 mengandalkan window.__paketAktifV170 untuk mengenali jenis
+   paket. Nilai itu sering kosong, sehingga label tidak berubah dan tombol
+   lama tidak terbuang.
+
+   Sekarang paket dikenali dari elemen yang sedang dirender, sehingga tidak
+   bergantung pada keadaan di luar tampilan. */
+(function(){
+  const rolV187=()=>String(actualRoleV133()||'').toUpperCase();
+  const isAdminV187=()=>rolV187()==='ADMIN';
+  const isBidangV187=()=>rolV187()==='BIDANG';
+
+  /* Paket dikenali dari kode kegiatan yang tercetak di halaman. */
+  function paketHalamanV187(){
+    try{
+      const area=document.getElementById('contentArea'); if(!area)return null;
+      const m=String(area.textContent||'').match(/KEG-\d+-\d+/);
+      if(m&&typeof kegiatanById==='function')return kegiatanById(m[0]);
+    }catch(e){}
+    return null;
+  }
+
+  function sudahSelesaiV187(k){
+    const s=String(k?.status_pencairan||'').trim().toUpperCase().replace(/_/g,' ');
+    return s==='SELESAI';
+  }
+
+  function isHonorV187(k){
+    return String(k?.jenis_non_pengadaan||'').trim().toUpperCase().includes('HONOR');
+  }
+  function isNonPengadaanV187(k){
+    return String(k?.kategori||'').trim().toUpperCase()==='NON PENGADAAN';
+  }
+
+  function rapikanTombolV187(){
+    try{
+      const area=document.getElementById('contentArea'); if(!area)return;
+      const k=paketHalamanV187();
+      const selesai=sudahSelesaiV187(k);
+      const nonPengadaan=k&&isNonPengadaanV187(k);
+      const nonHonor=nonPengadaan&&!isHonorV187(k);
+
+      /* 1. Paket yang sudah selesai tidak lagi menawarkan finalisasi. */
+      if(selesai){
+        area.querySelectorAll('section').forEach(sec=>{
+          const h=sec.querySelector('h3');
+          if(h&&/^Finalisasi Paket$/i.test((h.textContent||'').trim()))sec.remove();
+        });
+      }
+
+      /* 2. Buka Kembali Paket hanya Admin. */
+      if(!isAdminV187()){
+        area.querySelectorAll('button').forEach(b=>{
+          if(/^Buka Kembali Paket$/i.test((b.textContent||'').replace(/\s+/g,' ').trim()))b.remove();
+        });
+      }
+
+      /* 3. Satu tombol utama saja pada pemeriksaan Non Pengadaan. */
+      if(nonPengadaan&&!isBidangV187()&&!selesai){
+        const utama=[];
+        area.querySelectorAll('button').forEach(b=>{
+          const teks=(b.textContent||'').replace(/\s+/g,' ').trim();
+          const aksi=String(b.getAttribute('onclick')||'');
+          if(/approveNonHonorReviewV157|finishNonHonorV156/.test(aksi)
+             ||/^(Setujui Paket|Setujui & Selesaikan|Selesaikan Paket|Simpan & Selesaikan Paket)$/i.test(teks))
+            utama.push(b);
+        });
+        /* Yang pertama dipertahankan sebagai tombol utama, sisanya dibuang
+           agar tidak ada dua tombol yang mengerjakan hal yang sama. */
+        utama.forEach((b,i)=>{
+          if(i>0)return b.remove();
+          b.textContent=nonHonor?'Simpan & Selesaikan Paket':'Setujui & Selesaikan Paket';
+          b.className='btn-green';
+        });
+      }
+
+      /* 4. Tombol Simpan pada pemeriksaan honorarium menyatu dengan penyelesaian. */
+      area.querySelectorAll('.honor-review-actions-v162 button').forEach(b=>{
+        const teks=(b.textContent||'').replace(/\s+/g,' ').trim();
+        if(/^Simpan$/i.test(teks))b.textContent='Simpan & Selesaikan Paket';
+      });
+
+      /* 5. Nama tombol pada Pencatatan Pengadaan. */
+      area.querySelectorAll('button').forEach(b=>{
+        const teks=(b.textContent||'').replace(/\s+/g,' ').trim();
+        if(/^Setujui Nilai Realisasi$/i.test(teks))b.textContent='Setujui & Selesaikan Paket';
+      });
+    }catch(e){}
+  }
+  window.rapikanTombolV187=rapikanTombolV187;
+
+  /* Setelah menyimpan nilai honorarium, paket langsung diselesaikan. */
+  if(typeof saveHonorReviewV162==='function'){
+    const dasar=saveHonorReviewV162;
+    saveHonorReviewV162=async function(idKegiatan){
+      const hasil=await dasar.apply(this,arguments);
+      try{
+        const k=(typeof kegiatanById==='function')?kegiatanById(idKegiatan):null;
+        if(k&&sudahSelesaiV187(k))return hasil;          /* sudah selesai, jangan diulang */
+        if(typeof finishNonHonorV156==='function')await finishNonHonorV156(idKegiatan);
+      }catch(e){
+        alert('Nilai sudah disimpan, tetapi paket belum dapat diselesaikan: '+(e.message||e));
+      }
+      return hasil;
+    };
+    window.saveHonorReviewV162=saveHonorReviewV162;
+  }
+
+  ['renderDetailPencatatanV95','renderProcDetailV16424','renderDetailNonPengadaanV95',
+   'renderNonPengadaanDetailV103','renderNonHonorMultiV156','renderNonHonorMultiV158',
+   'nonHonorControlsV158','renderAll'].forEach(fn=>{
+    if(typeof window[fn]!=='function')return;
+    const dasar=window[fn];
+    window[fn]=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ requestAnimationFrame(rapikanTombolV187); }catch(e){}
       return hasil;
     };
   });
