@@ -208,7 +208,10 @@ async function apiPost(payload){
     const longWriteActions = new Set(["saveAndSubmitPaymentV16420","submitPaymentFastV16420","savePaymentDraftV138","submitPaymentV138","uploadDokumenBatchV16424","verifyPaymentFastV16424",
       /* v170: pemeriksaan dokumen membaca banyak sheet, batas 45 detik terlalu pendek. */
       "verifyNonHonorRealizationDocV158","verifyNonProcDocV103","verifyDokumenV94","verifyDocumentV133",
-      "validateDocsBatchV16413","finishNonHonorPackageV157","uploadNonHonorRealizationDocsV156"]);
+      "validateDocsBatchV16413","finishNonHonorPackageV157","uploadNonHonorRealizationDocsV156",
+      /* v188: penggabungan setujui dan selesaikan menempuh dua tahap di server. */
+      "setujuiDanSelesaikanNonV188","approveNonHonorReviewV157","submitNonHonorReviewV157",
+      "finishNonHonorPackageV156","reopenNonHonorPackageV160","updateStatusPencairan"]);
     const timeoutMs = actionName === "getDashboard" ? 40000 : (longWriteActions.has(actionName) ? 120000 : (isReadOnly ? 24000 : 45000));
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try{
@@ -21573,19 +21576,8 @@ window.pilihPerHalV1687=pilihPerHalV1687;
   }
 
   /* Non Pengadaan: menyetujui paket langsung dilanjutkan penyelesaian. */
-  if(typeof approveNonHonorReviewV157==='function'){
-    const dasar=approveNonHonorReviewV157;
-    approveNonHonorReviewV157=async function(idKegiatan){
-      const hasil=await dasar.apply(this,arguments);
-      try{
-        if(typeof finishNonHonorV156==='function')await finishNonHonorV156(idKegiatan);
-      }catch(e){
-        alert('Paket sudah disetujui, tetapi belum dapat diselesaikan: '+(e.message||e));
-      }
-      return hasil;
-    };
-    window.approveNonHonorReviewV157=approveNonHonorReviewV157;
-  }
+  /* v188: penggabungan dipindah ke satu permintaan server. Rantai dua
+     permintaan di sini menyebabkan waktu tunggu berlipat. */
 
   /* Label tombol disesuaikan agar sesuai dengan yang benar-benar terjadi. */
   function ubahLabelV186(){
@@ -21713,11 +21705,13 @@ window.pilihPerHalV1687=pilihPerHalV1687;
       tabel.dataset.cekV1861='1';
 
       const th=document.createElement('th');
+      th.className='kol-cek-v188';
       th.innerHTML='<input type="checkbox" onchange="pilihSemuaRencanaV1861(this.checked)" title="Pilih semua yang menunggu">';
       tabel.querySelector('thead tr')?.prepend(th);
 
       [...tabel.querySelectorAll('tbody tr')].forEach(tr=>{
         const td=document.createElement('td');
+        td.className='kol-cek-v188';
         if(baris.includes(tr)){
           const m=String(tr.querySelector('button[onclick*="setujui("]')?.getAttribute('onclick')||'').match(/'([^']+)'/);
           td.innerHTML=m?`<input type="checkbox" class="cek-rencana-v1861" data-id="${esc(m[1])}" onchange="togglePilihRencanaV1861('${esc(m[1])}',this.checked)">`:'';
@@ -21842,21 +21836,7 @@ window.pilihPerHalV1687=pilihPerHalV1687;
   window.rapikanTombolV187=rapikanTombolV187;
 
   /* Setelah menyimpan nilai honorarium, paket langsung diselesaikan. */
-  if(typeof saveHonorReviewV162==='function'){
-    const dasar=saveHonorReviewV162;
-    saveHonorReviewV162=async function(idKegiatan){
-      const hasil=await dasar.apply(this,arguments);
-      try{
-        const k=(typeof kegiatanById==='function')?kegiatanById(idKegiatan):null;
-        if(k&&sudahSelesaiV187(k))return hasil;          /* sudah selesai, jangan diulang */
-        if(typeof finishNonHonorV156==='function')await finishNonHonorV156(idKegiatan);
-      }catch(e){
-        alert('Nilai sudah disimpan, tetapi paket belum dapat diselesaikan: '+(e.message||e));
-      }
-      return hasil;
-    };
-    window.saveHonorReviewV162=saveHonorReviewV162;
-  }
+  /* v188: penggabungan dipindah ke satu permintaan server. */
 
   ['renderDetailPencatatanV95','renderProcDetailV16424','renderDetailNonPengadaanV95',
    'renderNonPengadaanDetailV103','renderNonHonorMultiV156','renderNonHonorMultiV158',
@@ -21869,4 +21849,55 @@ window.pilihPerHalV1687=pilihPerHalV1687;
       return hasil;
     };
   });
+})();
+
+
+/* SIMPROV v188 - Satu permintaan untuk menyetujui sekaligus menyelesaikan.
+   Sebelumnya tampilan mengirim dua permintaan berurutan, sehingga waktu
+   tunggunya berlipat dan sering melewati batas. */
+(function(){
+
+  async function setujuiSelesaikanV188(idKegiatan,aksiSetuju,pesanTunggu){
+    showLoading(pesanTunggu||'Menyetujui dan menyelesaikan paket...');
+    try{
+      const r=await apiPost({action:'setujuiDanSelesaikanNonV188',user:currentUser,
+        id_kegiatan:idKegiatan,aksi_setuju:aksiSetuju});
+      if(!r||!r.success)throw new Error((r&&r.message)||'Gagal memproses paket');
+      if(typeof loadDashboard==='function')await loadDashboard(false);
+      if(typeof renderAll==='function')renderAll();
+      alert(r.message||'Paket selesai.');
+      return r;
+    }catch(e){ alert(e.message||String(e)); return null; }
+    finally{ hideLoading(); }
+  }
+  window.setujuiSelesaikanV188=setujuiSelesaikanV188;
+
+  /* Non Pengadaan: satu permintaan menggantikan setujui lalu selesaikan. */
+  if(typeof approveNonHonorReviewV157==='function'){
+    approveNonHonorReviewV157=async function(idKegiatan){
+      if(!confirm('Paket akan disetujui dan langsung diselesaikan. Lanjutkan?'))return;
+      return setujuiSelesaikanV188(idKegiatan,'approveNonHonorReviewV157');
+    };
+    window.approveNonHonorReviewV157=approveNonHonorReviewV157;
+  }
+
+  /* Honorarium: nilai disimpan lebih dulu bila diubah, lalu satu permintaan
+     gabungan. Nilai yang berubah tetap melewati jalur koreksinya sendiri. */
+  if(typeof saveHonorReviewV162==='function'){
+    const dasar=saveHonorReviewV162;
+    saveHonorReviewV162=async function(idKegiatan){
+      const inp=document.getElementById('npKoreksiNilaiV110')
+        ||document.getElementById('npNilaiV96')
+        ||document.getElementById('realNilaiV96');
+      const asli=Number(inp?.dataset?.original||0);
+      const kini=(typeof toNumber==='function')?toNumber(inp?.value):Number(inp?.value||0);
+      const berubah=inp&&asli&&kini&&Math.abs(kini-asli)>0;
+
+      if(berubah)return dasar.apply(this,arguments);   /* koreksi nilai, jalur lama */
+      if(!confirm('Nilai realisasi disetujui apa adanya dan paket langsung diselesaikan. Lanjutkan?'))return;
+      return setujuiSelesaikanV188(idKegiatan,'approveNonHonorReviewV157',
+        'Menyetujui nilai dan menyelesaikan paket...');
+    };
+    window.saveHonorReviewV162=saveHonorReviewV162;
+  }
 })();
