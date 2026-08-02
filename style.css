@@ -3863,3 +3863,22 @@ button.plan-id-link-v161:focus-visible{
 .cari-bidang-v178 input{flex:1;max-width:420px;padding:9px 12px;border:1px solid #d7e4ef;
   border-radius:9px;font-size:13.5px;background:#fff}
 .hasil-cari-v178{font-size:12.5px;color:#667085;white-space:nowrap}
+
+/* SIMPROV v179 - Keterangan total RAB pada Struktur Anggaran */
+.info-rab-v179{display:block;margin-top:5px;font-size:11.5px;color:#667085;line-height:1.45}
+
+/* SIMPROV v180 - Rincian kegiatan per bidang */
+.baris-klik-v180{cursor:pointer}
+.baris-klik-v180:hover{background:#f2f7fc}
+.rincian-card-v180{max-width:900px;width:94vw}
+.rincian-ringkas-v180{display:flex;flex-wrap:wrap;gap:18px;margin:0 0 12px;padding:10px 14px;
+  background:#f4f8fc;border:1px solid #dce9f4;border-radius:9px;font-size:13px;color:#41505f}
+.rincian-ringkas-v180 b{color:#17365b}
+.rincian-saring-v180{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.rincian-table-v180{width:100%;border-collapse:collapse;font-size:13px}
+.rincian-table-v180 th{background:#f4f8fc;text-align:left;padding:9px 10px;font-weight:800;color:#17365b;white-space:nowrap}
+.rincian-table-v180 td{padding:9px 10px;border-top:1px solid #eef2f6;vertical-align:top}
+.rincian-table-v180 td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rincian-nol-v180{opacity:.68}
+.rincian-kode-v180{font-size:11.5px;color:#667085}
+.rincian-status-v180{font-size:12px;color:#5a6472}
