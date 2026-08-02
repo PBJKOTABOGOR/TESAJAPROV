@@ -6164,7 +6164,7 @@ function renderDetailPencatatanV95(k){
   const final = String(k.status_pencairan || '').toUpperCase() === 'SELESAI';
   const approved = String(k.status_perencanaan || '').toUpperCase() === 'DISETUJUI';
   const isBidangSendiri = !canManage() && !isReviewer() && String(k.id_bidang) === String(currentUser?.id_bidang || '');
-  const jenisList = dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const jenisList = dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   const real = (dashboard?.realisasi || []).find(r => String(r.id_kegiatan) === String(k.id_kegiatan));
   let catatHtml = '';
   if(!approved){
@@ -6505,7 +6505,7 @@ function renderDetailPencatatanV95(k){
   const final = String(k.status_pencairan || '').toUpperCase() === 'SELESAI';
   const approved = String(k.status_perencanaan || '').toUpperCase() === 'DISETUJUI';
   const isBidangSendiri = !canManage() && !isReviewer() && String(k.id_bidang) === String(currentUser?.id_bidang || '');
-  const jenisList = dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const jenisList = dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   const real = (dashboard?.realisasi || []).find(r => String(r.id_kegiatan) === String(k.id_kegiatan));
   const pagu = toNumber(k.jumlah);
   let catatHtml = '';
@@ -7102,7 +7102,7 @@ function isOwnerBidangV105(k){
 }
 function blPipelineV105(k, docs, real){
   const up=s=>String(s||'').toUpperCase();
-  const required=dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const required=dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   const mapped=required.map(j=>(docs||[]).find(d=>dokKeyV94(d.jenis_dokumen)===dokKeyV94(j))).filter(Boolean);
   const uploaded=mapped.length>=required.length;
   const repair=mapped.some(d=>['PERBAIKAN','PERBAIKAN DOKUMEN','MENUNGGU VERIFIKASI PERBAIKAN DOKUMEN'].includes(up(d.status_verifikasi)));
@@ -7121,7 +7121,7 @@ function blPipelineV105(k, docs, real){
 function getBlFormV105(k, docs, real){
   const approved=String(k.status_perencanaan||'').toUpperCase()==='DISETUJUI';
   const final=String(k.status_pencairan||'').toUpperCase()==='SELESAI';
-  const required=dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const required=dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   const uploadedCount=required.filter(j=>(docs||[]).some(d=>dokKeyV94(d.jenis_dokumen)===dokKeyV94(j)&&d.url_file)).length;
   const owner=isOwnerBidangV105(k);
   if(!approved) return '<p class="empty">Perencanaan belum disetujui.</p>';
@@ -7139,7 +7139,7 @@ function getBlFormV105(k, docs, real){
 renderDetailPencatatanV95=function(k){
   const docs=(dashboard?.dokumen||[]).filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan));
   const real=(dashboard?.realisasi||[]).find(r=>String(r.id_kegiatan)===String(k.id_kegiatan));
-  const jenisList=dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const jenisList=dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   document.getElementById('contentArea').innerHTML=`${backBarV95(k,k.metode_pemilihan||'Belanja Langsung')}
     <section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Tahapan Pencatatan Pengadaan</h3></div></div>${blPipelineV105(k,docs,real)}</section>
     <section class="panel fade-up premium-panel"><div class="panel-head"><div><h3>Dokumen Wajib</h3></div></div>${dokumenTableV95(k,jenisList,'PGD')}</section>
@@ -8227,7 +8227,7 @@ paketListHtmlV95 = function(list, opts){
 };
 
 function pipelinePencatatanPengadaanV117(k, docs, real){
-  const required=dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const required=dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   const byKey={};
   (docs||[]).forEach(d=>{byKey[dokKeyV94(d.jenis_dokumen)]=d;});
   const picked=required.map(j=>byKey[dokKeyV94(j)]).filter(Boolean);
@@ -8250,7 +8250,7 @@ renderDetailPencatatanV95 = function(k){
   const final=paketSudahSelesaiV117(k);
   const approved=String(k.status_perencanaan||'').toUpperCase()==='DISETUJUI';
   const isBidangSendiri=!canManage()&&!isReviewer()&&String(k.id_bidang)===String(currentUser?.id_bidang||'');
-  const jenisList=dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const jenisList=dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   const docs=(dashboard?.dokumen||[]).filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan));
   const real=(dashboard?.realisasi||[]).find(r=>String(r.id_kegiatan)===String(k.id_kegiatan)&&String(r.status||'').toUpperCase()!=='DIBATALKAN');
   const complete=jenisList.length>0&&jenisList.every(j=>docs.some(d=>dokKeyV94(d.jenis_dokumen)===dokKeyV94(j)&&d.url_file));
@@ -8360,7 +8360,7 @@ paketStatusV95=function(k){
     if(['FINAL','DISETUJUI','SELESAI','SAH'].includes(rs)) return 'MENUNGGU FINALISASI';
     return 'MENUNGGU VERIFIKASI NILAI REALISASI';
   }
-  const jenis=dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const jenis=dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   const docs=(dashboard?.dokumen||[]).filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan));
   const complete=jenis.length>0&&jenis.every(j=>docs.some(d=>dokKeyV94(d.jenis_dokumen)===dokKeyV94(j)&&d.url_file));
   if(complete) return 'MENUNGGU PENCATATAN REALISASI';
@@ -8368,7 +8368,7 @@ paketStatusV95=function(k){
 };
 
 pipelinePencatatanPengadaanV117=function(k,docs,real){
-  const required=dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const required=dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   const byKey={};
   (docs||[]).forEach(d=>{byKey[dokKeyV94(d.jenis_dokumen)]=d;});
   const picked=required.map(j=>byKey[dokKeyV94(j)]).filter(Boolean);
@@ -8392,7 +8392,7 @@ renderDetailPencatatanV95=function(k){
   const final=paketSudahSelesaiV117(k);
   const approved=String(k.status_perencanaan||'').toUpperCase()==='DISETUJUI';
   const isBidangSendiri=!canManage()&&!isReviewer()&&String(k.id_bidang)===String(currentUser?.id_bidang||'');
-  const jenisList=dokumenKetentuanByMetode('BELANJA LANGSUNG');
+  const jenisList=dokumenKetentuanByMetode('BELANJA LANGSUNG',typeof k!=='undefined'?k:null);
   const docs=(dashboard?.dokumen||[]).filter(d=>String(d.id_kegiatan)===String(k.id_kegiatan));
   const real=realisasiPengadaanAktifV120(k.id_kegiatan);
   const complete=jenisList.length>0&&jenisList.every(j=>docs.some(d=>dokKeyV94(d.jenis_dokumen)===dokKeyV94(j)&&d.url_file));
@@ -20901,4 +20901,30 @@ window.pilihPerHalV1687=pilihPerHalV1687;
     return html;
   };
   window.renderPerencanaanRow=renderPerencanaanRow;
+})();
+
+
+/* SIMPROV v175 - Kelengkapan dokumen ikut menyesuaikan sumber harga.
+   v170 menyaring Hasil Survey Harga dari tampilan, tetapi penjaga pencatatan
+   realisasi masih menuntut sepuluh dokumen termasuk survei. Akibatnya paket
+   berbasis Standar Biaya sudah lengkap sembilan dokumen, namun realisasi tetap
+   terkunci.
+
+   dokumenKetentuanByMetode kini menerima kegiatan sebagai argumen kedua. Bila
+   kegiatan memakai Standar Biaya, Hasil Survey Harga dikeluarkan dari daftar,
+   sehingga tampilan dan penjaga memakai daftar yang sama. */
+(function(){
+  if(typeof dokumenKetentuanByMetode!=='function')return;
+  const dasar=dokumenKetentuanByMetode;
+
+  dokumenKetentuanByMetode=function(metode,kegiatan){
+    const daftar=dasar.call(this,metode);
+    try{
+      if(!kegiatan)return daftar;
+      if(typeof pakaiStandarBiayaV170!=='function'||!pakaiStandarBiayaV170(kegiatan))return daftar;
+      return daftar.filter(j=>!/survey\s*harga/i.test(String(j)));
+    }catch(e){}
+    return daftar;
+  };
+  window.dokumenKetentuanByMetode=dokumenKetentuanByMetode;
 })();
