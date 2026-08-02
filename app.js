@@ -19311,7 +19311,9 @@ window.labelPaketV1660=labelPaketV1660;
         return `<div class="sb-card-v96" onclick="pilihSbV96(${i})">
           <div class="sb-huruf-v96">${esc(it.huruf)}</div>
           <div class="sb-info-v96"><b>${esc(it.nama)}</b><small>${esc(it.grup)} &middot; ${esc(it.satuan)}</small></div>
-          <div class="sb-nilai-v96"><b>${nilaiTxt}</b><small>BATAS TERTINGGI</small></div></div>`;
+          <div class="sb-nilai-v96">${(typeof sbAtCostV1671==='function'&&sbAtCostV1671(it))
+            ?'<b>At Cost</b><small>SESUAI KEBUTUHAN</small>'
+            :`<b>${nilaiTxt}</b><small>BATAS TERTINGGI</small>`}</div></div>`;
       }).join('');
       const ket=katRab
         ?`<p class="sb-filter-ket-v1662">Menampilkan standar biaya kategori <b>${esc(katRab)}</b> mengikuti ${esc(rab.kode_rab)}.${disaring?' '+disaring+' tidak sesuai kategori disembunyikan.':''}</p>`
@@ -19373,11 +19375,13 @@ window.labelPaketV1660=labelPaketV1660;
         const r=await apiPost({action:'getStandarBiayaV167',user:currentUser});
         const rows=(r&&r.success)?(r.standar_biaya||[]):[];
         if(rows.length){
+          /* v183: sifat dan penanda At Cost ikut dibawa. Tanpa keduanya,
+             penanda hilang di tampilan dan harga satuan ikut terkunci. */
           terapkanV167(rows.map(x=>({
             huruf:x.huruf||'', grup:x.grup||'', nama:x.nama||'',
             satuan:x.satuan||'', nilai:Number(x.nilai)||0,
             kategori:x.kategori||'', jenis_non_pengadaan:x.jenis_non_pengadaan||'',
-            id_sb:x.id_sb||''
+            id_sb:x.id_sb||'', sifat:x.sifat||'', at_cost:!!x.at_cost
           })));
           window.sbSumberV167='sheet';
         }else{
