@@ -3889,3 +3889,9 @@ button.plan-id-link-v161:focus-visible{
   background:#eef6ee;border:1px solid #cde3cd;border-radius:9px;font-size:13px;color:#12633a}
 .bar-rencana-v1861.hidden{display:none}
 .cek-rencana-v1861{cursor:pointer}
+
+/* SIMPROV v188 - Kolom centang persetujuan sekaligus dibuat ramping.
+   Memakai kelas tersendiri, bukan :has(), agar bekerja di seluruh peramban. */
+th.kol-cek-v188,td.kol-cek-v188{width:34px;min-width:34px;max-width:34px;
+  padding:8px 4px;text-align:center;white-space:nowrap}
+.kol-cek-v188 input[type=checkbox]{width:15px;height:15px;margin:0;vertical-align:middle;cursor:pointer}
