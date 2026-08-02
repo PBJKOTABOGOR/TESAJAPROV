@@ -21357,3 +21357,87 @@ window.pilihPerHalV1687=pilihPerHalV1687;
     window.renderMonitoring=renderMonitoring;
   }
 })();
+
+
+/* SIMPROV v181 - Batas realisasi At Cost mengikuti sisa pagu RAB.
+   Kolom nilai realisasi memakai data-max sebagai batas. Untuk kegiatan At Cost
+   batasnya lebih longgar dari nilai perencanaan, sehingga data-max diperbarui
+   agar layar tidak menolak nilai yang sebenarnya diterima server. */
+(function(){
+  const cacheBatasV181=new Map();
+
+  function isAtCostKegiatanV181(k){
+    return String(k?.sifat_standar||'').trim().toUpperCase()==='AT COST';
+  }
+
+  async function batasV181(idKegiatan){
+    if(cacheBatasV181.has(idKegiatan))return cacheBatasV181.get(idKegiatan);
+    try{
+      const r=await apiPost({action:'batasRealisasiKegiatanV181',user:currentUser,id_kegiatan:idKegiatan});
+      if(r&&r.success){ cacheBatasV181.set(idKegiatan,r); return r; }
+    }catch(e){}
+    return null;
+  }
+  window.invalidasiBatasV181=()=>cacheBatasV181.clear();
+
+  function kegiatanFormV181(){
+    try{
+      const tombol=[...document.querySelectorAll('#contentArea button')]
+        .find(b=>/^Catat Realisasi$|^Simpan Realisasi$/i.test(String(b.textContent||'').trim()));
+      const m=String(tombol?.getAttribute('onclick')||'').match(/'([^']+)'/);
+      if(m&&typeof kegiatanById==='function')return kegiatanById(m[1]);
+    }catch(e){}
+    return null;
+  }
+
+  async function longgarkanBatasV181(){
+    try{
+      const nilai=document.getElementById('blNilaiV94')
+        ||document.getElementById('npNilaiV96')
+        ||document.getElementById('realNilaiV96');
+      if(!nilai)return;
+      const k=kegiatanFormV181();
+      if(!k||!isAtCostKegiatanV181(k))return;          /* hanya At Cost yang dilonggarkan */
+      if(nilai.dataset.batasV181)return;
+
+      const info=await batasV181(k.id_kegiatan);
+      if(!info||!info.at_cost)return;
+      nilai.dataset.batasV181='1';
+      nilai.setAttribute('data-max',String(info.batas));
+      nilai.placeholder='Maks. '+rupiah(info.batas)+' (At Cost)';
+
+      /* Keterangan singkat agar pengguna tahu batasnya berbeda. */
+      if(!nilai.parentNode.querySelector('.ket-atcost-v181')){
+        const s=document.createElement('small');
+        s.className='ket-atcost-v181';
+        s.textContent=info.sisa_rab>0
+          ? `At Cost. Boleh melebihi nilai perencanaan, dibatasi sisa pagu RAB ${info.kode_rab||''} sebesar ${rupiah(info.sisa_rab)}.`
+          : 'At Cost. Sisa pagu RAB sudah habis, sehingga batasnya sama dengan nilai perencanaan.';
+        nilai.parentNode.appendChild(s);
+      }
+    }catch(e){}
+  }
+
+  ['renderDetailPencatatanV95','renderProcDetailV16424','renderDetailNonPengadaanV95',
+   'renderNonPengadaanDetailV103','renderNonHonorMultiV156','renderNonHonorMultiV158']
+    .forEach(fn=>{
+      if(typeof window[fn]!=='function')return;
+      const dasar=window[fn];
+      window[fn]=function(){
+        const hasil=dasar.apply(this,arguments);
+        try{ requestAnimationFrame(longgarkanBatasV181); }catch(e){}
+        return hasil;
+      };
+    });
+
+  /* Batas berubah setelah realisasi tersimpan, jadi cache dibersihkan. */
+  ['catatRealisasiV94','simpanRealisasiV96','catatRealisasiNonV96'].forEach(fn=>{
+    if(typeof window[fn]!=='function')return;
+    const dasar=window[fn];
+    window[fn]=async function(){
+      const hasil=await dasar.apply(this,arguments);
+      cacheBatasV181.clear();
+      return hasil;
+    };
+  });
+})();
