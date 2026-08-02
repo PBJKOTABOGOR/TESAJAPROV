@@ -21139,3 +21139,221 @@ window.pilihPerHalV1687=pilihPerHalV1687;
   };
   window.renderMonitoring=renderMonitoring;
 })();
+
+
+/* SIMPROV v179 - Tiga penyesuaian.
+   1. Struktur Anggaran menampilkan total RAB sebagai pembanding, dan
+      menerangkan bahwa mengosongkan pagu berarti mengikuti RAB.
+   2. Penanda SELESAI juga tampil untuk Admin dan Verifikator, tidak hanya
+      untuk bidang.
+   3. Kolom pagu boleh dikosongkan tanpa dianggap nol. */
+(function(){
+
+  /* ---------- 1. Keterangan total RAB pada Struktur Anggaran ---------- */
+  function infoRabStrukturV179(){
+    try{
+      const area=document.getElementById('contentArea'); if(!area)return;
+      if(String(activeMenu||'')!=='Struktur Anggaran')return;
+      const daftar=(dashboard?.bidangs||dashboard?.bidang||[]);
+      if(!daftar.length)return;
+
+      area.querySelectorAll('input').forEach(inp=>{
+        const id=String(inp.getAttribute('data-id')||inp.id||'');
+        const b=daftar.find(x=>id.includes(String(x.id_bidang)));
+        if(!b)return;
+        const label=(inp.closest('div')?.querySelector('label')?.textContent||'').toLowerCase();
+        if(!label.includes('pagu'))return;
+        if(inp.parentNode.querySelector('.info-rab-v179'))return;
+
+        const totalRab=Number(b.total_rab)||0;
+        const manual=!!b.pagu_manual;
+        const s=document.createElement('small');
+        s.className='info-rab-v179';
+        s.innerHTML=totalRab>0
+          ? `Total RAB ${rupiah(totalRab)}. ${manual
+              ? 'Pagu ditetapkan Admin. Kosongkan untuk kembali mengikuti RAB.'
+              : 'Pagu mengikuti RAB. Isi angka bila ingin menetapkan sendiri.'}`
+          : 'Bidang ini belum memiliki RAB, sehingga pagu memakai angka yang diisi Admin.';
+        inp.parentNode.appendChild(s);
+      });
+    }catch(e){}
+  }
+
+  ['renderStruktur','renderAll'].forEach(fn=>{
+    if(typeof window[fn]!=='function')return;
+    const dasar=window[fn];
+    window[fn]=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ requestAnimationFrame(infoRabStrukturV179); }catch(e){}
+      return hasil;
+    };
+  });
+
+  /* ---------- 2. Penanda SELESAI berlaku untuk semua peran ---------- */
+  if(typeof renderPerencanaanRow==='function'){
+    const dasar=renderPerencanaanRow;
+    renderPerencanaanRow=function(k){
+      let html=dasar.apply(this,arguments);
+      try{
+        const norm=v=>String(v||'').trim().toUpperCase().replace(/_/g,' ');
+        let selesai=norm(k?.status_pencairan)==='SELESAI';
+        if(!selesai&&typeof getPencairanStatus==='function')
+          selesai=norm(getPencairanStatus(k?.id_kegiatan))==='SELESAI';
+        if(!selesai)return html;
+
+        /* Bila kolom aksi hanya berisi tanda hubung atau tombol, ganti penanda. */
+        const penanda='<td class="nowrap aksi-perencanaan-v63"><span class="status-done-pill">SELESAI</span></td>';
+        if(/<td class="nowrap aksi-perencanaan-v63">[\s\S]*?<\/td>/.test(html))
+          return html.replace(/<td class="nowrap aksi-perencanaan-v63">[\s\S]*?<\/td>/,penanda);
+        return html.replace(/<td class="nowrap[^"]*">[\s\S]*?<\/td>\s*<\/tr>\s*$/,penanda+'</tr>');
+      }catch(e){}
+      return html;
+    };
+    window.renderPerencanaanRow=renderPerencanaanRow;
+  }
+
+  /* ---------- 3. Pagu kosong dikirim apa adanya ---------- */
+  if(typeof updateBidang==='function'){
+    const dasarUpdate=updateBidang;
+    window.updateBidang=async function(id){
+      const hasil=await dasarUpdate.apply(this,arguments);
+      try{ if(typeof loadDashboard==='function')await loadDashboard(false); renderAll(); }catch(e){}
+      return hasil;
+    };
+  }
+})();
+
+
+/* SIMPROV v180 - Rincian kegiatan per bidang pada Dashboard Pemeriksaan.
+   Pimpinan yang melihat angka realisasi sering menanyakan kegiatannya apa saja.
+   Pertanyaan itu muncul saat melihat angkanya, sehingga jawabannya diletakkan
+   di tempat angkanya muncul, bukan di menu terpisah.
+
+   Seluruh data diambil dari dashboard yang sudah dimuat, sehingga membuka
+   rincian tidak memanggil server. */
+(function(){
+  let bidangAktifV180=null, saringV180='SEMUA';
+
+  function angkaV180(v){ const n=Number(String(v==null?'':v).replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; }
+
+  function realisasiKegiatanV180(idKegiatan){
+    return (dashboard?.realisasi||[])
+      .filter(r=>String(r.id_kegiatan)===String(idKegiatan)
+        &&String(r.status||'').toUpperCase()!=='DIBATALKAN')
+      .reduce((t,r)=>t+angkaV180(r.nilai_realisasi),0);
+  }
+
+  function kegiatanBidangV180(idBidang){
+    return (dashboard?.perencanaan||[])
+      .filter(k=>String(k.id_bidang)===String(idBidang))
+      .map(k=>{
+        const real=realisasiKegiatanV180(k.id_kegiatan);
+        const status=String(k.status_pencairan||'').trim().toUpperCase().replace(/_/g,' ');
+        return {...k, _real:real, _selesai:status==='SELESAI', _status:status||'BELUM DIPROSES'};
+      })
+      /* Yang sudah ada realisasi di atas, urut dari nilai terbesar.
+         Yang belum di bawah, urut menurut nama agar mudah dicari. */
+      .sort((a,b)=>{
+        if((a._real>0)!==(b._real>0))return a._real>0?-1:1;
+        if(a._real!==b._real)return b._real-a._real;
+        return String(a.nama_kegiatan||'').localeCompare(String(b.nama_kegiatan||''));
+      });
+  }
+
+  /* Diekspos agar dapat diuji tanpa membuka tampilan. */
+  window.__kegiatanBidangV180=kegiatanBidangV180;
+
+  window.saringRincianV180=function(v){ saringV180=v; gambarRincianV180(); };
+
+  function gambarRincianV180(){
+    const isi=document.getElementById('isiRincianV180');
+    if(!isi||!bidangAktifV180)return;
+    const semua=kegiatanBidangV180(bidangAktifV180.id_bidang);
+    const rows=semua.filter(k=>
+      saringV180==='SELESAI'?k._selesai:
+      saringV180==='BELUM'?!k._selesai:true);
+
+    const totalReal=semua.reduce((t,k)=>t+k._real,0);
+    const jmlSelesai=semua.filter(k=>k._selesai).length;
+
+    const baris=rows.map(k=>
+      `<tr class="${k._real>0?'':'rincian-nol-v180'}">`+
+      `<td>${esc(k.nama_kegiatan||'-')}<br><span class="rincian-kode-v180">${esc(k.id_kegiatan||'')}</span></td>`+
+      `<td>${esc(k.kategori||'-')}${k.jenis_non_pengadaan?'<br><span class="rincian-kode-v180">'+esc(k.jenis_non_pengadaan)+'</span>':''}</td>`+
+      `<td class="num">${rupiah(angkaV180(k.jumlah))}</td>`+
+      `<td class="num">${k._real>0?rupiah(k._real):'<span class="nol-v1656">&ndash;</span>'}</td>`+
+      `<td>${k._selesai?'<span class="status-done-pill">SELESAI</span>':'<span class="rincian-status-v180">'+esc(k._status)+'</span>'}</td>`+
+      `</tr>`).join('');
+
+    isi.innerHTML=
+      `<div class="rincian-ringkas-v180">`+
+      `<span>${semua.length} kegiatan</span>`+
+      `<span>${jmlSelesai} selesai</span>`+
+      `<span>Total realisasi <b>${rupiah(totalReal)}</b></span></div>`+
+      `<div class="rincian-saring-v180">`+
+      ['SEMUA','SELESAI','BELUM'].map(v=>
+        `<button class="btn-mini ${saringV180===v?'':'btn-soft'}" onclick="saringRincianV180('${v}')">`+
+        `${v==='SEMUA'?'Semua':v==='SELESAI'?'Sudah selesai':'Belum selesai'}</button>`).join(' ')+
+      `</div>`+
+      `<div class="table-wrap"><table class="rincian-table-v180"><thead><tr>`+
+      `<th>Kegiatan</th><th>Kategori</th><th>Nilai</th><th>Realisasi</th><th>Status</th>`+
+      `</tr></thead><tbody>${baris||'<tr><td colspan="5" class="empty">Tidak ada kegiatan pada saringan ini</td></tr>'}`+
+      `</tbody></table></div>`;
+  }
+
+  window.bukaRincianBidangV180=function(idBidang){
+    const daftar=(dashboard?.rekap||[]);
+    bidangAktifV180=daftar.find(b=>String(b.id_bidang)===String(idBidang))||{id_bidang:idBidang};
+    saringV180='SEMUA';
+
+    let m=document.getElementById('rincianBidangV180');
+    if(!m){ m=document.createElement('div'); m.id='rincianBidangV180'; m.className='modal-backdrop'; document.body.appendChild(m); }
+    m.classList.remove('hidden');
+    const pagu=angkaV180(bidangAktifV180.pagu);
+    m.innerHTML=`<div class="modal-card rincian-card-v180">
+      <div class="modal-head"><div>
+        <h3>${esc(bidangAktifV180.nama_bidang||idBidang)}</h3>
+        <p class="panel-sub">${esc(idBidang)} &middot; Pagu ${rupiah(pagu)}</p></div>
+        <button class="btn-soft" type="button" onclick="tutupRincianV180()">Tutup</button></div>
+      <div id="isiRincianV180"></div></div>`;
+    m.onclick=e=>{ if(e.target===m)tutupRincianV180(); };
+    gambarRincianV180();
+  };
+
+  window.tutupRincianV180=function(){
+    document.getElementById('rincianBidangV180')?.classList.add('hidden');
+    bidangAktifV180=null;
+  };
+
+  /* Baris tabel dibuat dapat diklik setelah render. */
+  function pasangKlikV180(){
+    try{
+      const tabel=document.querySelector('#contentArea .dashboard-table table');
+      if(!tabel)return;
+      const rekap=(dashboard?.rekap||[]);
+      tabel.querySelectorAll('tbody tr').forEach(tr=>{
+        if(tr.dataset.klikV180||tr.querySelector('.empty'))return;
+        const teks=(tr.querySelector('td')?.textContent||'').trim();
+        const b=rekap.find(x=>teks.includes(String(x.id_bidang))||teks.includes(String(x.nama_bidang||'')));
+        if(!b)return;
+        tr.dataset.klikV180='1';
+        tr.classList.add('baris-klik-v180');
+        tr.title='Klik untuk melihat rincian kegiatan';
+        tr.addEventListener('click',ev=>{
+          if(ev.target.closest('button,a'))return;   /* tombol di dalam baris tetap berfungsi */
+          bukaRincianBidangV180(b.id_bidang);
+        });
+      });
+    }catch(e){}
+  }
+
+  if(typeof renderMonitoring==='function'){
+    const dasar=renderMonitoring;
+    renderMonitoring=function(){
+      const hasil=dasar.apply(this,arguments);
+      try{ requestAnimationFrame(pasangKlikV180); }catch(e){}
+      return hasil;
+    };
+    window.renderMonitoring=renderMonitoring;
+  }
+})();
